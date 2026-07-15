@@ -1,19 +1,26 @@
 'use client';
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
-
-// TODO(backend): GET/PATCH /tracker/company/profile and
-// POST /tracker/company/password don't exist yet — this page reads from
-// localStorage (set at login) and simulates a save.
+import axios from 'axios';
+import { api } from '@/lib/api';
 
 const inputClass = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400';
 const labelClass = 'block text-xs font-semibold text-gray-500 mb-1.5';
+
+interface CompanyProfile {
+  company_name: string;
+  contact_phone: string;
+  contact_email: string;
+  gstin: string;
+  status: string;
+}
 
 export default function SettingsPage() {
   const [companyName, setCompanyName] = useState('');
   const [email,        setEmail]        = useState('');
   const [phone,        setPhone]        = useState('');
   const [gstin,        setGstin]        = useState('');
+  const [loading,       setLoading]       = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -22,30 +29,66 @@ export default function SettingsPage() {
   const [savingPassword,  setSavingPassword]  = useState(false);
 
   useEffect(() => {
-    setCompanyName(localStorage.getItem('tracker_company_name') || '');
-    setEmail(localStorage.getItem('tracker_company_email') || '');
+    api.get<CompanyProfile>('/gogoo/tracker/company/profile')
+      .then(({ data }) => {
+        setCompanyName(data.company_name);
+        setEmail(data.contact_email);
+        setPhone(data.contact_phone);
+        setGstin(data.gstin || '');
+      })
+      .catch(() => toast.error('Failed to load profile'))
+      .finally(() => setLoading(false));
   }, []);
 
-  function saveProfile(e: React.FormEvent) {
+  async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
     setSavingProfile(true);
-    setTimeout(() => {
+    try {
+      await api.patch('/gogoo/tracker/company/profile', {
+        company_name: companyName,
+        contact_phone: phone,
+        gstin: gstin || undefined,
+      });
       localStorage.setItem('tracker_company_name', companyName);
+      toast.success('Profile updated');
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        toast.error(body.error || 'Update failed');
+      } else {
+        toast.error('Update failed');
+      }
+    } finally {
       setSavingProfile(false);
-      toast.success('Profile updated (demo — not saved to a backend yet)');
-    }, 400);
+    }
   }
 
-  function savePassword(e: React.FormEvent) {
+  async function savePassword(e: React.FormEvent) {
     e.preventDefault();
     if (!currentPassword || !newPassword) { toast.error('Fill in all password fields'); return; }
     if (newPassword !== confirmPassword) { toast.error('New passwords do not match'); return; }
     setSavingPassword(true);
-    setTimeout(() => {
-      setSavingPassword(false);
+    try {
+      await api.post('/gogoo/tracker/company/password', {
+        old_password: currentPassword,
+        new_password: newPassword,
+      });
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
-      toast.success('Password changed (demo — not saved to a backend yet)');
-    }, 400);
+      toast.success('Password changed');
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        toast.error(body.error || 'Password change failed');
+      } else {
+        toast.error('Password change failed');
+      }
+    } finally {
+      setSavingPassword(false);
+    }
+  }
+
+  if (loading) {
+    return <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>;
   }
 
   return (
