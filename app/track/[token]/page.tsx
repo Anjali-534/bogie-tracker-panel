@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Image from 'next/image';
 import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
 import { STATUS_LABELS, STATUS_STYLES, type OrderStatus, type TrackerOrderEvent } from '@/lib/types';
@@ -68,10 +69,8 @@ export default function PublicTrackingPage() {
       <div className="max-w-lg mx-auto space-y-5">
 
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-indigo-600 mb-3">
-            <span className="text-xl">🚚</span>
-          </div>
-          <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">bogie Tracker</p>
+          <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority className="w-36 h-auto mx-auto mb-3" />
+          <p className="text-xs font-semibold text-orange-500 uppercase tracking-wider">bogie Tracker</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-6">

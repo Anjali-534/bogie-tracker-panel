@@ -196,11 +196,11 @@ export default function NewOrderPage() {
             <h2 className="text-sm font-bold text-gray-900">Driver</h2>
             <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
               <button type="button" onClick={() => setDriverMode('select')}
-                className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'select' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'select' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
                 Registered Driver
               </button>
               <button type="button" onClick={() => { setDriverMode('new'); setDriverId(''); }}
-                className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'new' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'new' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
                 Type New Driver
               </button>
             </div>

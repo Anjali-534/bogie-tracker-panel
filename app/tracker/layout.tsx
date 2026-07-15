@@ -1,6 +1,7 @@
 'use client';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
@@ -41,18 +42,16 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Toaster position="top-right" />
-      {/* Indigo sidebar */}
-      <aside className="w-56 h-screen flex flex-col fixed left-0 top-0 z-30 bg-indigo-600">
+      {/* White sidebar */}
+      <aside className="w-56 h-screen flex flex-col fixed left-0 top-0 z-30 bg-white border-r border-gray-100">
 
         {/* Logo */}
-        <div className="p-5 border-b border-indigo-500">
-          <div className="flex items-center gap-2.5">
-            <span className="text-2xl">🚚</span>
-            <div>
-              <p className="text-white font-bold text-base leading-tight">bogie</p>
-              <p className="text-indigo-100 text-xs font-medium">Tracker Panel</p>
-            </div>
-          </div>
+        <div className="px-5 py-5 border-b border-gray-100">
+          <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority
+            className="w-full h-auto" />
+          <span className="mt-2 inline-block text-[10px] font-bold text-orange-500 bg-orange-50 rounded-full px-2 py-0.5 uppercase tracking-wider">
+            Tracker Panel
+          </span>
         </div>
 
         {/* Nav */}
@@ -63,8 +62,8 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
               href={item.href}
               className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 isActive(item.href)
-                  ? 'bg-white/20 text-white font-semibold'
-                  : 'text-indigo-100 hover:bg-white/10 hover:text-white'
+                  ? 'bg-orange-50 text-orange-500 border-l-[3px] border-orange-500 pl-[9px] font-semibold'
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
               }`}
             >
               <item.icon size={16} className="flex-shrink-0" />
@@ -74,19 +73,19 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
         </nav>
 
         {/* Bottom */}
-        <div className="p-4 border-t border-indigo-500 space-y-2">
+        <div className="p-4 border-t border-gray-100 space-y-2">
           <a
             href="https://gogoo-dashboard-production.up.railway.app"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 text-indigo-100 text-sm hover:text-white transition-colors"
+            className="flex items-center gap-2 text-gray-500 text-sm hover:text-gray-900 transition-colors"
           >
             <ExternalLink size={13} />
             Bogie Master Panel
           </a>
           <button
             onClick={logout}
-            className="flex items-center gap-2 text-indigo-100 text-sm hover:text-white transition-colors w-full"
+            className="flex items-center gap-2 text-red-500 text-sm hover:bg-red-50 rounded-lg px-1 -mx-1 py-1 transition-colors w-full"
           >
             <LogOut size={13} />
             Sign Out
@@ -98,7 +97,7 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
       <div className="ml-56 flex-1 flex flex-col min-h-screen">
         <header className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-3">
-            <div className="w-2 h-2 bg-indigo-600 rounded-full animate-pulse" />
+            <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
             <span className="text-sm text-gray-500 font-medium">Bogie Tracker Panel</span>
           </div>
           <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-3 py-1.5 rounded-full font-semibold">

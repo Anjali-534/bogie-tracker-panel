@@ -31,7 +31,7 @@ export default function Pagination({ page, total, perPage, onChange }: Props) {
               key={i}
               onClick={() => onChange(p)}
               className={`w-8 h-8 rounded-lg text-xs font-semibold transition-colors ${
-                p === page ? 'bg-indigo-600 text-white' : 'hover:bg-gray-100 text-gray-600'
+                p === page ? 'bg-orange-500 text-white' : 'hover:bg-gray-100 text-gray-600'
               }`}
             >{p}</button>
           );

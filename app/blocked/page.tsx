@@ -1,6 +1,7 @@
 'use client';
 import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { clearSession } from '@/lib/api';
 
 const COPY: Record<string, { title: string; body: string; tone: string }> = {
@@ -35,8 +36,8 @@ function BlockedScreenInner() {
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 mb-6">
-          <span className="text-3xl">🚚</span>
+        <div className="inline-flex bg-white rounded-2xl p-4 mb-6">
+          <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority className="w-40 h-auto" />
         </div>
         <div className={`rounded-2xl border p-8 ${copy.tone}`}>
           <h1 className="text-lg font-bold text-white mb-3">{copy.title}</h1>

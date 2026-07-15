@@ -30,11 +30,11 @@ export default function StatusStepper({ status, events }: Props) {
           <div key={step} className="flex gap-4">
             <div className="flex flex-col items-center">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                done ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'
+                done ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-400'
               }`}>
                 {done ? <Check size={14} /> : <span className="text-xs font-bold">{i + 1}</span>}
               </div>
-              {!isLast && <div className={`w-0.5 flex-1 min-h-[2rem] ${i < currentIdx ? 'bg-indigo-600' : 'bg-gray-100'}`} />}
+              {!isLast && <div className={`w-0.5 flex-1 min-h-[2rem] ${i < currentIdx ? 'bg-orange-500' : 'bg-gray-100'}`} />}
             </div>
             <div className="pb-8">
               <p className={`text-sm font-bold ${done ? 'text-gray-900' : 'text-gray-400'}`}>{STATUS_LABELS[step]}</p>

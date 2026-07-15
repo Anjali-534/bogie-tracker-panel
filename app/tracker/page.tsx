@@ -59,7 +59,7 @@ export default function OrdersPage() {
         </div>
         <div className="flex items-center gap-2">
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value as OrderStatus | ''); setPage(1); }}
-            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-indigo-400">
+            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-orange-400">
             {STATUS_FILTERS.map(s => (
               <option key={s || 'all'} value={s}>{s ? STATUS_LABELS[s] : 'All statuses'}</option>
             ))}
@@ -68,7 +68,7 @@ export default function OrdersPage() {
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search company, route, driver, vehicle…"
-              className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400 w-72" />
+              className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 w-72" />
           </div>
           <Link href="/tracker/orders/new" className="flex items-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors">
             <Plus size={14} />New Order
@@ -103,7 +103,7 @@ export default function OrdersPage() {
                 <tr key={o.id} className="border-t border-gray-50 hover:bg-gray-50/50">
                   <td className="px-5 py-3 text-xs text-gray-400 font-medium">{(page - 1) * PER_PAGE + i + 1}</td>
                   <td className="px-5 py-3">
-                    <Link href={`/tracker/orders/${o.id}`} className="font-semibold text-gray-900 text-sm hover:text-indigo-600">{o.booked_for_company_name}</Link>
+                    <Link href={`/tracker/orders/${o.id}`} className="font-semibold text-gray-900 text-sm hover:text-orange-600">{o.booked_for_company_name}</Link>
                     <p className="text-xs text-gray-400">{o.booked_for_phone}</p>
                   </td>
                   <td className="px-5 py-3 text-xs text-gray-600">
@@ -125,7 +125,7 @@ export default function OrdersPage() {
                   <td className="px-5 py-3 text-xs text-gray-500">{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
-                      <Link href={`/tracker/orders/${o.id}`} className="text-xs font-semibold text-indigo-600 hover:text-indigo-800">View</Link>
+                      <Link href={`/tracker/orders/${o.id}`} className="text-xs font-semibold text-orange-600 hover:text-orange-800">View</Link>
                       <button onClick={() => copyTrackingLink(o)} className="text-xs font-semibold text-gray-500 hover:text-gray-800">Copy Link</button>
                     </div>
                   </td>

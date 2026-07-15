@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import { api } from '@/lib/api';
@@ -45,11 +46,10 @@ export default function TrackerLoginPage() {
       <div className="w-full max-w-md">
 
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-600 mb-4">
-            <span className="text-3xl">🚚</span>
+          <div className="inline-flex bg-white rounded-2xl p-4 mb-4">
+            <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority className="w-48 h-auto" />
           </div>
-          <h1 className="text-2xl font-bold text-white">bogie</h1>
-          <p className="text-sm mt-1 font-semibold text-indigo-400">Tracker Panel</p>
+          <p className="text-sm mt-1 font-semibold text-orange-400">Tracker Panel</p>
           <p className="text-xs mt-0.5 text-gray-500">Dispatch Tracking for Your Business</p>
         </div>
 
@@ -64,7 +64,7 @@ export default function TrackerLoginPage() {
                 onChange={e => setEmail(e.target.value)}
                 placeholder="ops@yourcompany.com"
                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white
-                  placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm"
+                  placeholder-gray-500 focus:outline-none focus:border-orange-500 text-sm"
               />
             </div>
             <div>
@@ -75,13 +75,13 @@ export default function TrackerLoginPage() {
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white
-                  placeholder-gray-500 focus:outline-none focus:border-indigo-500 text-sm"
+                  placeholder-gray-500 focus:outline-none focus:border-orange-500 text-sm"
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold
+              className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold
                 py-3 rounded-xl transition-colors mt-2 flex items-center justify-center gap-2 text-sm"
             >
               {loading ? (
@@ -91,7 +91,7 @@ export default function TrackerLoginPage() {
           </form>
 
           <div className="mt-6 pt-4 border-t border-gray-800 text-center">
-            <p className="text-xs text-gray-500">Not yet subscribed? <a href="/signup" className="text-indigo-400 font-semibold">Sign up for Bogie Tracker</a></p>
+            <p className="text-xs text-gray-500">Not yet subscribed? <a href="/signup" className="text-orange-400 font-semibold">Sign up for Bogie Tracker</a></p>
           </div>
         </div>
 
