@@ -26,6 +26,12 @@ export default function NewOrderPage() {
   const [ewayBillNumber,   setEwayBillNumber]   = useState('');
   const [ewayBillFile,     setEwayBillFile]     = useState<File | null>(null);
 
+  const [consigneeName,       setConsigneeName]       = useState('');
+  const [material,            setMaterial]            = useState('');
+  const [quantity,             setQuantity]           = useState('');
+  const [dispatchDatetime,     setDispatchDatetime]   = useState('');
+  const [documentsEnclosed,    setDocumentsEnclosed]  = useState('');
+
   const [driverMode, setDriverMode] = useState<'select' | 'new'>('select');
   const [driverId,    setDriverId]    = useState('');
   const [driverName,  setDriverName]  = useState('');
@@ -85,6 +91,11 @@ export default function NewOrderPage() {
         driver_id: linkedDriverId,
         vehicle_number: vehicleNumber,
         eway_bill_number: ewayBillNumber || undefined,
+        consignee_name: consigneeName || undefined,
+        material: material || undefined,
+        quantity: quantity || undefined,
+        dispatch_datetime: dispatchDatetime ? new Date(dispatchDatetime).toISOString() : undefined,
+        documents_enclosed: documentsEnclosed || undefined,
       });
 
       if (ewayBillFile) {
@@ -150,6 +161,32 @@ export default function NewOrderPage() {
             <div>
               <label className={labelClass}>Dispatch To *</label>
               <input value={dispatchTo} onChange={e => setDispatchTo(e.target.value)} className={inputClass} placeholder="City, State" />
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-sm font-bold text-gray-900">Dispatch Details <span className="text-gray-400 font-normal">(optional)</span></h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Consignee Name</label>
+              <input value={consigneeName} onChange={e => setConsigneeName(e.target.value)} className={inputClass} placeholder="Receiving entity, if different from Booked For" />
+            </div>
+            <div>
+              <label className={labelClass}>Dispatch Date &amp; Time</label>
+              <input type="datetime-local" value={dispatchDatetime} onChange={e => setDispatchDatetime(e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Material</label>
+              <input value={material} onChange={e => setMaterial(e.target.value)} className={inputClass} placeholder="e.g. PFD 96%" />
+            </div>
+            <div>
+              <label className={labelClass}>Quantity</label>
+              <input value={quantity} onChange={e => setQuantity(e.target.value)} className={inputClass} placeholder="e.g. 16.000 MT" />
+            </div>
+            <div className="col-span-2">
+              <label className={labelClass}>Documents Enclosed</label>
+              <input value={documentsEnclosed} onChange={e => setDocumentsEnclosed(e.target.value)} className={inputClass} placeholder="e.g. Invoice, E-Way Bill, LR & COA to Driver" />
             </div>
           </div>
         </section>

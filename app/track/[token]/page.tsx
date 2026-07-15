@@ -17,6 +17,10 @@ interface PublicOrder {
   transporter_phone: string | null;
   driver_name: string | null;
   driver_phone: string | null;
+  consignee_name: string | null;
+  material: string | null;
+  quantity: string | null;
+  dispatch_datetime: string | null;
   events: Pick<TrackerOrderEvent, 'status' | 'note' | 'location' | 'created_at'>[];
 }
 
@@ -86,6 +90,10 @@ export default function PublicTrackingPage() {
             <Field label="Vehicle Number" value={order.vehicle_number} />
             <Field label="Transporter" value={order.transporter_name || '—'} />
             {order.transporter_phone && <Field label="Transporter Phone" value={order.transporter_phone} />}
+            {order.consignee_name && <Field label="Consignee" value={order.consignee_name} />}
+            {order.material && <Field label="Material" value={order.material} />}
+            {order.quantity && <Field label="Quantity" value={order.quantity} />}
+            {order.dispatch_datetime && <Field label="Dispatch Date & Time" value={new Date(order.dispatch_datetime).toLocaleString()} />}
           </div>
 
           <StatusStepper status={order.status} events={order.events} />

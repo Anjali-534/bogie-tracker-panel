@@ -109,6 +109,9 @@ export default function OrdersPage() {
                   <td className="px-5 py-3 text-xs text-gray-600">
                     <p>{o.dispatch_from}</p>
                     <p className="text-gray-400">→ {o.dispatch_to}</p>
+                    {(o.material || o.quantity) && (
+                      <p className="text-gray-400 mt-0.5">{[o.material, o.quantity].filter(Boolean).join(' · ')}</p>
+                    )}
                   </td>
                   <td className="px-5 py-3 text-xs text-gray-600">
                     <p>{o.driver_name || '—'}</p>

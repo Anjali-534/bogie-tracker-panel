@@ -39,6 +39,14 @@ export interface TrackerOrder {
   status: OrderStatus;
   public_tracking_token: string;
   created_at: string;
+
+  // Dispatch details — from the real dispatch sheet, all optional. Orders
+  // created before this feature shipped return null for all five.
+  consignee_name: string | null;
+  material: string | null;
+  quantity: string | null;
+  dispatch_datetime: string | null;
+  documents_enclosed: string | null;
 }
 
 export const STATUS_LABELS: Record<OrderStatus, string> = {

@@ -171,6 +171,15 @@ export default function OrderDetailsPage() {
             <Field label="Transporter Phone" value={order.transporter_phone || '—'} />
           </div>
 
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
+            <h2 className="text-sm font-bold text-gray-900">Dispatch Details</h2>
+            <Field label="Consignee" value={order.consignee_name || '—'} />
+            <Field label="Material" value={order.material || '—'} />
+            <Field label="Quantity" value={order.quantity || '—'} />
+            <Field label="Dispatch Date & Time" value={order.dispatch_datetime ? new Date(order.dispatch_datetime).toLocaleString() : '—'} />
+            <Field label="Documents Enclosed" value={order.documents_enclosed || '—'} />
+          </div>
+
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
             <h2 className="text-sm font-bold text-gray-900">E-way Bill</h2>
             {order.eway_bill_number ? (
