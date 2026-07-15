@@ -1,16 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Upload, X } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
-import { mockDrivers } from '@/lib/mockData';
-
-// TODO(backend): wire this to real endpoints once they exist:
-//   POST /tracker/orders                      -> create the order, returns { id, public_tracking_token }
-//   POST /tracker/orders/:id/eway-bill         -> multipart upload, reuses documents.go's
-//                                                  Cloudinary/local dual-write pattern
-// For now, submit just shows a success toast and routes back to the orders list.
+import axios from 'axios';
+import { api } from '@/lib/api';
+import { type TrackerDriver } from '@/lib/types';
 
 const inputClass = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400';
 const labelClass = 'block text-xs font-semibold text-gray-500 mb-1.5';
@@ -18,6 +14,7 @@ const labelClass = 'block text-xs font-semibold text-gray-500 mb-1.5';
 export default function NewOrderPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [drivers, setDrivers] = useState<TrackerDriver[]>([]);
 
   const [bookedForCompany, setBookedForCompany] = useState('');
   const [bookedForPhone,   setBookedForPhone]   = useState('');
@@ -34,12 +31,16 @@ export default function NewOrderPage() {
   const [driverName,  setDriverName]  = useState('');
   const [driverPhone, setDriverPhone] = useState('');
 
+  useEffect(() => {
+    api.get<TrackerDriver[]>('/gogoo/tracker/drivers')
+      .then(({ data }) => setDrivers(data))
+      .catch(() => toast.error('Failed to load drivers'));
+  }, []);
+
   function selectDriver(id: string) {
     setDriverId(id);
-    const d = mockDrivers.find(x => x.id === id);
+    const d = drivers.find(x => x.id === id);
     if (d) {
-      setDriverName(d.driver_name);
-      setDriverPhone(d.phone);
       if (!transporterName) setTransporterName(d.transporter_name);
       if (!transporterPhone) setTransporterPhone(d.transporter_phone);
       if (!vehicleNumber) setVehicleNumber(d.vehicle_number);
@@ -57,12 +58,57 @@ export default function NewOrderPage() {
       return;
     }
     setSaving(true);
-    // Placeholder: real submit will POST to /tracker/orders, then if
-    // ewayBillFile is set, POST it to /tracker/orders/:id/eway-bill.
-    await new Promise(r => setTimeout(r, 500));
-    setSaving(false);
-    toast.success('Order created (demo — not saved to a backend yet)');
-    router.push('/tracker');
+    try {
+      // "Type New Driver" registers the driver first (so they're on the
+      // roster for future orders too — same as the Drivers page), then
+      // links the order to that new driver_id. The backend only accepts an
+      // existing driver_id on order creation, not free-text driver details.
+      let linkedDriverId: string | undefined = driverMode === 'select' ? (driverId || undefined) : undefined;
+      if (driverMode === 'new') {
+        const { data } = await api.post('/gogoo/tracker/drivers', {
+          driver_name: driverName,
+          phone: driverPhone,
+          vehicle_number: vehicleNumber,
+          transporter_name: transporterName,
+          transporter_phone: transporterPhone,
+        });
+        linkedDriverId = data.id;
+      }
+
+      const { data: order } = await api.post('/gogoo/tracker/orders', {
+        booked_for_company_name: bookedForCompany,
+        booked_for_phone: bookedForPhone,
+        dispatch_from: dispatchFrom,
+        dispatch_to: dispatchTo,
+        transporter_name: transporterName || undefined,
+        transporter_phone: transporterPhone || undefined,
+        driver_id: linkedDriverId,
+        vehicle_number: vehicleNumber,
+        eway_bill_number: ewayBillNumber || undefined,
+      });
+
+      if (ewayBillFile) {
+        const form = new FormData();
+        form.append('file', ewayBillFile);
+        try {
+          await api.post(`/gogoo/tracker/orders/${order.id}/eway-bill`, form);
+        } catch {
+          toast.error('Order created, but e-way bill upload failed — you can retry from the order page');
+        }
+      }
+
+      toast.success('Order created');
+      router.push(`/tracker/orders/${order.id}`);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        toast.error(body.error || 'Failed to create order');
+      } else {
+        toast.error('Connection failed. Try again.');
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -128,7 +174,7 @@ export default function NewOrderPage() {
               <label className={labelClass}>Select Driver</label>
               <select value={driverId} onChange={e => selectDriver(e.target.value)} className={`${inputClass} bg-white`}>
                 <option value="">— Choose a registered driver —</option>
-                {mockDrivers.filter(d => d.is_active).map(d => (
+                {drivers.filter(d => d.is_active).map(d => (
                   <option key={d.id} value={d.id}>{d.driver_name} · {d.vehicle_number}</option>
                 ))}
               </select>

@@ -1,33 +1,42 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
-import { mockOrders, STATUS_LABELS, STATUS_STYLES, type TrackerOrder } from '@/lib/mockData';
+import { STATUS_LABELS, STATUS_STYLES, type OrderStatus, type TrackerOrderEvent } from '@/lib/types';
 
-// TODO(backend): replace with
-// `fetch(`${API}/public/tracker/orders/${token}`)` (no auth header — this
-// route is public, guarded only by the unguessable token) once it exists.
-// Poll on an interval like the website's /book/track/[id] page does
-// (TrackingView.tsx, POLL_MS = 4000) so status updates show up without a
-// manual refresh.
-//
-// Fields intentionally NOT shown here, per the tenant-isolation decision for
-// this feature: booked_for_phone (the tracker company's internal contact).
-// Only shipment-relevant contacts (driver, transporter) are shown.
+const API = process.env.NEXT_PUBLIC_API_URL || 'https://gogobackend-production.up.railway.app';
+const POLL_MS = 4000;
+
+interface PublicOrder {
+  status: OrderStatus;
+  dispatch_from: string;
+  dispatch_to: string;
+  vehicle_number: string;
+  transporter_name: string | null;
+  transporter_phone: string | null;
+  driver_name: string | null;
+  driver_phone: string | null;
+  events: Pick<TrackerOrderEvent, 'status' | 'note' | 'location' | 'created_at'>[];
+}
 
 export default function PublicTrackingPage() {
   const { token } = useParams<{ token: string }>();
-  const [order, setOrder] = useState<TrackerOrder | null | undefined>(undefined);
+  const [order, setOrder] = useState<PublicOrder | null | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      await new Promise(r => setTimeout(r, 300));
-      if (cancelled) return;
-      setOrder(mockOrders.find(o => o.public_tracking_token === token) ?? null);
+      try {
+        const { data } = await axios.get<PublicOrder>(`${API}/gogoo/public/tracker/orders/${token}`);
+        if (!cancelled) setOrder(data);
+      } catch {
+        if (!cancelled) setOrder(null);
+      }
     }
     load();
-    return () => { cancelled = true; };
+    const interval = setInterval(load, POLL_MS);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [token]);
 
   if (order === undefined) {

@@ -1,9 +1,9 @@
 import { Check } from 'lucide-react';
-import { STATUS_LABELS, STATUS_STEPS, type OrderStatus, type TrackerOrderEvent } from '@/lib/mockData';
+import { STATUS_LABELS, STATUS_STEPS, type OrderStatus, type TrackerOrderEvent } from '@/lib/types';
 
 interface Props {
   status: OrderStatus;
-  events: TrackerOrderEvent[];
+  events: Pick<TrackerOrderEvent, 'status' | 'note' | 'location' | 'created_at'>[];
 }
 
 // Shared stepper used by both the company's Order Details page and the

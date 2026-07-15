@@ -4,21 +4,36 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Link2, FileText } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
+import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
-import { mockOrders, STATUS_LABELS, STATUS_STYLES, STATUS_STEPS, type TrackerOrder, type OrderStatus } from '@/lib/mockData';
-
-// TODO(backend): replace mockOrders lookup with
-// `axios.get(`${API}/tracker/orders/${id}`, { headers: hdrs() })`, and wire
-// the "Advance Status" button to `POST /tracker/orders/:id/events`.
+import { api } from '@/lib/api';
+import {
+  STATUS_LABELS, STATUS_STYLES, STATUS_STEPS, TERMINAL_STATUSES,
+  type TrackerOrder, type TrackerOrderEvent, type OrderStatus,
+} from '@/lib/types';
 
 export default function OrderDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [order, setOrder] = useState<TrackerOrder | null | undefined>(undefined);
+  const [order,     setOrder]     = useState<TrackerOrder | null | undefined>(undefined);
+  const [events,    setEvents]    = useState<TrackerOrderEvent[]>([]);
+  const [updating,  setUpdating]  = useState(false);
+  const [note,      setNote]      = useState('');
+  const [location,  setLocation]  = useState('');
+  const [addingNote, setAddingNote] = useState(false);
 
   const load = useCallback(async () => {
-    await new Promise(r => setTimeout(r, 200));
-    setOrder(mockOrders.find(o => o.id === id) ?? null);
+    try {
+      const { data } = await api.get(`/gogoo/tracker/orders/${id}`);
+      setOrder(data.order);
+      setEvents(data.events);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        setOrder(null);
+      } else {
+        toast.error('Failed to load order');
+      }
+    }
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
@@ -30,17 +45,42 @@ export default function OrderDetailsPage() {
     toast.success('Tracking link copied');
   }
 
-  function advanceStatus() {
+  async function setStatus(next: OrderStatus) {
     if (!order) return;
-    const currentIdx = STATUS_STEPS.indexOf(order.status);
-    const next = STATUS_STEPS[currentIdx + 1] as OrderStatus | undefined;
-    if (!next) return;
-    setOrder({
-      ...order,
-      status: next,
-      events: [...order.events, { id: `ev-${Date.now()}`, status: next, created_at: new Date().toISOString() }],
-    });
-    toast.success(`Marked as ${STATUS_LABELS[next]} (demo — not saved to a backend yet)`);
+    setUpdating(true);
+    try {
+      await api.patch(`/gogoo/tracker/orders/${order.id}`, { status: next });
+      toast.success(`Marked as ${STATUS_LABELS[next]}`);
+      await load();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        toast.error(body.error || 'Status update failed');
+      } else {
+        toast.error('Status update failed');
+      }
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  async function addEvent(e: React.FormEvent) {
+    e.preventDefault();
+    if (!order || (!note && !location)) return;
+    setAddingNote(true);
+    try {
+      await api.post(`/gogoo/tracker/orders/${order.id}/events`, {
+        note: note || undefined,
+        location: location || undefined,
+      });
+      setNote(''); setLocation('');
+      toast.success('Update added');
+      await load();
+    } catch {
+      toast.error('Failed to add update');
+    } finally {
+      setAddingNote(false);
+    }
   }
 
   if (order === undefined) {
@@ -56,6 +96,7 @@ export default function OrderDetailsPage() {
     );
   }
 
+  const isTerminal = TERMINAL_STATUSES.includes(order.status);
   const nextStatus = STATUS_STEPS[STATUS_STEPS.indexOf(order.status) + 1];
 
   return (
@@ -78,18 +119,44 @@ export default function OrderDetailsPage() {
           <button onClick={copyTrackingLink} className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
             <Link2 size={14} />Copy Tracking Link
           </button>
-          {nextStatus && order.status !== 'cancelled' && (
-            <button onClick={advanceStatus} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors">
+          {!isTerminal && nextStatus && (
+            <button onClick={() => setStatus(nextStatus)} disabled={updating} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors">
               Mark as {STATUS_LABELS[nextStatus]}
+            </button>
+          )}
+          {!isTerminal && (
+            <button onClick={() => setStatus('cancelled')} disabled={updating} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors">
+              Cancel Order
             </button>
           )}
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-5">
-        <div className="col-span-2 bg-white rounded-2xl border border-gray-100 p-6">
-          <h2 className="text-sm font-bold text-gray-900 mb-5">Status Timeline</h2>
-          <StatusStepper status={order.status} events={order.events} />
+        <div className="col-span-2 space-y-5">
+          <div className="bg-white rounded-2xl border border-gray-100 p-6">
+            <h2 className="text-sm font-bold text-gray-900 mb-5">Status Timeline</h2>
+            <StatusStepper status={order.status} events={events} />
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 p-6">
+            <h2 className="text-sm font-bold text-gray-900 mb-4">Add Update</h2>
+            <form onSubmit={addEvent} className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5">Location</label>
+                <input value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Vadodara, Gujarat"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400" />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5">Note</label>
+                <input value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Crossed toll"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-400" />
+              </div>
+              <button type="submit" disabled={addingNote || (!note && !location)} className="px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 transition-colors">
+                {addingNote ? 'Adding…' : 'Add'}
+              </button>
+            </form>
+          </div>
         </div>
 
         <div className="space-y-5">

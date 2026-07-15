@@ -5,26 +5,32 @@ import { Plus, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Pagination from '@/components/Pagination';
 import { ScrollBody } from '@/components/TableControls';
-import { mockOrders, STATUS_LABELS, STATUS_STYLES, type TrackerOrder } from '@/lib/mockData';
-
-// TODO(backend): replace with `axios.get(`${API}/tracker/orders`, { headers: hdrs() })`
-// once GET /tracker/orders exists — see the ambulance-panel NGO page for the
-// exact axios + hdrs() pattern this should follow.
+import { api } from '@/lib/api';
+import { STATUS_LABELS, STATUS_STYLES, type TrackerOrder, type OrderStatus } from '@/lib/types';
 
 const PER_PAGE = 12;
+const STATUS_FILTERS: (OrderStatus | '')[] = ['', 'created', 'dispatched', 'in_transit', 'delivered', 'cancelled'];
 
 export default function OrdersPage() {
-  const [orders,  setOrders]  = useState<TrackerOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search,  setSearch]  = useState('');
-  const [page,    setPage]    = useState(1);
+  const [orders,       setOrders]       = useState<TrackerOrder[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [search,       setSearch]       = useState('');
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('');
+  const [page,         setPage]         = useState(1);
 
   const load = useCallback(async () => {
-    // Simulated network latency so the loading state is visible during review.
-    await new Promise(r => setTimeout(r, 300));
-    setOrders(mockOrders);
-    setLoading(false);
-  }, []);
+    setLoading(true);
+    try {
+      const { data } = await api.get<TrackerOrder[]>('/gogoo/tracker/orders', {
+        params: statusFilter ? { status: statusFilter } : undefined,
+      });
+      setOrders(data);
+    } catch {
+      toast.error('Failed to load orders');
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -52,6 +58,12 @@ export default function OrdersPage() {
           <p className="text-xs text-gray-400">{orders.length} dispatch orders</p>
         </div>
         <div className="flex items-center gap-2">
+          <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value as OrderStatus | ''); setPage(1); }}
+            className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-indigo-400">
+            {STATUS_FILTERS.map(s => (
+              <option key={s || 'all'} value={s}>{s ? STATUS_LABELS[s] : 'All statuses'}</option>
+            ))}
+          </select>
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
