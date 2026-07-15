@@ -91,7 +91,7 @@ export default function OrderDetailsPage() {
       <div className="p-16 text-center">
         <p className="text-3xl mb-2">🔍</p>
         <p className="text-gray-500 mb-4">Order not found</p>
-        <button onClick={() => router.push('/tracker')} className="text-orange-600 font-semibold text-sm">Back to Orders</button>
+        <button onClick={() => router.push('/tracker/orders')} className="text-orange-600 font-semibold text-sm">Back to Orders</button>
       </div>
     );
   }
@@ -104,7 +104,7 @@ export default function OrderDetailsPage() {
       <Toaster position="top-right" />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link href="/tracker" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+          <Link href="/tracker/orders" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
             <ArrowLeft size={18} className="text-gray-600" />
           </Link>
           <div>

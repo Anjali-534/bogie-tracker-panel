@@ -126,7 +126,7 @@ export default function NewOrderPage() {
     <div className="max-w-3xl space-y-5">
       <Toaster position="top-right" />
       <div className="flex items-center gap-3">
-        <Link href="/tracker" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+        <Link href="/tracker/orders" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
           <ArrowLeft size={18} className="text-gray-600" />
         </Link>
         <div>
@@ -270,7 +270,7 @@ export default function NewOrderPage() {
         </section>
 
         <div className="pt-2 flex gap-3">
-          <Link href="/tracker" className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors text-center">Cancel</Link>
+          <Link href="/tracker/orders" className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors text-center">Cancel</Link>
           <button type="submit" disabled={saving} className="flex-1 py-3 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors">
             {saving ? 'Creating…' : 'Create Order'}
           </button>
