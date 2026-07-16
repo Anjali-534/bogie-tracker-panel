@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Link2, FileText } from 'lucide-react';
+import { ArrowLeft, Link2, FileText, MessageCircle } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
@@ -65,6 +65,24 @@ export default function OrderDetailsPage() {
     const url = `${window.location.origin}/track/${order.public_tracking_token}`;
     navigator.clipboard.writeText(url);
     toast.success('Tracking link copied');
+  }
+
+  function copyDriverLink() {
+    if (!order?.driver_tracking_token) return;
+    const url = `${window.location.origin}/drive/${order.driver_tracking_token}`;
+    navigator.clipboard.writeText(url);
+    toast.success('Driver link copied');
+  }
+
+  function whatsAppDriverLink() {
+    if (!order?.driver_tracking_token || !order.driver_phone) return;
+    const url = `${window.location.origin}/drive/${order.driver_tracking_token}`;
+    const digits = order.driver_phone.replace(/\D/g, '');
+    const waNumber = digits.length === 10 ? `91${digits}` : digits;
+    const message =
+      `नमस्ते! कृपया अपनी लोकेशन शेयर करने के लिए यह लिंक खोलें: ${url}\n\n` +
+      `Hi! Please open this link to share your live location for this delivery: ${url}`;
+    window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   }
 
   async function setStatus(next: OrderStatus) {
@@ -216,6 +234,23 @@ export default function OrderDetailsPage() {
         </div>
 
         <div className="space-y-5">
+          {order.driver_tracking_token && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+              <h2 className="text-sm font-bold text-gray-900">Driver Tracking Link</h2>
+              <p className="text-xs text-gray-400">Share this link with the driver so they can send their live location.</p>
+              <div className="flex flex-col gap-2">
+                <button onClick={copyDriverLink} className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                  <Link2 size={14} />Copy Driver Link
+                </button>
+                {order.driver_phone && (
+                  <button onClick={whatsAppDriverLink} className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors">
+                    <MessageCircle size={14} />Send via WhatsApp
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
             <h2 className="text-sm font-bold text-gray-900">Order Details</h2>
             <Field label="Booked For" value={order.booked_for_company_name} />
