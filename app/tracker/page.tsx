@@ -16,18 +16,14 @@ interface CompanyProfile {
 }
 
 export default function OverviewPage() {
-  const [companyName, setCompanyName] = useState('');
+  const [companyName, setCompanyName] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return window.localStorage.getItem('tracker_company_name') ?? '';
+  });
   const [orders,  setOrders]  = useState<TrackerOrder[] | null>(null);
   const [drivers, setDrivers] = useState<TrackerDriver[] | null>(null);
 
   useEffect(() => {
-    const storedName = typeof window !== 'undefined'
-      ? localStorage.getItem('tracker_company_name')
-      : '';
-    if (storedName) {
-      setCompanyName(storedName);
-    }
-
     api.get<CompanyProfile>('/gogoo/tracker/company/profile')
       .then(({ data }) => {
         setCompanyName(data.company_name);
