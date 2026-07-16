@@ -4,7 +4,11 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
-import { STATUS_LABELS, STATUS_STYLES, type OrderStatus, type TrackerOrderEvent } from '@/lib/types';
+import TrackingMap from '@/components/TrackingMap';
+import {
+  STATUS_LABELS, STATUS_STYLES, STATUS_STEPS,
+  type OrderStatus, type TrackerOrderEvent, type TrackerLocationPing,
+} from '@/lib/types';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://gogobackend-production.up.railway.app';
 const POLL_MS = 4000;
@@ -23,6 +27,10 @@ interface PublicOrder {
   quantity: string | null;
   dispatch_datetime: string | null;
   events: Pick<TrackerOrderEvent, 'status' | 'note' | 'location' | 'created_at'>[];
+  last_lat: number | null;
+  last_lng: number | null;
+  last_location_at: string | null;
+  location_pings: TrackerLocationPing[];
 }
 
 export default function PublicTrackingPage() {
@@ -97,6 +105,15 @@ export default function PublicTrackingPage() {
 
           <StatusStepper status={order.status} events={order.events} />
         </div>
+
+        {STATUS_STEPS.indexOf(order.status) >= STATUS_STEPS.indexOf('dispatched') && (
+          <TrackingMap
+            lastLat={order.last_lat}
+            lastLng={order.last_lng}
+            lastLocationAt={order.last_location_at}
+            pings={order.location_pings}
+          />
+        )}
 
         <p className="text-center text-[11px] text-gray-400">
           Tracked with bogie Tracker · Aggarwal Publicity and Marketing Pvt. Ltd.

@@ -6,17 +6,21 @@ import { ArrowLeft, Link2, FileText } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
+import TrackingMap from '@/components/TrackingMap';
 import { api } from '@/lib/api';
 import {
-  STATUS_LABELS, STATUS_STYLES, TERMINAL_STATUSES, STATUS_RADIO_OPTIONS,
-  type TrackerOrder, type TrackerOrderEvent, type OrderStatus,
+  STATUS_LABELS, STATUS_STYLES, STATUS_STEPS, TERMINAL_STATUSES, STATUS_RADIO_OPTIONS,
+  type TrackerOrder, type TrackerOrderEvent, type OrderStatus, type TrackerLocationPing,
 } from '@/lib/types';
+
+const MAP_POLL_MS = 15000;
 
 export default function OrderDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [order,     setOrder]     = useState<TrackerOrder | null | undefined>(undefined);
   const [events,    setEvents]    = useState<TrackerOrderEvent[]>([]);
+  const [pings,     setPings]     = useState<TrackerLocationPing[]>([]);
   const [updating,  setUpdating]  = useState(false);
   const [note,      setNote]      = useState('');
   const [location,  setLocation]  = useState('');
@@ -28,6 +32,7 @@ export default function OrderDetailsPage() {
       const { data } = await api.get(`/gogoo/tracker/orders/${id}`);
       setOrder(data.order);
       setEvents(data.events);
+      setPings(data.location_pings || []);
       if (STATUS_RADIO_OPTIONS.includes(data.order.status)) {
         setSelectedStatus(data.order.status);
       }
@@ -41,6 +46,19 @@ export default function OrderDetailsPage() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Keep the map fresh while the order is actively moving. Polling stops once
+  // delivered — the map still renders the last known position, just frozen.
+  useEffect(() => {
+    if (!order) return;
+    const idx = STATUS_STEPS.indexOf(order.status);
+    const dispatchedIdx = STATUS_STEPS.indexOf('dispatched');
+    const deliveredIdx = STATUS_STEPS.indexOf('delivered');
+    const activelyTracking = idx >= dispatchedIdx && idx < deliveredIdx;
+    if (!activelyTracking) return;
+    const t = setInterval(load, MAP_POLL_MS);
+    return () => clearInterval(t);
+  }, [order?.status, load]);
 
   function copyTrackingLink() {
     if (!order) return;
@@ -101,6 +119,7 @@ export default function OrderDetailsPage() {
   }
 
   const isTerminal = TERMINAL_STATUSES.includes(order.status);
+  const showMap = STATUS_STEPS.indexOf(order.status) >= STATUS_STEPS.indexOf('dispatched');
 
   return (
     <div className="max-w-4xl space-y-5">
@@ -132,6 +151,15 @@ export default function OrderDetailsPage() {
 
       <div className="grid grid-cols-3 gap-5">
         <div className="col-span-2 space-y-5">
+          {showMap && (
+            <TrackingMap
+              lastLat={order.last_lat}
+              lastLng={order.last_lng}
+              lastLocationAt={order.last_location_at}
+              pings={pings}
+            />
+          )}
+
           {!isTerminal && (
             <div className="bg-white rounded-2xl border border-gray-100 p-6">
               <h2 className="text-sm font-bold text-gray-900 mb-4">Update Status</h2>
