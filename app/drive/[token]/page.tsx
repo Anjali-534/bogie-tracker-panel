@@ -245,6 +245,7 @@ export default function DriverSharePage() {
                 markers={mapMarkers}
                 plannedRoute={plannedRoute}
                 fitToMarkers
+                fitTrigger={mapExpanded ? 1 : 0}
                 onMapReady={(m) => { mapObjRef.current = m; }}
                 className={mapExpanded ? 'w-full h-full' : 'w-full h-52 rounded-xl overflow-hidden'}
               />

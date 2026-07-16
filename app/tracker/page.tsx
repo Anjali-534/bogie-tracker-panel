@@ -21,11 +21,13 @@ export default function OverviewPage() {
   const [drivers, setDrivers] = useState<TrackerDriver[] | null>(null);
 
   useEffect(() => {
-    // Show the last-known name from login/settings immediately, then swap to
-    // the fresh server value once it lands — the stored copy can go stale
-    // (e.g. renamed elsewhere), so it's a placeholder, not the source of truth.
-    const stored = localStorage.getItem('tracker_company_name');
-    if (stored) setCompanyName(stored);
+    const storedName = typeof window !== 'undefined'
+      ? localStorage.getItem('tracker_company_name')
+      : '';
+    if (storedName) {
+      setCompanyName(storedName);
+    }
+
     api.get<CompanyProfile>('/gogoo/tracker/company/profile')
       .then(({ data }) => {
         setCompanyName(data.company_name);

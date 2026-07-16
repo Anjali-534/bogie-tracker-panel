@@ -15,6 +15,7 @@ type OlaMapProps = {
   route?: [number, number][]; // [lng, lat][] — GeoJSON LineString (solid orange — actual trail)
   plannedRoute?: [number, number][]; // [lng, lat][] — dashed lighter line under the trail
   fitToMarkers?: boolean;
+  fitTrigger?: number;
   className?: string;
   onMapReady?: (map: maplibregl.Map) => void;
 };
@@ -40,17 +41,20 @@ export default function OlaMap({
   route,
   plannedRoute,
   fitToMarkers = false,
+  fitTrigger = 0,
   className = "w-full h-80 rounded-2xl overflow-hidden",
   onMapReady,
 }: OlaMapProps) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
+  const latestMarkersRef = useRef<OlaMarker[]>(markers);
+  const latestPlannedRouteRef = useRef<[number, number][] | undefined>(plannedRoute);
   // isStyleLoaded() is unreliable around the load event (can be true before
   // our load handler has added the sources, or transiently false after it),
   // so track readiness ourselves and queue updates that arrive too early.
   const loadedRef = useRef(false);
-  const pendingRef = useRef<{ markers?: () => void; route?: () => void; planned?: () => void }>({});
+  const pendingRef = useRef<{ markers?: () => void; route?: () => void; planned?: () => void; fit?: () => void }>({});
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
@@ -90,6 +94,7 @@ export default function OlaMap({
       pendingRef.current.markers?.();
       pendingRef.current.route?.();
       pendingRef.current.planned?.();
+      pendingRef.current.fit?.();
       pendingRef.current = {};
       onMapReady?.(map);
     });
@@ -99,14 +104,17 @@ export default function OlaMap({
   }, []);
 
   useEffect(() => {
+    latestMarkersRef.current = markers;
+    latestPlannedRouteRef.current = plannedRoute;
+  }, [markers, plannedRoute]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const update = () => {
       markersRef.current.forEach(m => m.remove());
       markersRef.current = [];
-      const bounds = new maplibregl.LngLatBounds();
-      let count = 0;
-      markers.forEach(m => {
+      latestMarkersRef.current.forEach(m => {
         if (m.lng == null || m.lat == null) return;
         const el = document.createElement("div");
         el.style.cssText = `width:28px;height:28px;border-radius:50%;background:${m.color || "#FF6B2B"};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:800`;
@@ -115,22 +123,33 @@ export default function OlaMap({
         if (m.popup) marker.setPopup(new maplibregl.Popup({ offset: 16 }).setHTML(m.popup));
         marker.addTo(map);
         markersRef.current.push(marker);
+      });
+    };
+    if (loadedRef.current) update(); else pendingRef.current.markers = update;
+  }, [JSON.stringify(markers)]);
+
+  useEffect(() => {
+    if (!fitToMarkers) return;
+    const map = mapRef.current;
+    const fitVisibleMarkers = () => {
+      if (!map) return;
+      const bounds = new maplibregl.LngLatBounds();
+      let count = 0;
+      latestMarkersRef.current.forEach(m => {
+        if (m.lng == null || m.lat == null) return;
         bounds.extend([m.lng, m.lat]);
         count++;
       });
-      // A curving route can leave the pins' bounding box — include it in the
-      // fit so the whole planned line stays on screen.
-      if (plannedRoute && plannedRoute.length >= 2) {
-        plannedRoute.forEach(p => bounds.extend(p));
-        count += plannedRoute.length;
+      if (latestPlannedRouteRef.current && latestPlannedRouteRef.current.length >= 2) {
+        latestPlannedRouteRef.current.forEach(p => bounds.extend(p));
+        count += latestPlannedRouteRef.current.length;
       }
-      if (fitToMarkers && count > 0) {
-        if (count === 1) map.easeTo({ center: bounds.getCenter(), zoom: 14, duration: 500 });
-        else map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 500 });
-      }
+      if (count === 0) return;
+      if (count === 1) map.easeTo({ center: bounds.getCenter(), zoom: 14, duration: 500 });
+      else map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 500 });
     };
-    if (loadedRef.current) update(); else pendingRef.current.markers = update;
-  }, [JSON.stringify(markers), fitToMarkers, JSON.stringify(plannedRoute)]);
+    if (loadedRef.current) fitVisibleMarkers(); else pendingRef.current.fit = fitVisibleMarkers;
+  }, [fitToMarkers, fitTrigger]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -160,5 +179,40 @@ export default function OlaMap({
     if (loadedRef.current) update(); else pendingRef.current.planned = update;
   }, [JSON.stringify(plannedRoute)]);
 
-  return <div ref={ref} className={className} />;
+  return (
+    <div className="relative">
+      <div ref={ref} className={className} />
+      <button
+        type="button"
+        onClick={() => {
+          const map = mapRef.current;
+          if (!map) return;
+          const bounds = new maplibregl.LngLatBounds();
+          let count = 0;
+          latestMarkersRef.current.forEach(m => {
+            if (m.lng == null || m.lat == null) return;
+            bounds.extend([m.lng, m.lat]);
+            count++;
+          });
+          if (latestPlannedRouteRef.current && latestPlannedRouteRef.current.length >= 2) {
+            latestPlannedRouteRef.current.forEach(p => bounds.extend(p));
+            count += latestPlannedRouteRef.current.length;
+          }
+          if (count === 0) return;
+          if (count === 1) map.easeTo({ center: bounds.getCenter(), zoom: 14, duration: 500 });
+          else map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 500 });
+        }}
+        aria-label="Recenter map"
+        className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white/95 shadow-sm backdrop-blur"
+      >
+        <svg viewBox="0 0 24 24" className="h-4 w-4 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="6" />
+          <path d="M12 2v3" />
+          <path d="M12 19v3" />
+          <path d="M2 12h3" />
+          <path d="M19 12h3" />
+        </svg>
+      </button>
+    </div>
+  );
 }
