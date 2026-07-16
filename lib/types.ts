@@ -55,6 +55,14 @@ export interface TrackerOrder {
   last_lat: number | null;
   last_lng: number | null;
   last_location_at: string | null;
+
+  // Route endpoint coordinates — set only when the address was picked from
+  // Ola Places autocomplete or "use current location"; null for manually
+  // typed addresses and all pre-existing orders.
+  dispatch_from_lat: number | null;
+  dispatch_from_lng: number | null;
+  dispatch_to_lat: number | null;
+  dispatch_to_lng: number | null;
 }
 
 export interface TrackerLocationPing {

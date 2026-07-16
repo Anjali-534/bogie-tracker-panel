@@ -175,6 +175,10 @@ export default function OrderDetailsPage() {
               lastLng={order.last_lng}
               lastLocationAt={order.last_location_at}
               pings={pings}
+              fromLat={order.dispatch_from_lat}
+              fromLng={order.dispatch_from_lng}
+              toLat={order.dispatch_to_lat}
+              toLng={order.dispatch_to_lng}
             />
           )}
 

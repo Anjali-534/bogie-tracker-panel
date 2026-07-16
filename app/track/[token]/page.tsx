@@ -31,6 +31,10 @@ interface PublicOrder {
   last_lng: number | null;
   last_location_at: string | null;
   location_pings: TrackerLocationPing[];
+  dispatch_from_lat: number | null;
+  dispatch_from_lng: number | null;
+  dispatch_to_lat: number | null;
+  dispatch_to_lng: number | null;
 }
 
 export default function PublicTrackingPage() {
@@ -112,6 +116,10 @@ export default function PublicTrackingPage() {
             lastLng={order.last_lng}
             lastLocationAt={order.last_location_at}
             pings={order.location_pings}
+            fromLat={order.dispatch_from_lat}
+            fromLng={order.dispatch_from_lng}
+            toLat={order.dispatch_to_lat}
+            toLng={order.dispatch_to_lng}
           />
         )}
 

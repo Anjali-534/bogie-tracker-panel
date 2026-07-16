@@ -7,6 +7,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import { api } from '@/lib/api';
 import { type TrackerDriver } from '@/lib/types';
+import LocationInput from '@/components/LocationInput';
 
 const inputClass = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400';
 const labelClass = 'block text-xs font-semibold text-gray-500 mb-1.5';
@@ -19,7 +20,11 @@ export default function NewOrderPage() {
   const [bookedForCompany, setBookedForCompany] = useState('');
   const [bookedForPhone,   setBookedForPhone]   = useState('');
   const [dispatchFrom,     setDispatchFrom]     = useState('');
+  const [dispatchFromLat,  setDispatchFromLat]  = useState<number | null>(null);
+  const [dispatchFromLng,  setDispatchFromLng]  = useState<number | null>(null);
   const [dispatchTo,       setDispatchTo]       = useState('');
+  const [dispatchToLat,    setDispatchToLat]    = useState<number | null>(null);
+  const [dispatchToLng,    setDispatchToLng]    = useState<number | null>(null);
   const [transporterName,  setTransporterName]  = useState('');
   const [transporterPhone, setTransporterPhone] = useState('');
   const [vehicleNumber,    setVehicleNumber]    = useState('');
@@ -85,7 +90,11 @@ export default function NewOrderPage() {
         booked_for_company_name: bookedForCompany,
         booked_for_phone: bookedForPhone,
         dispatch_from: dispatchFrom,
+        dispatch_from_lat: dispatchFromLat ?? undefined,
+        dispatch_from_lng: dispatchFromLng ?? undefined,
         dispatch_to: dispatchTo,
+        dispatch_to_lat: dispatchToLat ?? undefined,
+        dispatch_to_lng: dispatchToLng ?? undefined,
         transporter_name: transporterName || undefined,
         transporter_phone: transporterPhone || undefined,
         driver_id: linkedDriverId,
@@ -154,14 +163,22 @@ export default function NewOrderPage() {
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-gray-900">Route</h2>
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Dispatch From *</label>
-              <input value={dispatchFrom} onChange={e => setDispatchFrom(e.target.value)} className={inputClass} placeholder="City, State" />
-            </div>
-            <div>
-              <label className={labelClass}>Dispatch To *</label>
-              <input value={dispatchTo} onChange={e => setDispatchTo(e.target.value)} className={inputClass} placeholder="City, State" />
-            </div>
+            <LocationInput
+              label="Dispatch From *"
+              value={dispatchFrom}
+              onChange={(address, lat, lng) => { setDispatchFrom(address); setDispatchFromLat(lat); setDispatchFromLng(lng); }}
+              placeholder="Search for an address or city"
+              className={inputClass}
+              labelClassName={labelClass}
+            />
+            <LocationInput
+              label="Dispatch To *"
+              value={dispatchTo}
+              onChange={(address, lat, lng) => { setDispatchTo(address); setDispatchToLat(lat); setDispatchToLng(lng); }}
+              placeholder="Search for an address or city"
+              className={inputClass}
+              labelClassName={labelClass}
+            />
           </div>
         </section>
 
