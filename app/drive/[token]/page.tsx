@@ -1,9 +1,11 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import axios from 'axios';
 import Image from 'next/image';
 import { Navigation, MapPin, AlertTriangle } from 'lucide-react';
+import OlaMap, { decodePolyline, type OlaMarker } from '@/components/OlaMap';
+import { formatRouteSummary } from '@/lib/format';
 import { STATUS_LABELS, STATUS_STYLES, type OrderStatus } from '@/lib/types';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://gogobackend-production.up.railway.app';
@@ -15,6 +17,13 @@ interface DriverOrder {
   dispatch_to: string;
   vehicle_number: string;
   is_terminal: boolean;
+  dispatch_from_lat: number | null;
+  dispatch_from_lng: number | null;
+  dispatch_to_lat: number | null;
+  dispatch_to_lng: number | null;
+  route_polyline: string | null;
+  route_distance_km: number | null;
+  route_duration_mins: number | null;
 }
 
 export default function DriverSharePage() {
@@ -25,6 +34,7 @@ export default function DriverSharePage() {
   const [unsupported, setUnsupported] = useState(false);
   const [sendError, setSendError] = useState(false);
   const [lastSentAt, setLastSentAt] = useState<Date | null>(null);
+  const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null);
   const [, setTick] = useState(0); // forces re-render so "updated Xs ago" stays live
 
   const watchIdRef = useRef<number | null>(null);
@@ -55,6 +65,12 @@ export default function DriverSharePage() {
   // Always clean up geolocation watchers/timers on unmount.
   useEffect(() => stopSharing, []);
 
+  // Decoded once — the stored route never changes for an order.
+  const plannedRoute = useMemo(
+    () => (order?.route_polyline ? decodePolyline(order.route_polyline) : undefined),
+    [order?.route_polyline],
+  );
+
   async function sendLocation() {
     if (!latestPosRef.current) return;
     try {
@@ -79,6 +95,7 @@ export default function DriverSharePage() {
       (pos) => {
         const isFirstFix = latestPosRef.current === null;
         latestPosRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setMyPos(latestPosRef.current);
         if (isFirstFix) sendLocation();
       },
       (err) => {
@@ -121,6 +138,19 @@ export default function DriverSharePage() {
     );
   }
 
+  const routeSummary = formatRouteSummary(order.route_distance_km, order.route_duration_mins);
+
+  const mapMarkers: OlaMarker[] = [];
+  if (order.dispatch_from_lat != null && order.dispatch_from_lng != null) {
+    mapMarkers.push({ lng: order.dispatch_from_lng, lat: order.dispatch_from_lat, color: '#22C55E', label: 'A' });
+  }
+  if (order.dispatch_to_lat != null && order.dispatch_to_lng != null) {
+    mapMarkers.push({ lng: order.dispatch_to_lng, lat: order.dispatch_to_lat, color: '#EF4444', label: 'B' });
+  }
+  if (myPos) {
+    mapMarkers.push({ lng: myPos.lng, lat: myPos.lat, color: '#FF6B2B', label: '🚚' });
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-md mx-auto space-y-5">
@@ -137,8 +167,35 @@ export default function DriverSharePage() {
             </span>
           </div>
           <p className="text-base font-bold text-gray-900">{order.dispatch_from} → {order.dispatch_to}</p>
-          <p className="text-xs text-gray-400 mt-1">Vehicle: {order.vehicle_number}</p>
+          <p className="text-xs text-gray-400 mt-1">
+            Vehicle: {order.vehicle_number}
+            {routeSummary && <span> · {routeSummary}</span>}
+          </p>
         </div>
+
+        {mapMarkers.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-3 space-y-3">
+            <OlaMap
+              center={[mapMarkers[0].lng, mapMarkers[0].lat]}
+              zoom={11}
+              markers={mapMarkers}
+              plannedRoute={plannedRoute}
+              fitToMarkers
+              className="w-full h-52 rounded-xl overflow-hidden"
+            />
+            {order.dispatch_to_lat != null && order.dispatch_to_lng != null && (
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${order.dispatch_to_lat},${order.dispatch_to_lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Navigation size={15} className="text-blue-600" />
+                Navigate with Google Maps
+              </a>
+            )}
+          </div>
+        )}
 
         {order.is_terminal ? (
           <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">

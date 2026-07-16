@@ -12,7 +12,8 @@ type OlaMapProps = {
   center?: [number, number]; // [lng, lat]
   zoom?: number;
   markers?: OlaMarker[];
-  route?: [number, number][]; // [lng, lat][] — GeoJSON LineString
+  route?: [number, number][]; // [lng, lat][] — GeoJSON LineString (solid orange — actual trail)
+  plannedRoute?: [number, number][]; // [lng, lat][] — dashed lighter line under the trail
   fitToMarkers?: boolean;
   className?: string;
   onMapReady?: (map: maplibregl.Map) => void;
@@ -37,6 +38,7 @@ export default function OlaMap({
   zoom = 12,
   markers = [],
   route,
+  plannedRoute,
   fitToMarkers = false,
   className = "w-full h-80 rounded-2xl overflow-hidden",
   onMapReady,
@@ -60,6 +62,16 @@ export default function OlaMap({
     });
     map.addControl(new maplibregl.NavigationControl(), "top-right");
     map.on("load", () => {
+      // Planned route goes in first so the actual trail draws on top of it.
+      map.addSource("planned-route", {
+        type: "geojson",
+        data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } },
+      });
+      map.addLayer({
+        id: "planned-route-line", type: "line", source: "planned-route",
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#FDBA74", "line-width": 3, "line-opacity": 0.9, "line-dasharray": [2, 2] },
+      });
       map.addSource("route", {
         type: "geojson",
         data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } },
@@ -96,13 +108,19 @@ export default function OlaMap({
         bounds.extend([m.lng, m.lat]);
         count++;
       });
+      // A curving route can leave the pins' bounding box — include it in the
+      // fit so the whole planned line stays on screen.
+      if (plannedRoute && plannedRoute.length >= 2) {
+        plannedRoute.forEach(p => bounds.extend(p));
+        count += plannedRoute.length;
+      }
       if (fitToMarkers && count > 0) {
         if (count === 1) map.easeTo({ center: bounds.getCenter(), zoom: 14, duration: 500 });
         else map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 500 });
       }
     };
     if (map.isStyleLoaded()) update(); else map.once("load", update);
-  }, [JSON.stringify(markers), fitToMarkers]);
+  }, [JSON.stringify(markers), fitToMarkers, JSON.stringify(plannedRoute)]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -117,6 +135,20 @@ export default function OlaMap({
     };
     if (map.isStyleLoaded()) update(); else map.once("load", update);
   }, [JSON.stringify(route)]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const update = () => {
+      const source = map.getSource("planned-route") as maplibregl.GeoJSONSource | undefined;
+      if (!source) return;
+      source.setData({
+        type: "Feature", properties: {},
+        geometry: { type: "LineString", coordinates: plannedRoute && plannedRoute.length >= 2 ? plannedRoute : [] },
+      });
+    };
+    if (map.isStyleLoaded()) update(); else map.once("load", update);
+  }, [JSON.stringify(plannedRoute)]);
 
   return <div ref={ref} className={className} />;
 }

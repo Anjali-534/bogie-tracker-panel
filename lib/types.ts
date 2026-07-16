@@ -63,6 +63,12 @@ export interface TrackerOrder {
   dispatch_from_lng: number | null;
   dispatch_to_lat: number | null;
   dispatch_to_lng: number | null;
+
+  // Planned route (Ola Directions) — computed server-side once at creation
+  // when both coordinate pairs exist; null otherwise.
+  route_polyline: string | null;
+  route_distance_km: number | null;
+  route_duration_mins: number | null;
 }
 
 export interface TrackerLocationPing {

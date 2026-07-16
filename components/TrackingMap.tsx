@@ -1,7 +1,7 @@
 'use client';
-import { useEffect, useState } from 'react';
-import OlaMap, { type OlaMarker } from './OlaMap';
-import { formatAgo } from '@/lib/format';
+import { useEffect, useMemo, useState } from 'react';
+import OlaMap, { decodePolyline, type OlaMarker } from './OlaMap';
+import { formatAgo, formatRouteSummary } from '@/lib/format';
 import type { TrackerLocationPing } from '@/lib/types';
 
 interface Props {
@@ -13,6 +13,9 @@ interface Props {
   fromLng?: number | null;
   toLat?: number | null;
   toLng?: number | null;
+  routePolyline?: string | null;
+  routeDistanceKm?: number | null;
+  routeDurationMins?: number | null;
 }
 
 // Matches the staleness threshold used for live driver GPS elsewhere
@@ -21,6 +24,7 @@ const STALE_MS = 2 * 60 * 1000;
 
 export default function TrackingMap({
   lastLat, lastLng, lastLocationAt, pings, fromLat, fromLng, toLat, toLng,
+  routePolyline, routeDistanceKm, routeDurationMins,
 }: Props) {
   // No prop here changes on its own between polls — this just keeps the
   // "updated Xm ago" text counting up between the parent's poll ticks.
@@ -29,6 +33,13 @@ export default function TrackingMap({
     const t = setInterval(() => setTick(x => x + 1), 15000);
     return () => clearInterval(t);
   }, []);
+
+  // Decoded once per polyline value — the stored route never changes for an
+  // order, so the 15s poll re-render never re-decodes it.
+  const plannedRoute = useMemo(
+    () => (routePolyline ? decodePolyline(routePolyline) : undefined),
+    [routePolyline],
+  );
 
   const hasDriver = lastLat != null && lastLng != null;
   const stale = !lastLocationAt || (Date.now() - new Date(lastLocationAt).getTime()) > STALE_MS;
@@ -54,11 +65,15 @@ export default function TrackingMap({
   }
 
   const route = pings.map(p => [p.lng, p.lat] as [number, number]);
+  const routeSummary = formatRouteSummary(routeDistanceKm ?? null, routeDurationMins ?? null);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
       <div className="flex items-center justify-between px-1">
-        <p className="text-sm font-bold text-gray-900">Live Location</p>
+        <div className="flex items-baseline gap-2">
+          <p className="text-sm font-bold text-gray-900">Live Location</p>
+          {routeSummary && <p className="text-xs text-gray-400">{routeSummary}</p>}
+        </div>
         {hasDriver && (
           <span className={`text-xs px-2.5 py-1 rounded-full font-semibold whitespace-nowrap ${
             stale ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'
@@ -72,6 +87,7 @@ export default function TrackingMap({
         zoom={12}
         markers={markers}
         route={route}
+        plannedRoute={plannedRoute}
         fitToMarkers
         className="w-full h-72 rounded-xl overflow-hidden"
       />

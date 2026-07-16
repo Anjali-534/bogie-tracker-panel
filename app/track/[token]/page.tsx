@@ -35,6 +35,9 @@ interface PublicOrder {
   dispatch_from_lng: number | null;
   dispatch_to_lat: number | null;
   dispatch_to_lng: number | null;
+  route_polyline: string | null;
+  route_distance_km: number | null;
+  route_duration_mins: number | null;
 }
 
 export default function PublicTrackingPage() {
@@ -120,6 +123,9 @@ export default function PublicTrackingPage() {
             fromLng={order.dispatch_from_lng}
             toLat={order.dispatch_to_lat}
             toLng={order.dispatch_to_lng}
+            routePolyline={order.route_polyline}
+            routeDistanceKm={order.route_distance_km}
+            routeDurationMins={order.route_duration_mins}
           />
         )}
 
