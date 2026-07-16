@@ -8,7 +8,7 @@ import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
 import { api } from '@/lib/api';
 import {
-  STATUS_LABELS, STATUS_STYLES, STATUS_STEPS, TERMINAL_STATUSES,
+  STATUS_LABELS, STATUS_STYLES, TERMINAL_STATUSES, STATUS_RADIO_OPTIONS,
   type TrackerOrder, type TrackerOrderEvent, type OrderStatus,
 } from '@/lib/types';
 
@@ -21,12 +21,16 @@ export default function OrderDetailsPage() {
   const [note,      setNote]      = useState('');
   const [location,  setLocation]  = useState('');
   const [addingNote, setAddingNote] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>('');
 
   const load = useCallback(async () => {
     try {
       const { data } = await api.get(`/gogoo/tracker/orders/${id}`);
       setOrder(data.order);
       setEvents(data.events);
+      if (STATUS_RADIO_OPTIONS.includes(data.order.status)) {
+        setSelectedStatus(data.order.status);
+      }
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 404) {
         setOrder(null);
@@ -97,7 +101,6 @@ export default function OrderDetailsPage() {
   }
 
   const isTerminal = TERMINAL_STATUSES.includes(order.status);
-  const nextStatus = STATUS_STEPS[STATUS_STEPS.indexOf(order.status) + 1];
 
   return (
     <div className="max-w-4xl space-y-5">
@@ -119,11 +122,6 @@ export default function OrderDetailsPage() {
           <button onClick={copyTrackingLink} className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
             <Link2 size={14} />Copy Tracking Link
           </button>
-          {!isTerminal && nextStatus && (
-            <button onClick={() => setStatus(nextStatus)} disabled={updating} className="px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 transition-colors">
-              Mark as {STATUS_LABELS[nextStatus]}
-            </button>
-          )}
           {!isTerminal && (
             <button onClick={() => setStatus('cancelled')} disabled={updating} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors">
               Cancel Order
@@ -134,6 +132,36 @@ export default function OrderDetailsPage() {
 
       <div className="grid grid-cols-3 gap-5">
         <div className="col-span-2 space-y-5">
+          {!isTerminal && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-6">
+              <h2 className="text-sm font-bold text-gray-900 mb-4">Update Status</h2>
+              <div className="flex flex-wrap gap-3 mb-5">
+                {STATUS_RADIO_OPTIONS.map(opt => (
+                  <label key={opt} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border cursor-pointer text-sm font-semibold transition-colors ${
+                    selectedStatus === opt ? 'border-orange-400 bg-orange-50 text-orange-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}>
+                    <input
+                      type="radio"
+                      name="status"
+                      value={opt}
+                      checked={selectedStatus === opt}
+                      onChange={() => setSelectedStatus(opt)}
+                      className="accent-orange-500"
+                    />
+                    {STATUS_LABELS[opt]}
+                  </label>
+                ))}
+              </div>
+              <button
+                onClick={() => selectedStatus && setStatus(selectedStatus)}
+                disabled={updating || !selectedStatus || selectedStatus === order.status}
+                className="px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 transition-colors"
+              >
+                Update Status
+              </button>
+            </div>
+          )}
+
           <div className="bg-white rounded-2xl border border-gray-100 p-6">
             <h2 className="text-sm font-bold text-gray-900 mb-5">Status Timeline</h2>
             <StatusStepper status={order.status} events={events} />
