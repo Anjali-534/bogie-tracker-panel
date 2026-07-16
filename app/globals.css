@@ -24,3 +24,12 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Driver-page fullscreen map sheet — slide-up on expand, kept dependency-free. */
+@keyframes sheet-up {
+  from { transform: translateY(32px); opacity: 0.5; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.sheet-expand {
+  animation: sheet-up 0.25s ease-out;
+}

@@ -5,6 +5,7 @@ import Image from 'next/image';
 import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
 import TrackingMap from '@/components/TrackingMap';
+import RouteRows from '@/components/RouteRows';
 import {
   STATUS_LABELS, STATUS_STYLES, STATUS_STEPS,
   type OrderStatus, type TrackerOrderEvent, type TrackerLocationPing,
@@ -89,14 +90,14 @@ export default function PublicTrackingPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Shipment Status</p>
-              <p className="text-lg font-bold text-gray-900">{order.dispatch_from} → {order.dispatch_to}</p>
-            </div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Shipment Status</p>
             <span className={`text-xs px-3 py-1.5 rounded-full font-semibold whitespace-nowrap ${STATUS_STYLES[order.status]}`}>
               {STATUS_LABELS[order.status]}
             </span>
+          </div>
+          <div className="mb-5">
+            <RouteRows from={order.dispatch_from} to={order.dispatch_to} />
           </div>
 
           <div className="grid grid-cols-2 gap-4 pb-5 mb-5 border-b border-gray-100">

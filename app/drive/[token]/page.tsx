@@ -3,8 +3,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import axios from 'axios';
 import Image from 'next/image';
-import { Navigation, MapPin, AlertTriangle } from 'lucide-react';
+import { Navigation, MapPin, AlertTriangle, Maximize2, X } from 'lucide-react';
 import OlaMap, { decodePolyline, type OlaMarker } from '@/components/OlaMap';
+import RouteRows from '@/components/RouteRows';
 import { formatRouteSummary } from '@/lib/format';
 import { STATUS_LABELS, STATUS_STYLES, type OrderStatus } from '@/lib/types';
 
@@ -13,6 +14,7 @@ const POST_INTERVAL_MS = 15000;
 
 interface DriverOrder {
   status: OrderStatus;
+  company_name: string;
   dispatch_from: string;
   dispatch_to: string;
   vehicle_number: string;
@@ -35,11 +37,14 @@ export default function DriverSharePage() {
   const [sendError, setSendError] = useState(false);
   const [lastSentAt, setLastSentAt] = useState<Date | null>(null);
   const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapExpanded, setMapExpanded] = useState(false);
   const [, setTick] = useState(0); // forces re-render so "updated Xs ago" stays live
 
   const watchIdRef = useRef<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const latestPosRef = useRef<{ lat: number; lng: number } | null>(null);
+  const mapObjRef = useRef<{ resize: () => void } | null>(null);
+  const dragStartYRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +69,20 @@ export default function DriverSharePage() {
 
   // Always clean up geolocation watchers/timers on unmount.
   useEffect(() => stopSharing, []);
+
+  // The map canvas needs an explicit resize after its container jumps between
+  // compact and fullscreen — once right away, once after the animation settles.
+  // Lock body scroll behind the fullscreen sheet while it's open.
+  useEffect(() => {
+    document.body.style.overflow = mapExpanded ? 'hidden' : '';
+    const t1 = setTimeout(() => mapObjRef.current?.resize(), 50);
+    const t2 = setTimeout(() => mapObjRef.current?.resize(), 300);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      document.body.style.overflow = '';
+    };
+  }, [mapExpanded]);
 
   // Decoded once — the stored route never changes for an order.
   const plannedRoute = useMemo(
@@ -139,6 +158,12 @@ export default function DriverSharePage() {
   }
 
   const routeSummary = formatRouteSummary(order.route_distance_km, order.route_duration_mins);
+  const lastSentText = lastSentAt
+    ? `Last update sent ${Math.max(0, Math.round((Date.now() - lastSentAt.getTime()) / 1000))}s ago`
+    : 'Waiting for GPS fix…';
+  const navigateHref = order.dispatch_to_lat != null && order.dispatch_to_lng != null
+    ? `https://www.google.com/maps/dir/?api=1&destination=${order.dispatch_to_lat},${order.dispatch_to_lng}`
+    : null;
 
   const mapMarkers: OlaMarker[] = [];
   if (order.dispatch_from_lat != null && order.dispatch_from_lng != null) {
@@ -155,8 +180,15 @@ export default function DriverSharePage() {
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-md mx-auto space-y-5">
         <div className="text-center">
-          <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority className="w-28 h-auto mx-auto mb-2" />
-          <p className="text-xs font-semibold text-orange-500 uppercase tracking-wider">Driver Location Sharing</p>
+          <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority className="w-24 h-auto mx-auto mb-2" />
+          {order.company_name ? (
+            <>
+              <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{order.company_name}</h1>
+              <p className="text-[11px] font-semibold text-orange-500 uppercase tracking-wider mt-1">Location Sharing</p>
+            </>
+          ) : (
+            <p className="text-xs font-semibold text-orange-500 uppercase tracking-wider">Location Sharing</p>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
@@ -166,33 +198,132 @@ export default function DriverSharePage() {
               {STATUS_LABELS[order.status]}
             </span>
           </div>
-          <p className="text-base font-bold text-gray-900">{order.dispatch_from} → {order.dispatch_to}</p>
-          <p className="text-xs text-gray-400 mt-1">
+          <RouteRows from={order.dispatch_from} to={order.dispatch_to} />
+          <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-gray-100">
             Vehicle: {order.vehicle_number}
             {routeSummary && <span> · {routeSummary}</span>}
           </p>
         </div>
 
         {mapMarkers.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-3 space-y-3">
-            <OlaMap
-              center={[mapMarkers[0].lng, mapMarkers[0].lat]}
-              zoom={11}
-              markers={mapMarkers}
-              plannedRoute={plannedRoute}
-              fitToMarkers
-              className="w-full h-52 rounded-xl overflow-hidden"
-            />
-            {order.dispatch_to_lat != null && order.dispatch_to_lng != null && (
-              <a
-                href={`https://www.google.com/maps/dir/?api=1&destination=${order.dispatch_to_lat},${order.dispatch_to_lng}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 w-full py-3 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+          /* The same element hosts both states so the OlaMap instance (and the
+             geolocation stream feeding it) survives expand/collapse — only the
+             wrapper classes change. */
+          <div
+            className={mapExpanded
+              ? 'fixed inset-0 z-50 bg-white flex flex-col sheet-expand'
+              : 'bg-white rounded-2xl border border-gray-100 p-3 space-y-3'}
+          >
+            {mapExpanded && (
+              <div
+                className="flex items-center justify-between px-3 py-2 border-b border-gray-100 touch-none select-none"
+                onTouchStart={(e) => { dragStartYRef.current = e.touches[0].clientY; }}
+                onTouchMove={(e) => {
+                  if (dragStartYRef.current != null && e.touches[0].clientY - dragStartYRef.current > 70) {
+                    dragStartYRef.current = null;
+                    setMapExpanded(false);
+                  }
+                }}
+                onTouchEnd={() => { dragStartYRef.current = null; }}
               >
-                <Navigation size={15} className="text-blue-600" />
-                Navigate with Google Maps
-              </a>
+                <span className="w-9" />
+                <span className="w-10 h-1.5 bg-gray-300 rounded-full" />
+                <button
+                  onClick={() => setMapExpanded(false)}
+                  aria-label="Collapse map"
+                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+                >
+                  <X size={18} className="text-gray-600" />
+                </button>
+              </div>
+            )}
+
+            <div className={mapExpanded ? 'relative flex-1 min-h-0' : 'relative'}>
+              <OlaMap
+                center={[mapMarkers[0].lng, mapMarkers[0].lat]}
+                zoom={11}
+                markers={mapMarkers}
+                plannedRoute={plannedRoute}
+                fitToMarkers
+                onMapReady={(m) => { mapObjRef.current = m; }}
+                className={mapExpanded ? 'w-full h-full' : 'w-full h-52 rounded-xl overflow-hidden'}
+              />
+              {!mapExpanded && (
+                <button
+                  onClick={() => setMapExpanded(true)}
+                  aria-label="Expand map"
+                  className="absolute top-2 left-2 w-9 h-9 flex items-center justify-center bg-white rounded-lg border border-gray-200 shadow-md"
+                >
+                  <Maximize2 size={16} className="text-gray-700" />
+                </button>
+              )}
+            </div>
+
+            {mapExpanded ? (
+              /* Bottom bar — sharing stays controllable without leaving the map. */
+              <div className="border-t border-gray-100 bg-white px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+                {order.is_terminal ? (
+                  <p className="text-center text-sm font-semibold text-gray-500 py-2">This trip has ended.</p>
+                ) : sharing ? (
+                  <div className="flex items-center gap-3">
+                    <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-green-600">Sharing your location</p>
+                      <p className="text-[11px] text-gray-400 truncate">{lastSentText}</p>
+                    </div>
+                    {navigateHref && (
+                      <a
+                        href={navigateHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Navigate with Google Maps"
+                        className="w-11 h-11 flex items-center justify-center border border-gray-200 rounded-xl"
+                      >
+                        <Navigation size={16} className="text-blue-600" />
+                      </a>
+                    )}
+                    <button
+                      onClick={stopSharing}
+                      className="px-4 py-2.5 border-2 border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors"
+                    >
+                      Stop
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={startSharing}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 transition-colors"
+                    >
+                      <Navigation size={16} />
+                      Start Sharing Location
+                    </button>
+                    {navigateHref && (
+                      <a
+                        href={navigateHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Navigate with Google Maps"
+                        className="w-11 h-11 flex items-center justify-center border border-gray-200 rounded-xl"
+                      >
+                        <Navigation size={16} className="text-blue-600" />
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              navigateHref && (
+                <a
+                  href={navigateHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-3 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Navigation size={15} className="text-blue-600" />
+                  Navigate with Google Maps
+                </a>
+              )
             )}
           </div>
         )}
@@ -231,11 +362,7 @@ export default function DriverSharePage() {
                   <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
                   Sharing your location
                 </div>
-                <p className="text-center text-xs text-gray-400">
-                  {lastSentAt
-                    ? `Last update sent ${Math.max(0, Math.round((Date.now() - lastSentAt.getTime()) / 1000))}s ago`
-                    : 'Waiting for GPS fix…'}
-                </p>
+                <p className="text-center text-xs text-gray-400">{lastSentText}</p>
                 <button
                   onClick={stopSharing}
                   className="w-full py-4 bg-white border-2 border-red-200 text-red-600 rounded-2xl text-base font-bold hover:bg-red-50 transition-colors"

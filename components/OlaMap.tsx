@@ -46,6 +46,11 @@ export default function OlaMap({
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
+  // isStyleLoaded() is unreliable around the load event (can be true before
+  // our load handler has added the sources, or transiently false after it),
+  // so track readiness ourselves and queue updates that arrive too early.
+  const loadedRef = useRef(false);
+  const pendingRef = useRef<{ markers?: () => void; route?: () => void; planned?: () => void }>({});
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
@@ -81,10 +86,15 @@ export default function OlaMap({
         layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": "#FF6B2B", "line-width": 4, "line-opacity": 0.85 },
       });
+      loadedRef.current = true;
+      pendingRef.current.markers?.();
+      pendingRef.current.route?.();
+      pendingRef.current.planned?.();
+      pendingRef.current = {};
       onMapReady?.(map);
     });
     mapRef.current = map;
-    return () => { map.remove(); mapRef.current = null; };
+    return () => { map.remove(); mapRef.current = null; loadedRef.current = false; pendingRef.current = {}; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -119,7 +129,7 @@ export default function OlaMap({
         else map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 500 });
       }
     };
-    if (map.isStyleLoaded()) update(); else map.once("load", update);
+    if (loadedRef.current) update(); else pendingRef.current.markers = update;
   }, [JSON.stringify(markers), fitToMarkers, JSON.stringify(plannedRoute)]);
 
   useEffect(() => {
@@ -133,7 +143,7 @@ export default function OlaMap({
         geometry: { type: "LineString", coordinates: route && route.length >= 2 ? route : [] },
       });
     };
-    if (map.isStyleLoaded()) update(); else map.once("load", update);
+    if (loadedRef.current) update(); else pendingRef.current.route = update;
   }, [JSON.stringify(route)]);
 
   useEffect(() => {
@@ -147,7 +157,7 @@ export default function OlaMap({
         geometry: { type: "LineString", coordinates: plannedRoute && plannedRoute.length >= 2 ? plannedRoute : [] },
       });
     };
-    if (map.isStyleLoaded()) update(); else map.once("load", update);
+    if (loadedRef.current) update(); else pendingRef.current.planned = update;
   }, [JSON.stringify(plannedRoute)]);
 
   return <div ref={ref} className={className} />;

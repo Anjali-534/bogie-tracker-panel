@@ -7,6 +7,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
 import TrackingMap from '@/components/TrackingMap';
+import RouteRows from '@/components/RouteRows';
 import { api } from '@/lib/api';
 import {
   STATUS_LABELS, STATUS_STYLES, STATUS_STEPS, TERMINAL_STATUSES, STATUS_RADIO_OPTIONS,
@@ -149,7 +150,9 @@ export default function OrderDetailsPage() {
           </Link>
           <div>
             <h1 className="text-xl font-bold text-gray-900">{order.booked_for_company_name}</h1>
-            <p className="text-xs text-gray-400">{order.dispatch_from} → {order.dispatch_to}</p>
+            <div className="mt-1">
+              <RouteRows from={order.dispatch_from} to={order.dispatch_to} compact />
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
