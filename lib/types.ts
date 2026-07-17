@@ -12,6 +12,8 @@ export interface TrackerDriver {
   created_at: string;
 }
 
+export type DriverEventKind = 'on_break' | 'about_to_reach' | 'reached' | 'unloading' | 'delivery_claimed';
+
 export interface TrackerOrderEvent {
   id: string;
   order_id: string;
@@ -19,6 +21,12 @@ export interface TrackerOrderEvent {
   note: string;
   location: string;
   created_at: string;
+  // reported_by/event_kind: added for driver quick-status taps. Existing
+  // company-driven status-change events still come back with
+  // reported_by: 'company' and event_kind: '' (server defaults). 'consignee'
+  // is the one-off receipt-confirmation event (see ConfirmTrackerReceipt).
+  reported_by: 'company' | 'driver' | 'consignee';
+  event_kind: DriverEventKind | '';
 }
 
 export interface TrackerOrder {
@@ -69,6 +77,33 @@ export interface TrackerOrder {
   route_polyline: string | null;
   route_distance_km: number | null;
   route_duration_mins: number | null;
+
+  // Proof-of-delivery signature — set once by the driver-token-gated upload
+  // after a 'delivery_claimed' event; null until then.
+  signature_url: string | null;
+
+  // Dispatch notification email recipients — all optional, nullable. No
+  // driver_email field exists by design; drivers get the WhatsApp tracking
+  // link instead (see the notify endpoint).
+  booked_for_email: string | null;
+  consignee_email: string | null;
+  transporter_email: string | null;
+
+  // Goods-received confirmation — received_confirmation_token is generated
+  // the first time the order reaches 'delivered'; received_confirmed_at is
+  // set once by the consignee via the public receipt page.
+  received_confirmation_token: string | null;
+  received_confirmed_at: string | null;
+
+  // GSTIN for the two other dispatch-sheet parties — optional, format/
+  // checksum validated client-side only (see components/GSTInput.tsx).
+  consignee_gstin: string | null;
+  booked_for_gstin: string | null;
+
+  // State — auto-filled from the GSTIN's state code (see GSTInput's
+  // onStateResolved) but a normal editable field; manual override always works.
+  consignee_state: string | null;
+  booked_for_state: string | null;
 }
 
 export interface TrackerLocationPing {
@@ -107,3 +142,26 @@ export const STATUS_STEPS: OrderStatus[] = ['created', 'loading', 'loaded', 'dis
 // 'created' is the implicit starting state (not a choice) and 'cancelled' is
 // a separate action, not part of the forward sequence.
 export const STATUS_RADIO_OPTIONS: OrderStatus[] = ['loading', 'loaded', 'dispatched', 'in_transit', 'delivered'];
+
+// Drive-page quick-status button row. 'delivery_claimed' is special-cased on
+// the drive page (it triggers the signature pad instead of posting directly)
+// so it isn't in this row — see DRIVER_QUICK_STATUS_BUTTONS in the drive page.
+export const DRIVER_EVENT_KIND_LABELS: Record<DriverEventKind, string> = {
+  on_break: 'On Break',
+  about_to_reach: 'About to Reach',
+  reached: 'Reached',
+  unloading: 'Unloading',
+  delivery_claimed: 'Delivered',
+};
+
+// Dispatch-notification-email recipient kinds — matches the backend's
+// validNotifyRecipients map. 'driver' is always listed but always skipped
+// server-side (no driver_email field by design; drivers get WhatsApp).
+export type NotifyRecipient = 'booked_for' | 'consignee' | 'transporter' | 'driver';
+
+export const NOTIFY_RECIPIENT_LABELS: Record<NotifyRecipient, string> = {
+  booked_for: 'Booked For',
+  consignee: 'Consignee',
+  transporter: 'Transporter',
+  driver: 'Driver',
+};

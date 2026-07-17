@@ -8,6 +8,7 @@ import axios from 'axios';
 import { api } from '@/lib/api';
 import { type TrackerDriver } from '@/lib/types';
 import LocationInput from '@/components/LocationInput';
+import GSTInput from '@/components/GSTInput';
 
 const inputClass = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400';
 const labelClass = 'block text-xs font-semibold text-gray-500 mb-1.5';
@@ -19,6 +20,11 @@ export default function NewOrderPage() {
 
   const [bookedForCompany, setBookedForCompany] = useState('');
   const [bookedForPhone,   setBookedForPhone]   = useState('');
+  const [bookedForEmail,   setBookedForEmail]   = useState('');
+  const [bookedForGstin,   setBookedForGstin]   = useState('');
+  // Auto-filled from the GSTIN's state code (GSTInput's onStateResolved),
+  // but a normal editable field — manual entry/override always works.
+  const [bookedForState,   setBookedForState]   = useState('');
   const [dispatchFrom,     setDispatchFrom]     = useState('');
   const [dispatchFromLat,  setDispatchFromLat]  = useState<number | null>(null);
   const [dispatchFromLng,  setDispatchFromLng]  = useState<number | null>(null);
@@ -27,11 +33,15 @@ export default function NewOrderPage() {
   const [dispatchToLng,    setDispatchToLng]    = useState<number | null>(null);
   const [transporterName,  setTransporterName]  = useState('');
   const [transporterPhone, setTransporterPhone] = useState('');
+  const [transporterEmail, setTransporterEmail] = useState('');
   const [vehicleNumber,    setVehicleNumber]    = useState('');
   const [ewayBillNumber,   setEwayBillNumber]   = useState('');
   const [ewayBillFile,     setEwayBillFile]     = useState<File | null>(null);
 
   const [consigneeName,       setConsigneeName]       = useState('');
+  const [consigneeEmail,      setConsigneeEmail]      = useState('');
+  const [consigneeGstin,      setConsigneeGstin]      = useState('');
+  const [consigneeState,      setConsigneeState]      = useState('');
   const [material,            setMaterial]            = useState('');
   const [quantity,             setQuantity]           = useState('');
   const [dispatchDatetime,     setDispatchDatetime]   = useState('');
@@ -95,12 +105,19 @@ export default function NewOrderPage() {
         dispatch_to: dispatchTo,
         dispatch_to_lat: dispatchToLat ?? undefined,
         dispatch_to_lng: dispatchToLng ?? undefined,
+        booked_for_email: bookedForEmail || undefined,
+        booked_for_gstin: bookedForGstin || undefined,
+        booked_for_state: bookedForState || undefined,
         transporter_name: transporterName || undefined,
         transporter_phone: transporterPhone || undefined,
+        transporter_email: transporterEmail || undefined,
         driver_id: linkedDriverId,
         vehicle_number: vehicleNumber,
         eway_bill_number: ewayBillNumber || undefined,
         consignee_name: consigneeName || undefined,
+        consignee_email: consigneeEmail || undefined,
+        consignee_gstin: consigneeGstin || undefined,
+        consignee_state: consigneeState || undefined,
         material: material || undefined,
         quantity: quantity || undefined,
         dispatch_datetime: dispatchDatetime ? new Date(dispatchDatetime).toISOString() : undefined,
@@ -157,6 +174,15 @@ export default function NewOrderPage() {
               <label className={labelClass}>Phone Number *</label>
               <input value={bookedForPhone} onChange={e => setBookedForPhone(e.target.value)} className={inputClass} placeholder="+91 98765 43210" />
             </div>
+            <div>
+              <label className={labelClass}>Email <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input type="email" value={bookedForEmail} onChange={e => setBookedForEmail(e.target.value)} className={inputClass} placeholder="for dispatch notification email" />
+            </div>
+            <GSTInput label="GSTIN" value={bookedForGstin} onChange={setBookedForGstin} onStateResolved={setBookedForState} />
+            <div>
+              <label className={labelClass}>State</label>
+              <input value={bookedForState} onChange={e => setBookedForState(e.target.value)} className={inputClass} placeholder="Auto-filled from GSTIN, or type manually" />
+            </div>
           </div>
         </section>
 
@@ -188,6 +214,15 @@ export default function NewOrderPage() {
             <div>
               <label className={labelClass}>Consignee Name</label>
               <input value={consigneeName} onChange={e => setConsigneeName(e.target.value)} className={inputClass} placeholder="Receiving entity, if different from Booked For" />
+            </div>
+            <div>
+              <label className={labelClass}>Consignee Email</label>
+              <input type="email" value={consigneeEmail} onChange={e => setConsigneeEmail(e.target.value)} className={inputClass} placeholder="for dispatch notification email" />
+            </div>
+            <GSTInput label="Consignee GSTIN" value={consigneeGstin} onChange={setConsigneeGstin} onStateResolved={setConsigneeState} />
+            <div>
+              <label className={labelClass}>Consignee State</label>
+              <input value={consigneeState} onChange={e => setConsigneeState(e.target.value)} className={inputClass} placeholder="Auto-filled from GSTIN, or type manually" />
             </div>
             <div>
               <label className={labelClass}>Dispatch Date &amp; Time</label>
@@ -254,6 +289,10 @@ export default function NewOrderPage() {
             <div>
               <label className={labelClass}>Transporter Phone</label>
               <input value={transporterPhone} onChange={e => setTransporterPhone(e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Transporter Email</label>
+              <input type="email" value={transporterEmail} onChange={e => setTransporterEmail(e.target.value)} className={inputClass} placeholder="for dispatch notification email" />
             </div>
             <div>
               <label className={labelClass}>Vehicle Number *</label>

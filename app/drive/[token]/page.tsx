@@ -3,14 +3,29 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import axios from 'axios';
 import Image from 'next/image';
-import { Navigation, MapPin, AlertTriangle, Maximize2, X } from 'lucide-react';
+import { Navigation, MapPin, AlertTriangle, Maximize2, X, MessageCircle } from 'lucide-react';
 import OlaMap, { decodePolyline, type OlaMarker } from '@/components/OlaMap';
+import SignaturePad from '@/components/SignaturePad';
 import RouteRows from '@/components/RouteRows';
 import { formatRouteSummary } from '@/lib/format';
-import { STATUS_LABELS, STATUS_STYLES, type OrderStatus } from '@/lib/types';
+import { DRIVER_EVENT_KIND_LABELS, STATUS_LABELS, STATUS_STYLES, type DriverEventKind, type OrderStatus } from '@/lib/types';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://gogobackend-production.up.railway.app';
 const POST_INTERVAL_MS = 15000;
+const MESSAGE_POLL_MS = 20000;
+
+// Quick-status row — 'delivery_claimed' (Delivered) is handled separately
+// below since it opens the signature pad instead of posting directly.
+const QUICK_STATUS_BUTTONS: Exclude<DriverEventKind, 'delivery_claimed'>[] = [
+  'on_break', 'about_to_reach', 'reached', 'unloading',
+];
+
+interface DriverMessage {
+  id: string;
+  body: string;
+  created_at: string;
+  is_new: boolean;
+}
 
 interface DriverOrder {
   status: OrderStatus;
@@ -39,6 +54,22 @@ export default function DriverSharePage() {
   const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [, setTick] = useState(0); // forces re-render so "updated Xs ago" stays live
+
+  // Quick-status buttons (Phase 2)
+  const [postingKind, setPostingKind] = useState<DriverEventKind | null>(null);
+  const [lastPostedKind, setLastPostedKind] = useState<DriverEventKind | null>(null);
+  const [quickStatusError, setQuickStatusError] = useState<string | null>(null);
+
+  // Delivered → signature pad flow (Phase 3)
+  const [showSignaturePad, setShowSignaturePad] = useState(false);
+  const [submittingSignature, setSubmittingSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState<string | null>(null);
+  const [deliveryClaimed, setDeliveryClaimed] = useState(false);
+
+  // Company → driver messages (Phase 4)
+  const [messages, setMessages] = useState<DriverMessage[]>([]);
+  const [messageBanner, setMessageBanner] = useState<DriverMessage | null>(null);
+  const [showMessageFeed, setShowMessageFeed] = useState(false);
 
   const watchIdRef = useRef<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -89,6 +120,58 @@ export default function DriverSharePage() {
     () => (order?.route_polyline ? decodePolyline(order.route_polyline) : undefined),
     [order?.route_polyline],
   );
+
+  // Piggybacks on the same 20s poll as the fetch — the GET marks unread
+  // messages read as a side effect, so the fetch IS the read receipt.
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const { data } = await axios.get<{ messages: DriverMessage[] }>(`${API}/gogoo/public/tracker/driver/${token}/messages`);
+        if (cancelled) return;
+        setMessages(data.messages);
+        const newest = [...data.messages].reverse().find(m => m.is_new);
+        if (newest) setMessageBanner(newest);
+      } catch {
+        // Silent — messages are a nice-to-have overlay, not critical path.
+      }
+    }
+    poll();
+    const t = setInterval(poll, MESSAGE_POLL_MS);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [token]);
+
+  async function postQuickStatus(kind: Exclude<DriverEventKind, 'delivery_claimed'>) {
+    setPostingKind(kind);
+    setQuickStatusError(null);
+    try {
+      await axios.post(`${API}/gogoo/public/tracker/driver/${token}/event`, { kind });
+      setLastPostedKind(kind);
+    } catch {
+      setQuickStatusError("Couldn't send that update — please try again.");
+    } finally {
+      setPostingKind(null);
+    }
+  }
+
+  async function confirmDeliverySignature(blob: Blob) {
+    setSubmittingSignature(true);
+    setSignatureError(null);
+    try {
+      // Record the claim first, then the signature — if the signature
+      // upload fails the driver can retry without re-claiming.
+      await axios.post(`${API}/gogoo/public/tracker/driver/${token}/event`, { kind: 'delivery_claimed' });
+      const form = new FormData();
+      form.append('file', blob, 'signature.png');
+      await axios.post(`${API}/gogoo/public/tracker/driver/${token}/signature`, form);
+      setDeliveryClaimed(true);
+      setShowSignaturePad(false);
+    } catch {
+      setSignatureError("Couldn't submit your signature — please try again.");
+    } finally {
+      setSubmittingSignature(false);
+    }
+  }
 
   async function sendLocation() {
     if (!latestPosRef.current) return;
@@ -157,6 +240,17 @@ export default function DriverSharePage() {
     );
   }
 
+  if (showSignaturePad) {
+    return (
+      <SignaturePad
+        onConfirm={confirmDeliverySignature}
+        onCancel={() => { if (!submittingSignature) setShowSignaturePad(false); }}
+        submitting={submittingSignature}
+        error={signatureError}
+      />
+    );
+  }
+
   const routeSummary = formatRouteSummary(order.route_distance_km, order.route_duration_mins);
   const lastSentText = lastSentAt
     ? `Last update sent ${Math.max(0, Math.round((Date.now() - lastSentAt.getTime()) / 1000))}s ago`
@@ -173,7 +267,7 @@ export default function DriverSharePage() {
     mapMarkers.push({ lng: order.dispatch_to_lng, lat: order.dispatch_to_lat, color: '#EF4444', label: 'B' });
   }
   if (myPos) {
-    mapMarkers.push({ lng: myPos.lng, lat: myPos.lat, color: '#FF6B2B', label: '🚚' });
+    mapMarkers.push({ lng: myPos.lng, lat: myPos.lat, color: '#FF6B2B', id: 'driver', icon: 'truck' });
   }
 
   return (
@@ -387,6 +481,83 @@ export default function DriverSharePage() {
                 Keep this page open and your screen on while sharing — closing the app or locking your screen will stop location updates.
               </p>
             </div>
+          </div>
+        )}
+
+        {messageBanner && (
+          <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3">
+            <MessageCircle size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wide">Message from {order.company_name || 'Company'}</p>
+              <p className="text-sm text-blue-900 mt-0.5">{messageBanner.body}</p>
+            </div>
+            <button onClick={() => setMessageBanner(null)} aria-label="Dismiss" className="flex-shrink-0 text-blue-400 hover:text-blue-600">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {!order.is_terminal && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+            <div>
+              <h2 className="text-sm font-bold text-gray-900 mb-1">Quick Status</h2>
+              <p className="text-xs text-gray-400">Let the company know where things stand.</p>
+            </div>
+
+            {deliveryClaimed ? (
+              <div className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-xl p-3">
+                <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                <p className="text-xs font-semibold text-green-700">Delivery claimed — waiting for the company to confirm.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2.5">
+                {QUICK_STATUS_BUTTONS.map(kind => (
+                  <button
+                    key={kind}
+                    onClick={() => postQuickStatus(kind)}
+                    disabled={postingKind !== null}
+                    className={`px-3 py-3 rounded-xl border text-sm font-semibold transition-colors disabled:opacity-50 ${
+                      lastPostedKind === kind
+                        ? 'border-orange-400 bg-orange-50 text-orange-700'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {postingKind === kind ? 'Sending…' : DRIVER_EVENT_KIND_LABELS[kind]}
+                  </button>
+                ))}
+                <button
+                  onClick={() => { setSignatureError(null); setShowSignaturePad(true); }}
+                  disabled={postingKind !== null}
+                  className="col-span-2 px-3 py-3 rounded-xl bg-orange-500 text-white text-sm font-bold hover:bg-orange-600 transition-colors disabled:opacity-50"
+                >
+                  {DRIVER_EVENT_KIND_LABELS.delivery_claimed}
+                </button>
+              </div>
+            )}
+
+            {quickStatusError && <p className="text-xs text-red-500">{quickStatusError}</p>}
+          </div>
+        )}
+
+        {messages.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <button
+              onClick={() => setShowMessageFeed(s => !s)}
+              className="w-full flex items-center justify-between text-sm font-bold text-gray-900"
+            >
+              <span className="flex items-center gap-1.5"><MessageCircle size={14} />Messages ({messages.length})</span>
+              <span className="text-xs text-gray-400">{showMessageFeed ? 'Hide' : 'Show'}</span>
+            </button>
+            {showMessageFeed && (
+              <div className="mt-3 space-y-2.5">
+                {messages.slice().reverse().map(m => (
+                  <div key={m.id} className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-sm text-gray-800">{m.body}</p>
+                    <p className="text-[11px] text-gray-400 mt-1">{new Date(m.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

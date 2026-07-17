@@ -13,6 +13,7 @@ interface CompanyProfile {
   contact_email: string;
   gstin: string;
   status: string;
+  notification_email: string | null;
 }
 
 export default function SettingsPage() {
@@ -20,6 +21,7 @@ export default function SettingsPage() {
   const [email,        setEmail]        = useState('');
   const [phone,        setPhone]        = useState('');
   const [gstin,        setGstin]        = useState('');
+  const [notificationEmail, setNotificationEmail] = useState('');
   const [loading,       setLoading]       = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
 
@@ -35,6 +37,7 @@ export default function SettingsPage() {
         setEmail(data.contact_email);
         setPhone(data.contact_phone);
         setGstin(data.gstin || '');
+        setNotificationEmail(data.notification_email || '');
       })
       .catch(() => toast.error('Failed to load profile'))
       .finally(() => setLoading(false));
@@ -48,6 +51,7 @@ export default function SettingsPage() {
         company_name: companyName,
         contact_phone: phone,
         gstin: gstin || undefined,
+        notification_email: notificationEmail || undefined,
       });
       localStorage.setItem('tracker_company_name', companyName);
       toast.success('Profile updated');
@@ -119,6 +123,11 @@ export default function SettingsPage() {
           <label className={labelClass}>Contact Email</label>
           <input value={email} disabled className={`${inputClass} bg-gray-50 text-gray-400 cursor-not-allowed`} />
           <p className="text-[11px] text-gray-400 mt-1">Login email can&apos;t be changed here — contact support to update it.</p>
+        </div>
+        <div>
+          <label className={labelClass}>Notification Email <span className="text-gray-400 font-normal">(optional)</span></label>
+          <input type="email" value={notificationEmail} onChange={e => setNotificationEmail(e.target.value)} className={inputClass} placeholder={email || 'you@company.com'} />
+          <p className="text-[11px] text-gray-400 mt-1">Replies to dispatch emails go here; defaults to your signup email.</p>
         </div>
         <div className="pt-1">
           <button type="submit" disabled={savingProfile} className="px-5 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors">

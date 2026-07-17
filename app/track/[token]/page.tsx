@@ -27,7 +27,8 @@ interface PublicOrder {
   material: string | null;
   quantity: string | null;
   dispatch_datetime: string | null;
-  events: Pick<TrackerOrderEvent, 'status' | 'note' | 'location' | 'created_at'>[];
+  signed: boolean;
+  events: Pick<TrackerOrderEvent, 'status' | 'note' | 'location' | 'created_at' | 'reported_by' | 'event_kind'>[];
   last_lat: number | null;
   last_lng: number | null;
   last_location_at: string | null;
@@ -39,6 +40,7 @@ interface PublicOrder {
   route_polyline: string | null;
   route_distance_km: number | null;
   route_duration_mins: number | null;
+  received_confirmed_at: string | null;
 }
 
 export default function PublicTrackingPage() {
@@ -93,7 +95,7 @@ export default function PublicTrackingPage() {
           <div className="flex items-center justify-between mb-4">
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Shipment Status</p>
             <span className={`text-xs px-3 py-1.5 rounded-full font-semibold whitespace-nowrap ${STATUS_STYLES[order.status]}`}>
-              {STATUS_LABELS[order.status]}
+              {STATUS_LABELS[order.status]}{order.status === 'delivered' && order.signed ? ' · signed' : ''}
             </span>
           </div>
           <div className="mb-5">
@@ -112,6 +114,17 @@ export default function PublicTrackingPage() {
           </div>
 
           <StatusStepper status={order.status} events={order.events} />
+
+          {order.received_confirmed_at && (
+            <div className="mt-5 pt-5 border-t border-gray-100 text-center">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 text-green-600 text-xs font-bold">
+                Goods received — confirmed by consignee
+              </span>
+              <p className="text-[11px] text-gray-400 mt-1.5">
+                {new Date(order.received_confirmed_at).toLocaleString()}
+              </p>
+            </div>
+          )}
         </div>
 
         {STATUS_STEPS.indexOf(order.status) >= STATUS_STEPS.indexOf('dispatched') && (

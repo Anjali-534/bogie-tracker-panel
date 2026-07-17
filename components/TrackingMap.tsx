@@ -52,7 +52,7 @@ export default function TrackingMap({
     markers.push({ lng: toLng, lat: toLat, color: '#EF4444', label: 'B', popup: 'Dispatch To' });
   }
   if (hasDriver) {
-    markers.push({ lng: lastLng as number, lat: lastLat as number, color: stale ? '#9CA3AF' : '#FF6B2B', label: '🚚', popup: 'Driver' });
+    markers.push({ lng: lastLng as number, lat: lastLat as number, color: stale ? '#9CA3AF' : '#FF6B2B', id: 'driver', icon: 'truck', popup: 'Driver' });
   }
 
   // Nothing to plot at all — no route pins captured and no driver ping yet.

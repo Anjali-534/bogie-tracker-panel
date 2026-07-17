@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Link2, FileText, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Link2, FileText, MessageCircle, Send, CheckCircle2, Mail } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
@@ -11,8 +11,28 @@ import RouteRows from '@/components/RouteRows';
 import { api } from '@/lib/api';
 import {
   STATUS_LABELS, STATUS_STYLES, STATUS_STEPS, TERMINAL_STATUSES, STATUS_RADIO_OPTIONS,
+  NOTIFY_RECIPIENT_LABELS,
   type TrackerOrder, type TrackerOrderEvent, type OrderStatus, type TrackerLocationPing,
+  type NotifyRecipient,
 } from '@/lib/types';
+
+const NOTIFY_RECIPIENTS: NotifyRecipient[] = ['booked_for', 'consignee', 'transporter', 'driver'];
+
+interface NotifyResult {
+  recipient: NotifyRecipient;
+  email?: string;
+  status: 'sent' | 'skipped' | 'failed';
+  reason?: string;
+}
+
+function recipientEmail(order: TrackerOrder, r: NotifyRecipient): string | null {
+  switch (r) {
+    case 'booked_for': return order.booked_for_email;
+    case 'consignee': return order.consignee_email;
+    case 'transporter': return order.transporter_email;
+    case 'driver': return null; // no driver_email field by design — WhatsApp instead
+  }
+}
 
 const MAP_POLL_MS = 15000;
 
@@ -27,6 +47,12 @@ export default function OrderDetailsPage() {
   const [location,  setLocation]  = useState('');
   const [addingNote, setAddingNote] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>('');
+  const [messageBody, setMessageBody] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+  const [notifyRecipients, setNotifyRecipients] = useState<NotifyRecipient[]>(['booked_for']);
+  const [sendingNotify, setSendingNotify] = useState(false);
+  const [notifyResults, setNotifyResults] = useState<NotifyResult[] | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -124,6 +150,58 @@ export default function OrderDetailsPage() {
     }
   }
 
+  async function sendMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!order || !messageBody.trim()) return;
+    setSendingMessage(true);
+    try {
+      await api.post(`/gogoo/tracker/orders/${order.id}/messages`, { body: messageBody.trim() });
+      setMessageBody('');
+      toast.success('Message sent to driver');
+    } catch {
+      toast.error('Failed to send message');
+    } finally {
+      setSendingMessage(false);
+    }
+  }
+
+  async function confirmDelivered() {
+    setConfirmingDelivery(true);
+    await setStatus('delivered');
+    setConfirmingDelivery(false);
+  }
+
+  function toggleNotifyRecipient(r: NotifyRecipient) {
+    setNotifyRecipients(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]);
+  }
+
+  async function sendDispatchEmails() {
+    if (!order || notifyRecipients.length === 0) return;
+    setSendingNotify(true);
+    setNotifyResults(null);
+    try {
+      const { data } = await api.post(`/gogoo/tracker/orders/${order.id}/notify`, { recipients: notifyRecipients });
+      const results = data.results as NotifyResult[];
+      setNotifyResults(results);
+      const sent = results.filter(r => r.status === 'sent').length;
+      if (sent > 0) {
+        toast.success(`Dispatch details emailed to ${sent} recipient${sent === 1 ? '' : 's'}`);
+        await load();
+      } else {
+        toast.error('No emails sent — check recipient addresses');
+      }
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        toast.error(body.error || 'Failed to send dispatch emails');
+      } else {
+        toast.error('Failed to send dispatch emails');
+      }
+    } finally {
+      setSendingNotify(false);
+    }
+  }
+
   if (order === undefined) {
     return <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>;
   }
@@ -139,6 +217,8 @@ export default function OrderDetailsPage() {
 
   const isTerminal = TERMINAL_STATUSES.includes(order.status);
   const showMap = STATUS_STEPS.indexOf(order.status) >= STATUS_STEPS.indexOf('dispatched');
+  const hasDeliveryClaim = events.some(e => e.reported_by === 'driver' && e.event_kind === 'delivery_claimed');
+  const showConfirmDeliveryBanner = !isTerminal && hasDeliveryClaim && !!order.signature_url;
 
   return (
     <div className="max-w-4xl space-y-5">
@@ -159,6 +239,11 @@ export default function OrderDetailsPage() {
           <span className={`text-xs px-3 py-1.5 rounded-full font-semibold ${STATUS_STYLES[order.status]}`}>
             {STATUS_LABELS[order.status]}
           </span>
+          {order.received_confirmed_at && (
+            <span className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-semibold bg-green-100 text-green-700" title={new Date(order.received_confirmed_at).toLocaleString()}>
+              <CheckCircle2 size={12} />Consignee confirmed receipt
+            </span>
+          )}
           <button onClick={copyTrackingLink} className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
             <Link2 size={14} />Copy Tracking Link
           </button>
@@ -186,6 +271,23 @@ export default function OrderDetailsPage() {
               routeDistanceKm={order.route_distance_km}
               routeDurationMins={order.route_duration_mins}
             />
+          )}
+
+          {showConfirmDeliveryBanner && (
+            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl p-5">
+              <CheckCircle2 size={20} className="text-green-600 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm font-bold text-green-800">Driver has claimed delivery — confirm?</p>
+                <p className="text-xs text-green-600 mt-0.5">A signed proof of delivery has been uploaded (see Proof of Delivery below).</p>
+              </div>
+              <button
+                onClick={confirmDelivered}
+                disabled={confirmingDelivery}
+                className="px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 disabled:opacity-50 transition-colors flex-shrink-0"
+              >
+                {confirmingDelivery ? 'Confirming…' : 'Confirm Delivered'}
+              </button>
+            </div>
           )}
 
           {!isTerminal && (
@@ -244,6 +346,86 @@ export default function OrderDetailsPage() {
         </div>
 
         <div className="space-y-5">
+          {order.signature_url && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+              <h2 className="text-sm font-bold text-gray-900">Proof of Delivery</h2>
+              {/* eslint-disable-next-line @next/next/no-img-element -- signature comes from Cloudinary/local uploads, not a next/image-configured domain */}
+              <img src={order.signature_url} alt="Delivery signature" className="w-full rounded-xl border border-gray-100 bg-gray-50" />
+            </div>
+          )}
+
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+            <h2 className="text-sm font-bold text-gray-900">Send Dispatch Details</h2>
+            <p className="text-xs text-gray-400">Emails the dispatch summary (party, consignee, material, truck, driver, transporter, tracking link) to the selected recipients.</p>
+            <div className="space-y-2">
+              {NOTIFY_RECIPIENTS.map(r => {
+                const email = recipientEmail(order, r);
+                const result = notifyResults?.find(x => x.recipient === r);
+                return (
+                  <label key={r} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border text-sm ${email ? 'border-gray-200 cursor-pointer hover:bg-gray-50' : 'border-gray-100 bg-gray-50 cursor-not-allowed'}`}>
+                    <input
+                      type="checkbox"
+                      className="accent-orange-500"
+                      disabled={!email}
+                      checked={notifyRecipients.includes(r)}
+                      onChange={() => toggleNotifyRecipient(r)}
+                    />
+                    <span className="flex-1">
+                      <span className={`font-semibold ${email ? 'text-gray-800' : 'text-gray-400'}`}>{NOTIFY_RECIPIENT_LABELS[r]}</span>
+                      <span className="block text-[11px] text-gray-400">{email || 'no email on file'}</span>
+                    </span>
+                    {result && (
+                      <span className={`text-[10px] font-bold uppercase tracking-wide ${
+                        result.status === 'sent' ? 'text-green-600' : result.status === 'failed' ? 'text-red-500' : 'text-gray-400'
+                      }`}>
+                        {result.status}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={sendDispatchEmails}
+                disabled={sendingNotify || notifyRecipients.length === 0}
+                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 transition-colors"
+              >
+                <Mail size={14} />{sendingNotify ? 'Sending…' : 'Email'}
+              </button>
+              <button
+                type="button"
+                disabled
+                title="SMS coming soon — provider + DLT registration pending"
+                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-400 rounded-xl text-sm font-bold cursor-not-allowed"
+              >
+                SMS (coming soon)
+              </button>
+            </div>
+          </div>
+
+          {order.driver_tracking_token && !isTerminal && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+              <h2 className="text-sm font-bold text-gray-900">Message Driver</h2>
+              <form onSubmit={sendMessage} className="space-y-2.5">
+                <textarea
+                  value={messageBody}
+                  onChange={e => setMessageBody(e.target.value)}
+                  placeholder="e.g. Please take the bypass route, main road is jammed"
+                  rows={3}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400 resize-none"
+                />
+                <button
+                  type="submit"
+                  disabled={sendingMessage || !messageBody.trim()}
+                  className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                >
+                  <Send size={14} />{sendingMessage ? 'Sending…' : 'Send'}
+                </button>
+              </form>
+            </div>
+          )}
+
           {order.driver_tracking_token && (
             <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
               <h2 className="text-sm font-bold text-gray-900">Driver Tracking Link</h2>
@@ -270,11 +452,15 @@ export default function OrderDetailsPage() {
             <Field label="Vehicle Number" value={order.vehicle_number} />
             <Field label="Transporter" value={order.transporter_name || '—'} />
             <Field label="Transporter Phone" value={order.transporter_phone || '—'} />
+            <Field label="Booked For GSTIN" value={order.booked_for_gstin || '—'} />
+            <Field label="Booked For State" value={order.booked_for_state || '—'} />
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
             <h2 className="text-sm font-bold text-gray-900">Dispatch Details</h2>
             <Field label="Consignee" value={order.consignee_name || '—'} />
+            <Field label="Consignee GSTIN" value={order.consignee_gstin || '—'} />
+            <Field label="Consignee State" value={order.consignee_state || '—'} />
             <Field label="Material" value={order.material || '—'} />
             <Field label="Quantity" value={order.quantity || '—'} />
             <Field label="Dispatch Date & Time" value={order.dispatch_datetime ? new Date(order.dispatch_datetime).toLocaleString() : '—'} />
