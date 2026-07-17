@@ -261,10 +261,10 @@ export default function DriverSharePage() {
 
   const mapMarkers: OlaMarker[] = [];
   if (order.dispatch_from_lat != null && order.dispatch_from_lng != null) {
-    mapMarkers.push({ lng: order.dispatch_from_lng, lat: order.dispatch_from_lat, color: '#22C55E', label: 'A' });
+    mapMarkers.push({ lng: order.dispatch_from_lng, lat: order.dispatch_from_lat, color: '#22C55E', icon: 'pin' });
   }
   if (order.dispatch_to_lat != null && order.dispatch_to_lng != null) {
-    mapMarkers.push({ lng: order.dispatch_to_lng, lat: order.dispatch_to_lat, color: '#EF4444', label: 'B' });
+    mapMarkers.push({ lng: order.dispatch_to_lng, lat: order.dispatch_to_lat, color: '#EF4444', icon: 'pin' });
   }
   if (myPos) {
     mapMarkers.push({ lng: myPos.lng, lat: myPos.lat, color: '#FF6B2B', id: 'driver', icon: 'truck' });

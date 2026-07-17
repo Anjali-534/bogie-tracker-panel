@@ -46,10 +46,10 @@ export default function TrackingMap({
 
   const markers: OlaMarker[] = [];
   if (fromLat != null && fromLng != null) {
-    markers.push({ lng: fromLng, lat: fromLat, color: '#22C55E', label: 'A', popup: 'Dispatch From' });
+    markers.push({ lng: fromLng, lat: fromLat, color: '#22C55E', icon: 'pin', popup: 'Dispatch From' });
   }
   if (toLat != null && toLng != null) {
-    markers.push({ lng: toLng, lat: toLat, color: '#EF4444', label: 'B', popup: 'Dispatch To' });
+    markers.push({ lng: toLng, lat: toLat, color: '#EF4444', icon: 'pin', popup: 'Dispatch To' });
   }
   if (hasDriver) {
     markers.push({ lng: lastLng as number, lat: lastLat as number, color: stale ? '#9CA3AF' : '#FF6B2B', id: 'driver', icon: 'truck', popup: 'Driver' });

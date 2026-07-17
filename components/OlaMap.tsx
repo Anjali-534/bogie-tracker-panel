@@ -12,7 +12,7 @@ export type OlaMarker = {
   // (used for the moving driver marker; A/B pins are left unset — they
   // jump instantly, which is correct since they never move mid-trip).
   id?: string;
-  icon?: "truck";
+  icon?: "truck" | "pin";
 };
 
 const ANIM_MS = 900;
@@ -25,12 +25,23 @@ function truckIconHtml(color: string) {
   </div>`;
 }
 
+// Teardrop location pin, matching user-app's PickupMarker/DropMarker proportions
+// (VehicleMarkers.tsx: circle + pointed tip). The tip sits at the bottom edge of
+// the SVG's own bounding box, so pairing this with Marker anchor:'bottom' lands
+// the tip exactly on the coordinate rather than the pin's visual center.
+function pinIconHtml(color: string) {
+  return `<svg width="26" height="39" viewBox="0 0 24 36" xmlns="http://www.w3.org/2000/svg" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.35))">
+    <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24s12-15 12-24C24 5.373 18.627 0 12 0z" fill="${color}"/>
+    <circle cx="12" cy="12" r="5" fill="#fff"/>
+  </svg>`;
+}
+
 type OlaMapProps = {
   center?: [number, number]; // [lng, lat]
   zoom?: number;
   markers?: OlaMarker[];
-  route?: [number, number][]; // [lng, lat][] — GeoJSON LineString (solid orange — actual trail)
-  plannedRoute?: [number, number][]; // [lng, lat][] — dashed lighter line under the trail
+  route?: [number, number][]; // [lng, lat][] — GeoJSON LineString (thinner/deeper — actual trail)
+  plannedRoute?: [number, number][]; // [lng, lat][] — solid orange, matches cab-panel's route line
   fitToMarkers?: boolean;
   fitTrigger?: number;
   className?: string;
@@ -95,6 +106,8 @@ export default function OlaMap({
     map.addControl(new maplibregl.NavigationControl(), "top-right");
     map.on("load", () => {
       // Planned route goes in first so the actual trail draws on top of it.
+      // Solid orange, matching cab-panel's route-line paint values exactly —
+      // this is the primary line the user sees.
       map.addSource("planned-route", {
         type: "geojson",
         data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } },
@@ -102,8 +115,11 @@ export default function OlaMap({
       map.addLayer({
         id: "planned-route-line", type: "line", source: "planned-route",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#FDBA74", "line-width": 3, "line-opacity": 0.9, "line-dasharray": [2, 2] },
+        paint: { "line-color": "#FF6B2B", "line-width": 4, "line-opacity": 0.85 },
       });
+      // Actual trail — same orange, thinner and at 60% opacity so it reads as
+      // a distinct layer when it diverges from the planned route (and simply
+      // blends into it when the driver is on-route, which is fine).
       map.addSource("route", {
         type: "geojson",
         data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } },
@@ -111,7 +127,7 @@ export default function OlaMap({
       map.addLayer({
         id: "route-line", type: "line", source: "route",
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#FF6B2B", "line-width": 4, "line-opacity": 0.85 },
+        paint: { "line-color": "#FF6B2B", "line-width": 2.5, "line-opacity": 0.6 },
       });
       loadedRef.current = true;
       pendingRef.current.markers?.();
@@ -176,11 +192,13 @@ export default function OlaMap({
           const el = document.createElement("div");
           if (m.icon === "truck") {
             el.innerHTML = truckIconHtml(m.color || "#FF6B2B");
+          } else if (m.icon === "pin") {
+            el.innerHTML = pinIconHtml(m.color || "#FF6B2B");
           } else {
             el.style.cssText = `width:28px;height:28px;border-radius:50%;background:${m.color || "#FF6B2B"};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:800`;
             if (m.label) el.textContent = m.label;
           }
-          const marker = new maplibregl.Marker({ element: el }).setLngLat([m.lng, m.lat]);
+          const marker = new maplibregl.Marker({ element: el, anchor: m.icon === "pin" ? "bottom" : "center" }).setLngLat([m.lng, m.lat]);
           if (m.popup) marker.setPopup(new maplibregl.Popup({ offset: 16 }).setHTML(m.popup));
           marker.addTo(map);
           animatedMarkersRef.current[m.id] = { marker, sig };
@@ -194,15 +212,19 @@ export default function OlaMap({
         delete animatedMarkersRef.current[id];
       });
 
-      // Static (no id) markers — A/B dispatch pins etc. — unchanged behavior.
+      // Static (no id) markers — A/B dispatch pins etc.
       markersRef.current.forEach(m => m.remove());
       markersRef.current = [];
       list.forEach(m => {
         if (m.id || m.lng == null || m.lat == null) return;
         const el = document.createElement("div");
-        el.style.cssText = `width:28px;height:28px;border-radius:50%;background:${m.color || "#FF6B2B"};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:800`;
-        if (m.label) el.textContent = m.label;
-        const marker = new maplibregl.Marker({ element: el }).setLngLat([m.lng, m.lat]);
+        if (m.icon === "pin") {
+          el.innerHTML = pinIconHtml(m.color || "#FF6B2B");
+        } else {
+          el.style.cssText = `width:28px;height:28px;border-radius:50%;background:${m.color || "#FF6B2B"};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:800`;
+          if (m.label) el.textContent = m.label;
+        }
+        const marker = new maplibregl.Marker({ element: el, anchor: m.icon === "pin" ? "bottom" : "center" }).setLngLat([m.lng, m.lat]);
         if (m.popup) marker.setPopup(new maplibregl.Popup({ offset: 16 }).setHTML(m.popup));
         marker.addTo(map);
         markersRef.current.push(marker);
