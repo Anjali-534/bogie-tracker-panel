@@ -106,6 +106,85 @@ export interface TrackerOrder {
   booked_for_state: string | null;
 }
 
+// Plan/subscription billing — see backend migration 032. No payment gateway
+// is wired up yet: an order goes to 'pending_payment' on creation, and a
+// staff member confirms payment was received out-of-band (dashboard's
+// mark-paid action), which stamps invoice_number/paid_at and emails the PDF.
+export type TrackerPlan = 'single' | '2users' | '5users' | 'mega' | 'lifetime';
+export type TrackerBillingDuration = 'monthly' | 'quarterly' | 'halfYearly' | 'yearly' | 'onetime';
+export type TrackerPlanOrderStatus = 'pending_payment' | 'paid' | 'cancelled';
+
+export interface TrackerPlanOrder {
+  id: string;
+  company_id: string;
+  plan: TrackerPlan;
+  billing_duration: TrackerBillingDuration;
+  base_amount: number;
+  gst_amount: number;
+  total_amount: number;
+
+  billing_name: string;
+  billing_address_line: string;
+  billing_city: string;
+  billing_state: string;
+  billing_pincode: string;
+  gstin: string | null;
+
+  invoice_number: string | null;
+  status: TrackerPlanOrderStatus;
+  payment_gateway_ref: string | null;
+  created_at: string;
+  paid_at: string | null;
+}
+
+export const PLAN_LABELS: Record<TrackerPlan, string> = {
+  single: 'Single User',
+  '2users': '2 Users',
+  '5users': '5 Users',
+  mega: 'Mega',
+  lifetime: 'Lifetime',
+};
+
+// Per-month rate shown on the picker for each recurring duration — the
+// server independently looks up the actual period total via
+// trackerbilling.Lookup on order creation, so this is display-only.
+export const PLAN_PRICING: Record<TrackerPlan, Partial<Record<TrackerBillingDuration, number>>> = {
+  single:   { monthly: 500, quarterly: 375, halfYearly: 350, yearly: 335 },
+  '2users': { monthly: 700, quarterly: 525, halfYearly: 490, yearly: 469 },
+  '5users': { monthly: 1000, quarterly: 750, halfYearly: 700, yearly: 670 },
+  mega:     { monthly: 2000, quarterly: 1500, halfYearly: 1400, yearly: 1340 },
+  lifetime: { onetime: 20000 },
+};
+
+export const DURATION_LABELS: Record<TrackerBillingDuration, string> = {
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  halfYearly: 'Half-Yearly',
+  yearly: 'Yearly',
+  onetime: 'One-time',
+};
+
+// Months per billing_duration — used only to compute the period total shown
+// on the picker/summary (base_amount = per-month rate × months). Matches
+// the backend's trackerbilling.Lookup table exactly.
+export const DURATION_MONTHS: Partial<Record<TrackerBillingDuration, number>> = {
+  monthly: 1, quarterly: 3, halfYearly: 6, yearly: 12,
+};
+
+export const TRACKER_GST_RATE = 0.18;
+
+export const PLAN_ORDER_STATUS_LABELS: Record<TrackerPlanOrderStatus, string> = {
+  pending_payment: 'Pending Payment',
+  paid: 'Paid',
+  cancelled: 'Cancelled',
+};
+
+export const PLAN_ORDER_STATUS_STYLES: Record<TrackerPlanOrderStatus, string> = {
+  pending_payment: 'bg-amber-100 text-amber-700',
+  paid: 'bg-green-100 text-green-700',
+  cancelled: 'bg-red-100 text-red-600',
+};
+
 export interface TrackerLocationPing {
   lat: number;
   lng: number;

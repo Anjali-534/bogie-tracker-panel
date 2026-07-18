@@ -5,15 +5,16 @@ import Image from 'next/image';
 import { useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
-  LayoutDashboard, Package, Users, Settings, ExternalLink, LogOut,
+  LayoutDashboard, Package, Users, CreditCard, Settings, ExternalLink, LogOut,
 } from 'lucide-react';
 import { clearSession } from '@/lib/api';
 
 const NAV = [
-  { href: '/tracker',          icon: LayoutDashboard, label: 'Overview' },
-  { href: '/tracker/orders',   icon: Package,         label: 'Orders' },
-  { href: '/tracker/drivers',  icon: Users,           label: 'Drivers' },
-  { href: '/tracker/settings', icon: Settings,        label: 'Settings' },
+  { href: '/tracker',             icon: LayoutDashboard, label: 'Overview' },
+  { href: '/tracker/orders',      icon: Package,         label: 'Orders' },
+  { href: '/tracker/drivers',     icon: Users,           label: 'Drivers' },
+  { href: '/tracker/plan-orders', icon: CreditCard,      label: 'Plan Orders' },
+  { href: '/tracker/settings',    icon: Settings,        label: 'Settings' },
 ];
 
 export default function TrackerLayout({ children }: { children: React.ReactNode }) {
