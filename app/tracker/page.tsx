@@ -13,12 +13,17 @@ interface CompanyProfile {
   contact_email: string;
   gstin: string;
   status: string;
+  logo_url: string | null;
 }
 
 export default function OverviewPage() {
   const [companyName, setCompanyName] = useState(() => {
     if (typeof window === 'undefined') return '';
     return window.localStorage.getItem('tracker_company_name') ?? '';
+  });
+  const [logoUrl, setLogoUrl] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem('tracker_company_logo_url');
   });
   const [orders,  setOrders]  = useState<TrackerOrder[] | null>(null);
   const [drivers, setDrivers] = useState<TrackerDriver[] | null>(null);
@@ -28,6 +33,12 @@ export default function OverviewPage() {
       .then(({ data }) => {
         setCompanyName(data.company_name);
         localStorage.setItem('tracker_company_name', data.company_name);
+        setLogoUrl(data.logo_url);
+        if (data.logo_url) {
+          localStorage.setItem('tracker_company_logo_url', data.logo_url);
+        } else {
+          localStorage.removeItem('tracker_company_logo_url');
+        }
       })
       .catch(() => {});
   }, []);
@@ -61,7 +72,12 @@ export default function OverviewPage() {
     <div className="space-y-8">
       {/* Header block */}
       <div className="text-center pt-4">
-        <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority className="w-56 h-auto mx-auto mb-5" />
+        {logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={logoUrl} alt="Company logo" className="w-40 h-40 object-contain mx-auto mb-5" />
+        ) : (
+          <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority className="w-56 h-auto mx-auto mb-5" />
+        )}
         <h1 className="text-2xl font-bold text-gray-900">{companyName || ' '}</h1>
         <p className="text-sm text-gray-400 mt-1">Bogie Tracker Panel</p>
       </div>

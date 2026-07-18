@@ -17,6 +17,7 @@ export function clearSession() {
   localStorage.removeItem('tracker_company_name');
   localStorage.removeItem('tracker_company_email');
   localStorage.removeItem('tracker_company_status');
+  localStorage.removeItem('tracker_company_logo_url');
 }
 
 // A 403 carrying a `status` field means the backend re-checked the

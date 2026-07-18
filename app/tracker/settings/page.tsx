@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
+import { Upload, X } from 'lucide-react';
 import { api } from '@/lib/api';
 
 const inputClass = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400';
@@ -14,6 +15,7 @@ interface CompanyProfile {
   gstin: string;
   status: string;
   notification_email: string | null;
+  logo_url: string | null;
 }
 
 export default function SettingsPage() {
@@ -24,6 +26,9 @@ export default function SettingsPage() {
   const [notificationEmail, setNotificationEmail] = useState('');
   const [loading,       setLoading]       = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
+
+  const [logoUrl,        setLogoUrl]        = useState<string | null>(null);
+  const [uploadingLogo,  setUploadingLogo]  = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword,     setNewPassword]     = useState('');
@@ -38,10 +43,46 @@ export default function SettingsPage() {
         setPhone(data.contact_phone);
         setGstin(data.gstin || '');
         setNotificationEmail(data.notification_email || '');
+        setLogoUrl(data.logo_url || null);
       })
       .catch(() => toast.error('Failed to load profile'))
       .finally(() => setLoading(false));
   }, []);
+
+  async function uploadLogo(file: File) {
+    setUploadingLogo(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const { data } = await api.post<{ logo_url: string }>('/gogoo/tracker/logo', form);
+      setLogoUrl(data.logo_url);
+      localStorage.setItem('tracker_company_logo_url', data.logo_url);
+      toast.success('Logo updated');
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        toast.error(body.error || 'Logo upload failed');
+      } else {
+        toast.error('Logo upload failed');
+      }
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
+  async function removeLogo() {
+    setUploadingLogo(true);
+    try {
+      await api.delete('/gogoo/tracker/logo');
+      setLogoUrl(null);
+      localStorage.removeItem('tracker_company_logo_url');
+      toast.success('Logo removed');
+    } catch {
+      toast.error('Failed to remove logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -118,6 +159,30 @@ export default function SettingsPage() {
             <label className={labelClass}>GSTIN <span className="text-gray-400 font-normal">(optional)</span></label>
             <input value={gstin} onChange={e => setGstin(e.target.value.toUpperCase())} className={inputClass} placeholder="07AAAAA0000A1Z5" />
           </div>
+        </div>
+        <div>
+          <label className={labelClass}>Company Logo <span className="text-gray-400 font-normal">(optional)</span></label>
+          {logoUrl ? (
+            <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={logoUrl} alt="Company logo" className="w-14 h-14 object-contain rounded-xl border border-gray-200 bg-gray-50" />
+              <label className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
+                <Upload size={14} />Change
+                <input type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" disabled={uploadingLogo}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ''; }} />
+              </label>
+              <button type="button" onClick={removeLogo} disabled={uploadingLogo} className="text-gray-400 hover:text-red-500 disabled:opacity-50">
+                <X size={16} />
+              </button>
+            </div>
+          ) : (
+            <label className="flex items-center justify-center gap-2 border border-dashed border-gray-300 rounded-xl px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 cursor-pointer transition-colors max-w-xs">
+              <Upload size={14} />{uploadingLogo ? 'Uploading…' : 'Choose file (JPG/PNG/WEBP)'}
+              <input type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" disabled={uploadingLogo}
+                onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ''; }} />
+            </label>
+          )}
+          <p className="text-[11px] text-gray-400 mt-1">Shown on your dashboard and, if approved, in Bogie&apos;s partner list.</p>
         </div>
         <div>
           <label className={labelClass}>Contact Email</label>
