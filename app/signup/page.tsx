@@ -4,20 +4,22 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
+import { Eye, EyeOff } from 'lucide-react';
 import { api } from '@/lib/api';
 
 export default function TrackerSignupPage() {
   const router = useRouter();
-  const [companyName, setCompanyName]   = useState('');
-  const [contactPhone, setContactPhone] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [password, setPassword]         = useState('');
-  const [gstin, setGstin]               = useState('');
-  const [loading, setLoading]           = useState(false);
+  const [companyName, setCompanyName]     = useState('');
+  const [contactEmail, setContactEmail]   = useState('');
+  const [password, setPassword]           = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword]         = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading]             = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyName || !contactPhone || !contactEmail || !password) {
+    if (!companyName || !contactEmail || !password || !confirmPassword) {
       toast.error('Fill in all required fields');
       return;
     }
@@ -25,14 +27,16 @@ export default function TrackerSignupPage() {
       toast.error('Password must be at least 8 characters');
       return;
     }
+    if (password !== confirmPassword) {
+      toast.error("Passwords don't match");
+      return;
+    }
     setLoading(true);
     try {
       await api.post('/gogoo/tracker/signup', {
         company_name: companyName,
-        contact_phone: contactPhone,
         contact_email: contactEmail,
         password,
-        gstin: gstin || undefined,
       });
       router.push('/blocked?status=pending');
     } catch (err) {
@@ -75,17 +79,6 @@ export default function TrackerSignupPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Contact Phone</label>
-              <input
-                type="tel"
-                value={contactPhone}
-                onChange={e => setContactPhone(e.target.value)}
-                placeholder="98XXXXXXXX"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white
-                  placeholder-gray-500 focus:outline-none focus:border-orange-500 text-sm"
-              />
-            </div>
-            <div>
               <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Contact Email</label>
               <input
                 type="email"
@@ -98,25 +91,36 @@ export default function TrackerSignupPage() {
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="At least 8 characters"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white
-                  placeholder-gray-500 focus:outline-none focus:border-orange-500 text-sm"
-              />
+              <div className="flex items-center bg-gray-800 border border-gray-700 rounded-xl focus-within:border-orange-500">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="At least 8 characters"
+                  className="flex-1 bg-transparent px-4 py-3 text-white placeholder-gray-500 focus:outline-none text-sm"
+                />
+                <button type="button" onClick={() => setShowPassword(v => !v)} className="px-3 text-gray-400 hover:text-gray-200">
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">GSTIN (optional)</label>
-              <input
-                type="text"
-                value={gstin}
-                onChange={e => setGstin(e.target.value)}
-                placeholder="22AAAAA0000A1Z5"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white
-                  placeholder-gray-500 focus:outline-none focus:border-orange-500 text-sm"
-              />
+              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Confirm Password</label>
+              <div className="flex items-center bg-gray-800 border border-gray-700 rounded-xl focus-within:border-orange-500">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter your password"
+                  className="flex-1 bg-transparent px-4 py-3 text-white placeholder-gray-500 focus:outline-none text-sm"
+                />
+                <button type="button" onClick={() => setShowConfirmPassword(v => !v)} className="px-3 text-gray-400 hover:text-gray-200">
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {confirmPassword && password !== confirmPassword && (
+                <p className="text-xs text-red-400 mt-1.5">Passwords don&apos;t match</p>
+              )}
             </div>
             <button
               type="submit"
