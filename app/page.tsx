@@ -1,16 +1,24 @@
 'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import { api } from '@/lib/api';
 
-export default function TrackerLoginPage() {
+function TrackerLoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading]   = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('verified') === '1') {
+      toast.success('Email verified — you can now log in.');
+      router.replace('/');
+    }
+  }, [searchParams, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,5 +108,13 @@ export default function TrackerLoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function TrackerLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <TrackerLoginPageInner />
+    </Suspense>
   );
 }
