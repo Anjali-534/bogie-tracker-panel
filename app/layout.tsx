@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import InstallPrompt from '@/components/InstallPrompt';
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 
 export const metadata: Metadata = {
   title: 'bogie Tracker Panel',
@@ -25,7 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         {children}
-        <InstallPrompt />
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

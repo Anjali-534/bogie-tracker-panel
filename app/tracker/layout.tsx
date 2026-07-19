@@ -8,6 +8,7 @@ import {
   LayoutDashboard, Package, Users, BookUser, CreditCard, Settings, ExternalLink, LogOut,
 } from 'lucide-react';
 import { clearSession } from '@/lib/api';
+import InstallButton from '@/components/InstallButton';
 
 const NAV = [
   { href: '/tracker',             icon: LayoutDashboard, label: 'Overview' },
@@ -117,9 +118,12 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
             <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
             <span className="text-sm text-gray-500 font-medium">Bogie Tracker Panel</span>
           </div>
-          <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-3 py-1.5 rounded-full font-semibold">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            Live
+          <div className="flex items-center gap-3">
+            <InstallButton />
+            <div className="flex items-center gap-2 text-xs text-green-600 bg-green-50 px-3 py-1.5 rounded-full font-semibold">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              Live
+            </div>
           </div>
         </header>
         <main className="flex-1 p-8">{children}</main>
