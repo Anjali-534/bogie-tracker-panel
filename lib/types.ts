@@ -145,6 +145,18 @@ export const PLAN_LABELS: Record<TrackerPlan, string> = {
   lifetime: 'Lifetime',
 };
 
+// Tier order for the recurring plans, low to high — used to label a plan
+// card "Upgrade"/"Downgrade"/"Renew" relative to the company's current_plan.
+// Lifetime sits outside this ladder (it's a separate one-time purchase, not
+// a tier to move between).
+export const PLAN_TIER_ORDER: Record<TrackerPlan, number> = {
+  single: 0,
+  '2users': 1,
+  '5users': 2,
+  mega: 3,
+  lifetime: 99,
+};
+
 // Per-month rate shown on the picker for each recurring duration — the
 // server independently looks up the actual period total via
 // trackerbilling.Lookup on order creation, so this is display-only.

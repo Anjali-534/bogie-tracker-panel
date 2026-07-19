@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import axios from 'axios';
@@ -8,9 +8,25 @@ import toast, { Toaster } from 'react-hot-toast';
 import { api } from '@/lib/api';
 import GSTInput from '@/components/GSTInput';
 import {
-  PLAN_LABELS, PLAN_PRICING, DURATION_LABELS, DURATION_MONTHS, TRACKER_GST_RATE,
+  PLAN_LABELS, PLAN_PRICING, PLAN_TIER_ORDER, DURATION_LABELS, DURATION_MONTHS, TRACKER_GST_RATE,
   type TrackerPlan, type TrackerBillingDuration,
 } from '@/lib/types';
+
+interface CompanyProfile {
+  current_plan: TrackerPlan | null;
+  subscription_expires_at: string | null;
+}
+
+// Label for a plan card's CTA relative to what the company already has.
+// Lifetime current_plan is handled by a dedicated full-page state before
+// this ever runs, so `current` here is never 'lifetime'.
+function planCta(target: TrackerPlan, current: TrackerPlan | null): string {
+  if (!current) return 'Get Started';
+  if (target === current) return 'Renew';
+  return PLAN_TIER_ORDER[target] > PLAN_TIER_ORDER[current]
+    ? `Upgrade to ${PLAN_LABELS[target]}`
+    : `Downgrade to ${PLAN_LABELS[target]}`;
+}
 
 const inputClass = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400';
 const labelClass = 'block text-xs font-semibold text-gray-500 mb-1.5';
@@ -59,6 +75,16 @@ export default function NewPlanOrderPage() {
   const [submitting, setSubmitting] = useState(false);
   const [placedOrder, setPlacedOrder] = useState<{ total_amount: number } | null>(null);
 
+  const [profile, setProfile] = useState<CompanyProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  useEffect(() => {
+    api.get<CompanyProfile>('/gogoo/tracker/company/profile')
+      .then(({ data }) => setProfile(data))
+      .catch(() => toast.error('Failed to load your current plan'))
+      .finally(() => setProfileLoading(false));
+  }, []);
+
   const effectiveDuration: TrackerBillingDuration | null = plan === 'lifetime' ? 'onetime' : plan ? duration : null;
   const amounts = useMemo(() => (plan && effectiveDuration ? computeAmounts(plan, effectiveDuration) : null), [plan, effectiveDuration]);
 
@@ -94,6 +120,8 @@ export default function NewPlanOrderPage() {
       setStep('done');
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {
+        // 409 = duplicate pending order for this exact plan/duration — the
+        // backend's message already tells the user what to do next.
         const body = err.response.data as { error?: string };
         toast.error(body.error || 'Failed to create order');
       } else {
@@ -117,57 +145,74 @@ export default function NewPlanOrderPage() {
         </div>
       </div>
 
-      {step === 'pick' && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-gray-900">Choose a plan</h2>
-            <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
-              {RECURRING_DURATIONS.map(d => (
-                <button key={d} type="button" onClick={() => setDuration(d)}
-                  className={`px-3 py-1.5 font-semibold transition-colors ${duration === d ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
-                  {DURATION_LABELS[d]}
-                </button>
-              ))}
-            </div>
-          </div>
+      {step === 'pick' && !profileLoading && profile?.current_plan === 'lifetime' && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center space-y-2">
+          <p className="text-3xl mb-1">♾️</p>
+          <h2 className="text-lg font-bold text-gray-900">You have lifetime access</h2>
+          <p className="text-sm text-gray-500 max-w-md mx-auto">
+            Your Bogie Tracker subscription never expires — there&apos;s nothing further to buy or renew.
+          </p>
+          <Link href="/tracker/plan-orders" className="inline-block mt-2 px-5 py-2.5 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+            Back to Plan Orders
+          </Link>
+        </div>
+      )}
 
-          <div className="grid grid-cols-2 gap-4">
-            {RECURRING_PLANS.map(p => {
-              const a = computeAmounts(p, duration);
+      {step === 'pick' && !(profile?.current_plan === 'lifetime') && (
+        <div className="space-y-5">
+          {!profileLoading && <CurrentPlanCard profile={profile} />}
+
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold text-gray-900">Choose a plan</h2>
+              <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
+                {RECURRING_DURATIONS.map(d => (
+                  <button key={d} type="button" onClick={() => setDuration(d)}
+                    className={`px-3 py-1.5 font-semibold transition-colors ${duration === d ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                    {DURATION_LABELS[d]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {RECURRING_PLANS.map(p => {
+                const a = computeAmounts(p, duration);
+                return (
+                  <button key={p} type="button" onClick={() => choosePlan(p)}
+                    className="text-left border border-gray-200 rounded-2xl p-5 hover:border-green-400 hover:shadow-sm transition-all">
+                    <p className="text-sm font-bold text-gray-900">{PLAN_LABELS[p]}</p>
+                    {a && (
+                      <>
+                        <p className="text-2xl font-extrabold text-gray-900 mt-2">{fmtINR(a.total)}</p>
+                        <p className="text-xs text-gray-400">incl. GST · {DURATION_LABELS[duration]}</p>
+                      </>
+                    )}
+                    <div className="mt-4 text-xs font-semibold text-green-600">{planCta(p, profile?.current_plan ?? null)} →</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="pt-1 border-t border-gray-100" />
+
+            {(() => {
+              const a = computeAmounts('lifetime', 'onetime');
               return (
-                <button key={p} type="button" onClick={() => choosePlan(p)}
-                  className="text-left border border-gray-200 rounded-2xl p-5 hover:border-green-400 hover:shadow-sm transition-all">
-                  <p className="text-sm font-bold text-gray-900">{PLAN_LABELS[p]}</p>
-                  {a && (
-                    <>
-                      <p className="text-2xl font-extrabold text-gray-900 mt-2">{fmtINR(a.total)}</p>
-                      <p className="text-xs text-gray-400">incl. GST · {DURATION_LABELS[duration]}</p>
-                    </>
-                  )}
-                  <div className="mt-4 text-xs font-semibold text-green-600">Select →</div>
+                <button type="button" onClick={() => choosePlan('lifetime')}
+                  className="w-full text-left border border-gray-200 rounded-2xl p-5 hover:border-green-400 hover:shadow-sm transition-all flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">Lifetime</p>
+                    <p className="text-xs text-gray-400">One-time payment, no renewals</p>
+                  </div>
+                  <div className="text-right">
+                    {a && <p className="text-2xl font-extrabold text-gray-900">{fmtINR(a.total)}</p>}
+                    <p className="text-xs font-semibold text-green-600">{profile?.current_plan ? 'Upgrade to Lifetime' : 'Get Started'} →</p>
+                  </div>
                 </button>
               );
-            })}
+            })()}
           </div>
-
-          <div className="pt-1 border-t border-gray-100" />
-
-          {(() => {
-            const a = computeAmounts('lifetime', 'onetime');
-            return (
-              <button type="button" onClick={() => choosePlan('lifetime')}
-                className="w-full text-left border border-gray-200 rounded-2xl p-5 hover:border-green-400 hover:shadow-sm transition-all flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-bold text-gray-900">Lifetime</p>
-                  <p className="text-xs text-gray-400">One-time payment, no renewals</p>
-                </div>
-                <div className="text-right">
-                  {a && <p className="text-2xl font-extrabold text-gray-900">{fmtINR(a.total)}</p>}
-                  <p className="text-xs font-semibold text-green-600">Select →</p>
-                </div>
-              </button>
-            );
-          })()}
         </div>
       )}
 
@@ -274,6 +319,55 @@ export default function NewPlanOrderPage() {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// "Your current plan" summary shown above the picker. No card at all when
+// the company has never subscribed (current_plan is null) — there's
+// nothing to summarize yet, so the plan picker speaks for itself.
+function CurrentPlanCard({ profile }: { profile: CompanyProfile | null }) {
+  if (!profile?.current_plan) return null;
+
+  const expiresAt = profile.subscription_expires_at ? new Date(profile.subscription_expires_at) : null;
+  const daysRemaining = expiresAt ? Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+
+  let tone: 'green' | 'amber' | 'red';
+  let statusText: string;
+  if (daysRemaining === null) {
+    tone = 'green';
+    statusText = 'Active';
+  } else if (daysRemaining <= 0) {
+    tone = 'red';
+    statusText = 'Expired';
+  } else if (daysRemaining <= 7) {
+    tone = 'amber';
+    statusText = `${daysRemaining} day${daysRemaining === 1 ? '' : 's'} remaining`;
+  } else {
+    tone = 'green';
+    statusText = `${daysRemaining} days remaining`;
+  }
+
+  const toneClasses = {
+    green: 'border-green-200 bg-green-50 text-green-700',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700',
+    red: 'border-red-200 bg-red-50 text-red-700',
+  }[tone];
+
+  return (
+    <div className={`rounded-2xl border p-5 flex items-center justify-between ${toneClasses}`}>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide opacity-70">Your current plan</p>
+        <p className="text-lg font-extrabold mt-0.5">{PLAN_LABELS[profile.current_plan]}</p>
+      </div>
+      <div className="text-right">
+        <p className="text-sm font-bold">{statusText}</p>
+        {expiresAt && (
+          <p className="text-xs opacity-70">
+            {daysRemaining !== null && daysRemaining <= 0 ? 'Expired on' : 'Expires on'} {expiresAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
