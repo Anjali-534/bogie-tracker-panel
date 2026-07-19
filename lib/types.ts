@@ -149,6 +149,31 @@ export interface TrackerStaffUser {
   disabled_at: string | null;
 }
 
+// Saved recipients — see backend migration 041. Company-wide (owner + all
+// staff share one list). Bundles the who/where side of an order: Booked For
+// party + Consignee party + Dispatch To destination. Shipment-specific
+// fields are never part of a recipient. The backend list endpoint returns
+// most-used-first (use_count DESC, last_used_at DESC).
+export interface TrackerSavedRecipient {
+  id: string;
+  label: string;
+  booked_for_company_name: string;
+  booked_for_phone: string;
+  booked_for_email: string | null;
+  booked_for_gstin: string | null;
+  booked_for_state: string | null;
+  consignee_name: string | null;
+  consignee_email: string | null;
+  consignee_gstin: string | null;
+  consignee_state: string | null;
+  dispatch_to: string | null;
+  dispatch_to_lat: number | null;
+  dispatch_to_lng: number | null;
+  use_count: number;
+  last_used_at: string | null;
+  created_at: string;
+}
+
 export interface TrackerStaffListResponse {
   staff: TrackerStaffUser[];
   count: number;

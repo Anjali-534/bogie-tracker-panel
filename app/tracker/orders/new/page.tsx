@@ -2,11 +2,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Upload, X } from 'lucide-react';
+import { ArrowLeft, BookmarkPlus, RotateCcw, Upload, X } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import { api } from '@/lib/api';
-import { type TrackerDriver } from '@/lib/types';
+import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient } from '@/lib/types';
 import LocationInput from '@/components/LocationInput';
 import GSTInput from '@/components/GSTInput';
 
@@ -52,11 +52,147 @@ export default function NewOrderPage() {
   const [driverName,  setDriverName]  = useState('');
   const [driverPhone, setDriverPhone] = useState('');
 
+  // Saved recipients — backend returns most-used-first, the picker keeps
+  // that order and only filters it.
+  const [recipients,          setRecipients]          = useState<TrackerSavedRecipient[]>([]);
+  const [recipientQuery,      setRecipientQuery]      = useState('');
+  const [recipientListOpen,   setRecipientListOpen]   = useState(false);
+  const [selectedRecipientId, setSelectedRecipientId] = useState<string | null>(null);
+  const [savePromptDismissed, setSavePromptDismissed] = useState(false);
+  const [saveLabel,           setSaveLabel]           = useState('');
+  const [savingRecipient,     setSavingRecipient]     = useState(false);
+
+  // "Repeat last order" — only the latest order's id is kept from the list;
+  // the full field set is fetched on click (the list response is trimmed).
+  const [lastOrderId, setLastOrderId] = useState<string | null>(null);
+  const [repeating,   setRepeating]   = useState(false);
+
   useEffect(() => {
     api.get<TrackerDriver[]>('/gogoo/tracker/drivers')
       .then(({ data }) => setDrivers(data))
       .catch(() => toast.error('Failed to load drivers'));
+    api.get<TrackerSavedRecipient[]>('/gogoo/tracker/recipients')
+      .then(({ data }) => setRecipients(data))
+      .catch(() => {});
+    api.get<TrackerOrder[]>('/gogoo/tracker/orders')
+      .then(({ data }) => setLastOrderId(data[0]?.id ?? null))
+      .catch(() => {});
   }, []);
+
+  function applyRecipient(r: TrackerSavedRecipient) {
+    setSelectedRecipientId(r.id);
+    setRecipientQuery(r.label);
+    setRecipientListOpen(false);
+    setBookedForCompany(r.booked_for_company_name);
+    setBookedForPhone(r.booked_for_phone);
+    setBookedForEmail(r.booked_for_email ?? '');
+    setBookedForGstin(r.booked_for_gstin ?? '');
+    setBookedForState(r.booked_for_state ?? '');
+    setConsigneeName(r.consignee_name ?? '');
+    setConsigneeEmail(r.consignee_email ?? '');
+    setConsigneeGstin(r.consignee_gstin ?? '');
+    setConsigneeState(r.consignee_state ?? '');
+    if (r.dispatch_to) {
+      setDispatchTo(r.dispatch_to);
+      setDispatchToLat(r.dispatch_to_lat);
+      setDispatchToLng(r.dispatch_to_lng);
+    }
+  }
+
+  const recipientFilter = recipientQuery.trim().toLowerCase();
+  const filteredRecipients = recipientFilter === '' ? recipients : recipients.filter(r =>
+    r.label.toLowerCase().includes(recipientFilter) ||
+    r.booked_for_company_name.toLowerCase().includes(recipientFilter) ||
+    r.booked_for_phone.includes(recipientFilter) ||
+    (r.dispatch_to ?? '').toLowerCase().includes(recipientFilter)
+  );
+
+  const normPhone = (p: string) => p.replace(/\s+/g, '');
+  const matchesExistingRecipient = recipients.some(r =>
+    r.booked_for_company_name.trim().toLowerCase() === bookedForCompany.trim().toLowerCase() &&
+    normPhone(r.booked_for_phone) === normPhone(bookedForPhone)
+  );
+  const showSavePrompt = !selectedRecipientId && !savePromptDismissed &&
+    bookedForCompany.trim() !== '' && bookedForPhone.trim() !== '' && !matchesExistingRecipient;
+
+  async function saveAsRecipient() {
+    setSavingRecipient(true);
+    try {
+      const { data } = await api.post<TrackerSavedRecipient>('/gogoo/tracker/recipients', {
+        label: (saveLabel.trim() || bookedForCompany).trim(),
+        booked_for_company_name: bookedForCompany,
+        booked_for_phone: bookedForPhone,
+        booked_for_email: bookedForEmail || undefined,
+        booked_for_gstin: bookedForGstin || undefined,
+        booked_for_state: bookedForState || undefined,
+        consignee_name: consigneeName || undefined,
+        consignee_email: consigneeEmail || undefined,
+        consignee_gstin: consigneeGstin || undefined,
+        consignee_state: consigneeState || undefined,
+        dispatch_to: dispatchTo || undefined,
+        dispatch_to_lat: dispatchToLat ?? undefined,
+        dispatch_to_lng: dispatchToLng ?? undefined,
+      });
+      setRecipients(prev => [...prev, data]);
+      // The just-saved recipient counts as "used" for this order too.
+      setSelectedRecipientId(data.id);
+      setRecipientQuery(data.label);
+      setSaveLabel('');
+      toast.success(`Saved "${data.label}" for future orders`);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        toast.error(body.error || 'Failed to save recipient');
+      } else {
+        toast.error('Failed to save recipient');
+      }
+    } finally {
+      setSavingRecipient(false);
+    }
+  }
+
+  // Prefills everything editable from the company's most recent order EXCEPT
+  // dispatch_datetime (a stale past date silently carried over is a footgun)
+  // and the e-way bill number/file (always unique per dispatch).
+  async function repeatLastOrder() {
+    if (!lastOrderId) return;
+    setRepeating(true);
+    try {
+      const { data } = await api.get<{ order: TrackerOrder }>(`/gogoo/tracker/orders/${lastOrderId}`);
+      const o = data.order;
+      setSelectedRecipientId(null);
+      setRecipientQuery('');
+      setBookedForCompany(o.booked_for_company_name);
+      setBookedForPhone(o.booked_for_phone);
+      setBookedForEmail(o.booked_for_email ?? '');
+      setBookedForGstin(o.booked_for_gstin ?? '');
+      setBookedForState(o.booked_for_state ?? '');
+      setDispatchFrom(o.dispatch_from);
+      setDispatchFromLat(o.dispatch_from_lat);
+      setDispatchFromLng(o.dispatch_from_lng);
+      setDispatchTo(o.dispatch_to);
+      setDispatchToLat(o.dispatch_to_lat);
+      setDispatchToLng(o.dispatch_to_lng);
+      setConsigneeName(o.consignee_name ?? '');
+      setConsigneeEmail(o.consignee_email ?? '');
+      setConsigneeGstin(o.consignee_gstin ?? '');
+      setConsigneeState(o.consignee_state ?? '');
+      setMaterial(o.material ?? '');
+      setQuantity(o.quantity ?? '');
+      setDocumentsEnclosed(o.documents_enclosed ?? '');
+      setTransporterName(o.transporter_name);
+      setTransporterPhone(o.transporter_phone);
+      setTransporterEmail(o.transporter_email ?? '');
+      setVehicleNumber(o.vehicle_number);
+      setDriverMode('select');
+      setDriverId(o.driver_id ?? '');
+      toast.success('Prefilled from your last order — dispatch date and e-way bill start fresh');
+    } catch {
+      toast.error('Failed to load your last order');
+    } finally {
+      setRepeating(false);
+    }
+  }
 
   function selectDriver(id: string) {
     setDriverId(id);
@@ -118,6 +254,7 @@ export default function NewOrderPage() {
         consignee_email: consigneeEmail || undefined,
         consignee_gstin: consigneeGstin || undefined,
         consignee_state: consigneeState || undefined,
+        saved_recipient_id: selectedRecipientId ?? undefined,
         material: material || undefined,
         quantity: quantity || undefined,
         dispatch_datetime: dispatchDatetime ? new Date(dispatchDatetime).toISOString() : undefined,
@@ -155,13 +292,50 @@ export default function NewOrderPage() {
         <Link href="/tracker/orders" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
           <ArrowLeft size={18} className="text-gray-600" />
         </Link>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-900">New Order</h1>
           <p className="text-xs text-gray-400">Create a new dispatch order</p>
         </div>
+        {lastOrderId && (
+          <button type="button" onClick={repeatLastOrder} disabled={repeating}
+            className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 border border-orange-200 rounded-lg px-3 py-2 hover:bg-orange-50 disabled:opacity-50 transition-colors">
+            <RotateCcw size={13} />{repeating ? 'Loading…' : 'Repeat last order'}
+          </button>
+        )}
       </div>
 
       <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-6">
+
+        {recipients.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-sm font-bold text-gray-900">Saved Recipient <span className="text-gray-400 font-normal">(optional)</span></h2>
+            <div className="relative">
+              <input
+                value={recipientQuery}
+                onChange={e => { setRecipientQuery(e.target.value); setRecipientListOpen(true); setSelectedRecipientId(null); }}
+                onFocus={() => setRecipientListOpen(true)}
+                onBlur={() => setRecipientListOpen(false)}
+                className={inputClass}
+                placeholder="Search saved recipients to pre-fill Booked For, Consignee & Dispatch To"
+              />
+              {recipientListOpen && filteredRecipients.length > 0 && (
+                <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
+                  {filteredRecipients.map(r => (
+                    <button type="button" key={r.id}
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={() => applyRecipient(r)}
+                      className="w-full text-left px-4 py-2.5 hover:bg-orange-50 transition-colors">
+                      <p className="text-sm font-semibold text-gray-900">{r.label}</p>
+                      <p className="text-xs text-gray-400 truncate">
+                        {r.booked_for_company_name} · {r.booked_for_phone}{r.dispatch_to ? ` · ${r.dispatch_to}` : ''}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-gray-900">Booked For</h2>
@@ -324,6 +498,23 @@ export default function NewOrderPage() {
             </div>
           </div>
         </section>
+
+        {showSavePrompt && (
+          <div className="flex items-center gap-3 border border-orange-200 bg-orange-50 rounded-xl px-4 py-3">
+            <BookmarkPlus size={16} className="text-orange-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-gray-700">Save this recipient for future orders?</p>
+              <p className="text-[11px] text-gray-500">Booked For, Consignee &amp; Dispatch To are saved — shipment details are not.</p>
+            </div>
+            <input value={saveLabel} onChange={e => setSaveLabel(e.target.value)} placeholder={bookedForCompany}
+              className="w-44 border border-orange-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:border-orange-400" />
+            <button type="button" onClick={saveAsRecipient} disabled={savingRecipient}
+              className="text-xs font-bold text-white bg-orange-500 rounded-lg px-3 py-2 hover:bg-orange-600 disabled:opacity-50 transition-colors">
+              {savingRecipient ? 'Saving…' : 'Save'}
+            </button>
+            <button type="button" onClick={() => setSavePromptDismissed(true)} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
+          </div>
+        )}
 
         <div className="pt-2 flex gap-3">
           <Link href="/tracker/orders" className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors text-center">Cancel</Link>
