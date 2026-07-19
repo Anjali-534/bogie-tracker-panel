@@ -137,6 +137,25 @@ export interface TrackerPlanOrder {
   paid_at: string | null;
 }
 
+// Staff logins — see backend migration 039. Staff share the owner's full
+// company-scoped access everywhere except managing other staff logins,
+// which is gated owner-only both server-side (RequireTrackerOwner) and here.
+export interface TrackerStaffUser {
+  id: string;
+  email: string;
+  created_at: string;
+  // Set when a plan downgrade auto-disabled this seat (see backend
+  // migration 040) — reactivation is always a manual owner action.
+  disabled_at: string | null;
+}
+
+export interface TrackerStaffListResponse {
+  staff: TrackerStaffUser[];
+  count: number;
+  unlimited?: boolean;
+  limit?: number;
+}
+
 export const PLAN_LABELS: Record<TrackerPlan, string> = {
   single: 'Single User',
   '2users': '2 Users',

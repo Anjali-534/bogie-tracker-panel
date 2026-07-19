@@ -2,8 +2,9 @@
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
-import { Upload, X } from 'lucide-react';
-import { api } from '@/lib/api';
+import { Upload, X, Trash2 } from 'lucide-react';
+import { api, isTrackerOwner } from '@/lib/api';
+import { TrackerStaffUser, TrackerStaffListResponse } from '@/lib/types';
 
 const inputClass = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400';
 const labelClass = 'block text-xs font-semibold text-gray-500 mb-1.5';
@@ -34,6 +35,73 @@ export default function SettingsPage() {
   const [newPassword,     setNewPassword]     = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingPassword,  setSavingPassword]  = useState(false);
+
+  const isOwner = isTrackerOwner();
+  const [staff, setStaff] = useState<TrackerStaffUser[]>([]);
+  const [staffLimit, setStaffLimit] = useState<number | null>(null);
+  const [staffUnlimited, setStaffUnlimited] = useState(false);
+  const [staffEmail, setStaffEmail] = useState('');
+  const [staffPassword, setStaffPassword] = useState('');
+  const [addingStaff, setAddingStaff] = useState(false);
+
+  function loadStaff() {
+    if (!isOwner) return;
+    api.get<TrackerStaffListResponse>('/gogoo/tracker/staff')
+      .then(({ data }) => {
+        setStaff(data.staff);
+        setStaffUnlimited(!!data.unlimited);
+        setStaffLimit(data.limit ?? null);
+      })
+      .catch(() => toast.error('Failed to load staff logins'));
+  }
+
+  useEffect(() => { loadStaff(); }, [isOwner]);
+
+  async function addStaff(e: React.FormEvent) {
+    e.preventDefault();
+    if (!staffEmail || !staffPassword) { toast.error('Enter email and password'); return; }
+    setAddingStaff(true);
+    try {
+      await api.post('/gogoo/tracker/staff', { email: staffEmail, password: staffPassword });
+      setStaffEmail(''); setStaffPassword('');
+      toast.success('Staff login added');
+      loadStaff();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        toast.error(body.error || 'Failed to add staff login');
+      } else {
+        toast.error('Failed to add staff login');
+      }
+    } finally {
+      setAddingStaff(false);
+    }
+  }
+
+  async function removeStaff(id: string) {
+    try {
+      await api.delete(`/gogoo/tracker/staff/${id}`);
+      toast.success('Staff login removed');
+      loadStaff();
+    } catch {
+      toast.error('Failed to remove staff login');
+    }
+  }
+
+  async function reactivateStaff(id: string) {
+    try {
+      await api.post(`/gogoo/tracker/staff/${id}/reactivate`);
+      toast.success('Staff login reactivated');
+      loadStaff();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        toast.error(body.error || 'Failed to reactivate staff login');
+      } else {
+        toast.error('Failed to reactivate staff login');
+      }
+    }
+  }
 
   useEffect(() => {
     api.get<CompanyProfile>('/gogoo/tracker/company/profile')
@@ -223,6 +291,64 @@ export default function SettingsPage() {
           </button>
         </div>
       </form>
+
+      {isOwner && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-gray-900">Team</h2>
+            <span className="text-xs text-gray-400">
+              {(() => {
+                const activeCount = staff.filter(s => !s.disabled_at).length;
+                return staffUnlimited
+                  ? `${activeCount} staff login(s) · unlimited`
+                  : `${activeCount}${staffLimit !== null ? ` / ${staffLimit}` : ''} staff login(s)`;
+              })()}
+            </span>
+          </div>
+
+          {staff.length > 0 && (
+            <ul className="divide-y divide-gray-100">
+              {staff.map(s => (
+                <li key={s.id} className="flex items-center justify-between py-2.5">
+                  <span className={`text-sm ${s.disabled_at ? 'text-gray-400' : 'text-gray-700'}`}>
+                    {s.email}
+                    {s.disabled_at && (
+                      <span className="ml-2 text-[11px] font-semibold text-amber-500">Disabled — plan downgrade</span>
+                    )}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    {s.disabled_at && (
+                      <button onClick={() => reactivateStaff(s.id)} className="text-xs font-semibold text-green-600 hover:text-green-700">
+                        Reactivate
+                      </button>
+                    )}
+                    <button onClick={() => removeStaff(s.id)} className="text-gray-400 hover:text-red-500" title="Remove staff login">
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <form onSubmit={addStaff} className="grid grid-cols-2 gap-4 pt-1">
+            <div>
+              <label className={labelClass}>Staff Email</label>
+              <input type="email" value={staffEmail} onChange={e => setStaffEmail(e.target.value)} className={inputClass} placeholder="teammate@company.com" />
+            </div>
+            <div>
+              <label className={labelClass}>Staff Password</label>
+              <input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} className={inputClass} placeholder="min 8 characters" />
+            </div>
+            <div className="col-span-2">
+              <button type="submit" disabled={addingStaff} className="px-5 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors">
+                {addingStaff ? 'Adding…' : 'Add Staff Login'}
+              </button>
+              <p className="text-[11px] text-gray-400 mt-2">Staff have the same full access as you, except managing other staff logins.</p>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

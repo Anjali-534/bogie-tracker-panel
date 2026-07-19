@@ -18,6 +18,14 @@ export function clearSession() {
   localStorage.removeItem('tracker_company_email');
   localStorage.removeItem('tracker_company_status');
   localStorage.removeItem('tracker_company_logo_url');
+  localStorage.removeItem('tracker_company_is_owner');
+}
+
+// Whether the current session is the original company account (as opposed
+// to a staff login) — gates owner-only UI like Settings' Team section.
+export function isTrackerOwner(): boolean {
+  if (typeof window === 'undefined') return false;
+  return localStorage.getItem('tracker_company_is_owner') === 'true';
 }
 
 // A 403 carrying a `status` field means the backend re-checked the

@@ -30,6 +30,7 @@ function TrackerLoginPageInner() {
       localStorage.setItem('tracker_company_name', data.company.company_name);
       localStorage.setItem('tracker_company_email', email);
       localStorage.setItem('tracker_company_status', data.company.status);
+      localStorage.setItem('tracker_company_is_owner', String(!!data.company.is_owner));
       toast.success('Welcome to Bogie Tracker!');
       setTimeout(() => router.push('/tracker'), 500);
     } catch (err) {
