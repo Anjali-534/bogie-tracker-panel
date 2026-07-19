@@ -66,7 +66,6 @@ export default function OverviewPage() {
     <div className="space-y-8">
       {/* Header block */}
       <div className="text-center pt-4">
-        
         <h1 className="text-2xl font-bold text-gray-900">{companyName || ' '}</h1>
         <p className="text-sm text-gray-400 mt-1">Bogie Tracker Panel</p>
       </div>
