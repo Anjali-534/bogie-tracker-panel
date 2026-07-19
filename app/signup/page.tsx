@@ -58,7 +58,7 @@ export default function TrackerSignupPage() {
 
         <div className="text-center mb-8">
           <div className="inline-flex bg-white rounded-2xl p-4 mb-4">
-            <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority className="w-48 h-auto" />
+            <Image src="/logo.png" alt="bogie" width={1058} height={330} priority className="w-48 h-auto" />
           </div>
           <p className="text-sm mt-1 font-semibold text-orange-400">Tracker Panel</p>
           <p className="text-xs mt-0.5 text-gray-500">Dispatch Tracking for Your Business</p>

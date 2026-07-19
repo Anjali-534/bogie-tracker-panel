@@ -37,7 +37,7 @@ function BlockedScreenInner() {
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md text-center">
         <div className="inline-flex bg-white rounded-2xl p-4 mb-6">
-          <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority className="w-40 h-auto" />
+          <Image src="/logo.png" alt="bogie" width={1058} height={330} priority className="w-40 h-auto" />
         </div>
         <div className={`rounded-2xl border p-8 ${copy.tone}`}>
           <h1 className="text-lg font-bold text-white mb-3">{copy.title}</h1>

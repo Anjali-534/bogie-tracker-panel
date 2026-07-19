@@ -1,6 +1,6 @@
 {
   "name": "Bogie Tracker",
-  "short_name": "Tracker",
+  "short_name": "Bogie Tracker",
   "description": "B2B dispatch tracking panel by bogie.in",
   "start_url": "/",
   "scope": "/",

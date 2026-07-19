@@ -274,7 +274,7 @@ export default function DriverSharePage() {
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-md mx-auto space-y-5">
         <div className="text-center">
-          <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority className="w-24 h-auto mx-auto mb-2" />
+          <Image src="/logo.png" alt="bogie" width={1058} height={330} priority className="w-24 h-auto mx-auto mb-2" />
           {order.company_name ? (
             <>
               <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{order.company_name}</h1>

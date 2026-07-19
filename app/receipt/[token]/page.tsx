@@ -71,7 +71,7 @@ export default function ReceiptPage() {
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-lg mx-auto space-y-5">
         <div className="text-center">
-          <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority className="w-36 h-auto mx-auto mb-3" />
+          <Image src="/logo.png" alt="bogie" width={1058} height={330} priority className="w-36 h-auto mx-auto mb-3" />
           <p className="text-xs font-semibold text-orange-500 uppercase tracking-wider">bogie Tracker</p>
         </div>
 

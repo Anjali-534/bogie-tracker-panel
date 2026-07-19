@@ -64,7 +64,7 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logoUrl} alt="Company logo" className="w-full h-16 object-contain" />
           ) : (
-            <Image src="/logo.png" alt="bogie" width={1536} height={1024} priority
+            <Image src="/logo.png" alt="bogie" width={1058} height={330} priority
               className="w-full h-auto" />
           )}
           <span className="mt-2 inline-block text-[10px] font-bold text-orange-500 bg-orange-50 rounded-full px-2 py-0.5 uppercase tracking-wider">
