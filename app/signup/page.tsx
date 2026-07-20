@@ -52,80 +52,80 @@ export default function TrackerSignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#FFF8F1] flex items-center justify-center p-4">
       <Toaster position="top-right" />
       <div className="w-full max-w-md">
 
         <div className="text-center mb-8">
-          <div className="inline-flex bg-white rounded-2xl p-4 mb-4">
+          <div className="inline-flex bg-white rounded-2xl p-4 mb-4 border border-gray-100 shadow-sm">
             <Image src="/logo.png" alt="bogie" width={1058} height={330} priority className="w-48 h-auto" />
           </div>
-          <p className="text-sm mt-1 font-semibold text-orange-400">Tracker Panel</p>
+          <p className="text-sm mt-1 font-semibold text-[#FF6B2B]">Tracker Panel</p>
           <p className="text-xs mt-0.5 text-gray-500">Dispatch Tracking for Your Business</p>
         </div>
 
-        <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
-          <h2 className="text-lg font-semibold text-white mb-6">Sign Up</h2>
+        <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-lg shadow-gray-200/50">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">Sign Up</h2>
           <form onSubmit={handleSignup} className="space-y-4">
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Company Name</label>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">Company Name</label>
               <input
                 type="text"
                 value={companyName}
                 onChange={e => setCompanyName(e.target.value)}
                 placeholder="Your Company Pvt. Ltd."
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white
-                  placeholder-gray-500 focus:outline-none focus:border-orange-500 text-sm"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900
+                  placeholder-gray-400 focus:outline-none focus:border-[#FF6B2B] focus:bg-white text-sm"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Contact Email</label>
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">Contact Email</label>
               <input
                 type="email"
                 value={contactEmail}
                 onChange={e => setContactEmail(e.target.value)}
                 placeholder="ops@yourcompany.com"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white
-                  placeholder-gray-500 focus:outline-none focus:border-orange-500 text-sm"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900
+                  placeholder-gray-400 focus:outline-none focus:border-[#FF6B2B] focus:bg-white text-sm"
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Password</label>
-              <div className="flex items-center bg-gray-800 border border-gray-700 rounded-xl focus-within:border-orange-500">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">Password</label>
+              <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl focus-within:border-[#FF6B2B] focus-within:bg-white">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="At least 8 characters"
-                  className="flex-1 bg-transparent px-4 py-3 text-white placeholder-gray-500 focus:outline-none text-sm"
+                  className="flex-1 bg-transparent px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none text-sm"
                 />
-                <button type="button" onClick={() => setShowPassword(v => !v)} className="px-3 text-gray-400 hover:text-gray-200">
+                <button type="button" onClick={() => setShowPassword(v => !v)} className="px-3 text-gray-400 hover:text-gray-600">
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
             <div>
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">Confirm Password</label>
-              <div className="flex items-center bg-gray-800 border border-gray-700 rounded-xl focus-within:border-orange-500">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">Confirm Password</label>
+              <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl focus-within:border-[#FF6B2B] focus-within:bg-white">
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter your password"
-                  className="flex-1 bg-transparent px-4 py-3 text-white placeholder-gray-500 focus:outline-none text-sm"
+                  className="flex-1 bg-transparent px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none text-sm"
                 />
-                <button type="button" onClick={() => setShowConfirmPassword(v => !v)} className="px-3 text-gray-400 hover:text-gray-200">
+                <button type="button" onClick={() => setShowConfirmPassword(v => !v)} className="px-3 text-gray-400 hover:text-gray-600">
                   {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               {confirmPassword && password !== confirmPassword && (
-                <p className="text-xs text-red-400 mt-1.5">Passwords don&apos;t match</p>
+                <p className="text-xs text-red-500 mt-1.5">Passwords don&apos;t match</p>
               )}
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold
+              className="w-full bg-[#FF6B2B] hover:bg-[#e85f22] disabled:opacity-50 text-white font-bold
                 py-3 rounded-xl transition-colors mt-2 flex items-center justify-center gap-2 text-sm"
             >
               {loading ? (
@@ -134,12 +134,12 @@ export default function TrackerSignupPage() {
             </button>
           </form>
 
-          <div className="mt-6 pt-4 border-t border-gray-800 text-center">
-            <p className="text-xs text-gray-500">Already have an account? <a href="/" className="text-orange-400 font-semibold">Sign in</a></p>
+          <div className="mt-6 pt-4 border-t border-gray-100 text-center">
+            <p className="text-xs text-gray-500">Already have an account? <a href="/" className="text-[#FF6B2B] font-semibold">Sign in</a></p>
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-600 mt-6">
+        <p className="text-center text-xs text-gray-400 mt-6">
           bogie Tracker · Aggarwal Publicity and Marketing Pvt. Ltd.
         </p>
       </div>
