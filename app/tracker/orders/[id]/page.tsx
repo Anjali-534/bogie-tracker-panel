@@ -67,7 +67,7 @@ export default function OrderDetailsPage() {
       if (axios.isAxiosError(err) && err.response?.status === 404) {
         setOrder(null);
       } else {
-        toast.error('Failed to load order');
+        toast.error('Failed to load shipment');
       }
     }
   }, [id]);
@@ -209,8 +209,8 @@ export default function OrderDetailsPage() {
     return (
       <div className="p-16 text-center">
         <p className="text-3xl mb-2">🔍</p>
-        <p className="text-gray-500 mb-4">Order not found</p>
-        <button onClick={() => router.push('/tracker/orders')} className="text-orange-600 font-semibold text-sm">Back to Orders</button>
+        <p className="text-gray-500 mb-4">Shipment not found</p>
+        <button onClick={() => router.push('/tracker/orders')} className="text-orange-600 font-semibold text-sm">Back to Shipments</button>
       </div>
     );
   }
@@ -249,7 +249,7 @@ export default function OrderDetailsPage() {
           </button>
           {!isTerminal && (
             <button onClick={() => setStatus('cancelled')} disabled={updating} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors">
-              Cancel Order
+              Cancel Shipment
             </button>
           )}
         </div>
@@ -444,7 +444,7 @@ export default function OrderDetailsPage() {
           )}
 
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-            <h2 className="text-sm font-bold text-gray-900">Order Details</h2>
+            <h2 className="text-sm font-bold text-gray-900">Shipment Details</h2>
             <Field label="Booked For" value={order.booked_for_company_name} />
             <Field label="Contact Phone" value={order.booked_for_phone} />
             <Field label="Driver" value={order.driver_name || '—'} />

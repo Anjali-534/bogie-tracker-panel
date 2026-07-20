@@ -138,7 +138,7 @@ export default function NewOrderPage() {
       setSelectedRecipientId(data.id);
       setRecipientQuery(data.label);
       setSaveLabel('');
-      toast.success(`Saved "${data.label}" for future orders`);
+      toast.success(`Saved "${data.label}" for future shipments`);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {
         const body = err.response.data as { error?: string };
@@ -186,9 +186,9 @@ export default function NewOrderPage() {
       setVehicleNumber(o.vehicle_number);
       setDriverMode('select');
       setDriverId(o.driver_id ?? '');
-      toast.success('Prefilled from your last order — dispatch date and e-way bill start fresh');
+      toast.success('Prefilled from your last shipment — dispatch date and e-way bill start fresh');
     } catch {
-      toast.error('Failed to load your last order');
+      toast.error('Failed to load your last shipment');
     } finally {
       setRepeating(false);
     }
@@ -267,16 +267,16 @@ export default function NewOrderPage() {
         try {
           await api.post(`/gogoo/tracker/orders/${order.id}/eway-bill`, form);
         } catch {
-          toast.error('Order created, but e-way bill upload failed — you can retry from the order page');
+          toast.error('Shipment created, but e-way bill upload failed — you can retry from the shipment page');
         }
       }
 
-      toast.success('Order created');
+      toast.success('Shipment created');
       router.push(`/tracker/orders/${order.id}`);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {
         const body = err.response.data as { error?: string };
-        toast.error(body.error || 'Failed to create order');
+        toast.error(body.error || 'Failed to create shipment');
       } else {
         toast.error('Connection failed. Try again.');
       }
@@ -293,13 +293,13 @@ export default function NewOrderPage() {
           <ArrowLeft size={18} className="text-gray-600" />
         </Link>
         <div className="flex-1">
-          <h1 className="text-xl font-bold text-gray-900">New Order</h1>
-          <p className="text-xs text-gray-400">Create a new dispatch order</p>
+          <h1 className="text-xl font-bold text-gray-900">New Shipment</h1>
+          <p className="text-xs text-gray-400">Create a new shipment</p>
         </div>
         {lastOrderId && (
           <button type="button" onClick={repeatLastOrder} disabled={repeating}
             className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 border border-orange-200 rounded-lg px-3 py-2 hover:bg-orange-50 disabled:opacity-50 transition-colors">
-            <RotateCcw size={13} />{repeating ? 'Loading…' : 'Repeat last order'}
+            <RotateCcw size={13} />{repeating ? 'Loading…' : 'Repeat last shipment'}
           </button>
         )}
       </div>
@@ -503,7 +503,7 @@ export default function NewOrderPage() {
           <div className="flex items-center gap-3 border border-orange-200 bg-orange-50 rounded-xl px-4 py-3">
             <BookmarkPlus size={16} className="text-orange-500 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-gray-700">Save this recipient for future orders?</p>
+              <p className="text-xs font-semibold text-gray-700">Save this recipient for future shipments?</p>
               <p className="text-[11px] text-gray-500">Booked For, Consignee &amp; Dispatch To are saved — shipment details are not.</p>
             </div>
             <input value={saveLabel} onChange={e => setSaveLabel(e.target.value)} placeholder={bookedForCompany}
@@ -519,7 +519,7 @@ export default function NewOrderPage() {
         <div className="pt-2 flex gap-3">
           <Link href="/tracker/orders" className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors text-center">Cancel</Link>
           <button type="submit" disabled={saving} className="flex-1 py-3 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors">
-            {saving ? 'Creating…' : 'Create Order'}
+            {saving ? 'Creating…' : 'Create Shipment'}
           </button>
         </div>
       </form>

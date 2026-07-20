@@ -14,7 +14,7 @@ export default function StatusStepper({ status, events }: Props) {
   if (status === 'cancelled') {
     return (
       <div className="bg-red-50 border border-red-100 rounded-2xl p-5 text-center">
-        <p className="text-red-600 font-bold text-sm">This order was cancelled</p>
+        <p className="text-red-600 font-bold text-sm">This shipment was cancelled</p>
       </div>
     );
   }

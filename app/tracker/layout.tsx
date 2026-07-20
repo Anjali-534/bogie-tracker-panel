@@ -5,17 +5,17 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
-  LayoutDashboard, Package, Users, BookUser, CreditCard, Settings, ExternalLink, LogOut,
+  LayoutDashboard, Package, Users, BookUser, CreditCard, Settings, LogOut,
 } from 'lucide-react';
 import { clearSession } from '@/lib/api';
 import InstallButton from '@/components/InstallButton';
 
 const NAV = [
-  { href: '/tracker',             icon: LayoutDashboard, label: 'Overview' },
-  { href: '/tracker/orders',      icon: Package,         label: 'Orders' },
-  { href: '/tracker/drivers',     icon: Users,           label: 'Drivers' },
-  { href: '/tracker/recipients',  icon: BookUser,        label: 'Recipients' },
-  { href: '/tracker/plan-orders', icon: CreditCard,      label: 'Plan Orders' },
+  { href: '/tracker',             icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/tracker/orders',      icon: Package,         label: 'Shipment Details' },
+  { href: '/tracker/drivers',     icon: Users,           label: 'Driver Details' },
+  { href: '/tracker/recipients',  icon: BookUser,        label: 'Consignee Directory' },
+  { href: '/tracker/plan-orders', icon: CreditCard,      label: 'Billing & Subscription' },
   { href: '/tracker/settings',    icon: Settings,        label: 'Settings' },
 ];
 
@@ -92,15 +92,6 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
 
         {/* Bottom */}
         <div className="p-4 border-t border-gray-100 space-y-2">
-          <a
-            href="https://gogoo-dashboard-production.up.railway.app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-gray-500 text-sm hover:text-gray-900 transition-colors"
-          >
-            <ExternalLink size={13} />
-            Bogie Master Panel
-          </a>
           <button
             onClick={logout}
             className="flex items-center gap-2 text-red-500 text-sm hover:bg-red-50 rounded-lg px-1 -mx-1 py-1 transition-colors w-full"

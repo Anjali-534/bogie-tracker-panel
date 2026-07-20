@@ -32,7 +32,7 @@ function OrdersPageInner() {
       });
       setOrders(data);
     } catch {
-      toast.error('Failed to load orders');
+      toast.error('Failed to load shipments');
     } finally {
       setLoading(false);
     }
@@ -60,8 +60,8 @@ function OrdersPageInner() {
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Orders</h1>
-          <p className="text-xs text-gray-400">{orders.length} dispatch orders</p>
+          <h1 className="text-xl font-bold text-gray-900">Shipments</h1>
+          <p className="text-xs text-gray-400">{orders.length} shipments</p>
         </div>
         <div className="flex items-center gap-2">
           <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value as OrderStatus | ''); setPage(1); }}
@@ -77,7 +77,7 @@ function OrdersPageInner() {
               className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 w-72" />
           </div>
           <Link href="/tracker/orders/new" className="flex items-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors">
-            <Plus size={14} />New Order
+            <Plus size={14} />New Shipment
           </Link>
         </div>
       </div>
@@ -89,10 +89,10 @@ function OrdersPageInner() {
         ) : filtered.length === 0 ? (
           <div className="p-16 text-center">
             <p className="text-3xl mb-2">📦</p>
-            <p className="text-gray-500 mb-4">{orders.length === 0 ? 'No orders yet' : 'No orders found'}</p>
+            <p className="text-gray-500 mb-4">{orders.length === 0 ? 'No shipments yet' : 'No shipments found'}</p>
             {orders.length === 0 && (
               <Link href="/tracker/orders/new" className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors">
-                <Plus size={14} />Create your first order
+                <Plus size={14} />Create your first shipment
               </Link>
             )}
           </div>

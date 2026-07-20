@@ -40,7 +40,7 @@ export default function OverviewPage() {
   useEffect(() => {
     api.get<TrackerOrder[]>('/gogoo/tracker/orders')
       .then(({ data }) => setOrders(data))
-      .catch(() => { toast.error('Failed to load orders'); setOrders([]); });
+      .catch(() => { toast.error('Failed to load shipments'); setOrders([]); });
     api.get<TrackerDriver[]>('/gogoo/tracker/drivers')
       .then(({ data }) => setDrivers(data))
       .catch(() => setDrivers([]));
@@ -56,7 +56,7 @@ export default function OverviewPage() {
     .slice(0, 5);
 
   const STATS = [
-    { label: 'Total Orders',   value: totalOrders,   icon: Package,      href: '/tracker/orders' },
+    { label: 'Total Shipments', value: totalOrders,   icon: Package,      href: '/tracker/orders' },
     { label: 'In Transit',     value: inTransit,      icon: Truck,        href: '/tracker/orders?status=in_transit' },
     { label: 'Delivered',      value: delivered,       icon: CheckCircle2, href: '/tracker/orders?status=delivered' },
     { label: 'Active Drivers', value: activeDrivers,   icon: Users,        href: '/tracker/drivers' },
@@ -75,9 +75,9 @@ export default function OverviewPage() {
       ) : totalOrders === 0 ? (
         <div className="p-16 text-center">
           <p className="text-3xl mb-2">📦</p>
-          <p className="text-gray-500 mb-4">No orders yet</p>
+          <p className="text-gray-500 mb-4">No shipments yet</p>
           <Link href="/tracker/orders/new" className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors">
-            <Plus size={14} />Create your first order
+            <Plus size={14} />Create your first shipment
           </Link>
         </div>
       ) : (
@@ -95,10 +95,10 @@ export default function OverviewPage() {
             ))}
           </div>
 
-          {/* Recent orders */}
+          {/* Recent shipments */}
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-sm font-bold text-gray-900">Recent Orders</h2>
+              <h2 className="text-sm font-bold text-gray-900">Recent Shipments</h2>
               <Link href="/tracker/orders" className="text-xs font-semibold text-orange-600 hover:text-orange-800">View all</Link>
             </div>
             <div>
