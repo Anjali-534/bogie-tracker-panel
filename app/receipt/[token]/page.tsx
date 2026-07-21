@@ -10,6 +10,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'https://gogobackend-production.u
 
 interface ReceiptOrder {
   status: string;
+  company_name: string;
   dispatch_from: string;
   dispatch_to: string;
   vehicle_number: string;
@@ -77,12 +78,17 @@ export default function ReceiptPage() {
 
         <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
           <div>
+            {order.company_name && (
+              <p className="text-sm text-gray-500 mb-2">
+                Shipment booked by <span className="font-bold text-gray-900">{order.company_name}</span>
+              </p>
+            )}
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Shipment Summary</p>
             <RouteRows from={order.dispatch_from} to={order.dispatch_to} />
           </div>
 
           <div className="grid grid-cols-2 gap-4 pb-5 border-b border-gray-100">
-            <Field label="Vehicle Number" value={order.vehicle_number} />
+            <Field label="Vehicle Number" value={order.vehicle_number} bold />
             {order.material && <Field label="Material" value={order.material} />}
             {order.quantity && <Field label="Quantity" value={order.quantity} />}
             {order.delivered_at && <Field label="Delivered" value={new Date(order.delivered_at).toLocaleString()} />}
@@ -122,11 +128,11 @@ export default function ReceiptPage() {
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
     <div>
       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-      <p className="text-sm text-gray-800">{value}</p>
+      <p className={`text-sm text-gray-800 ${bold ? 'font-bold' : ''}`}>{value}</p>
     </div>
   );
 }

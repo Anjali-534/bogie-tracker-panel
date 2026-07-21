@@ -16,6 +16,7 @@ const POLL_MS = 4000;
 
 interface PublicOrder {
   status: OrderStatus;
+  company_name: string;
   dispatch_from: string;
   dispatch_to: string;
   vehicle_number: string;
@@ -92,6 +93,11 @@ export default function PublicTrackingPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
+          {order.company_name && (
+            <p className="text-sm text-gray-500 mb-1">
+              Shipment booked by <span className="font-bold text-gray-900">{order.company_name}</span>
+            </p>
+          )}
           <div className="flex items-center justify-between mb-4">
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Shipment Status</p>
             <span className={`text-xs px-3 py-1.5 rounded-full font-semibold whitespace-nowrap ${STATUS_STYLES[order.status]}`}>
@@ -104,7 +110,7 @@ export default function PublicTrackingPage() {
 
           <div className="grid grid-cols-2 gap-4 pb-5 mb-5 border-b border-gray-100">
             <Field label="Driver" value={order.driver_name || '—'} />
-            <Field label="Vehicle Number" value={order.vehicle_number} />
+            <Field label="Vehicle Number" value={order.vehicle_number} bold />
             <Field label="Transporter" value={order.transporter_name || '—'} />
             {order.transporter_phone && <Field label="Transporter Phone" value={order.transporter_phone} />}
             {order.consignee_name && <Field label="Consignee" value={order.consignee_name} />}
@@ -151,11 +157,11 @@ export default function PublicTrackingPage() {
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Field({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
     <div>
       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-      <p className="text-sm text-gray-800">{value}</p>
+      <p className={`text-sm text-gray-800 ${bold ? 'font-bold' : ''}`}>{value}</p>
     </div>
   );
 }

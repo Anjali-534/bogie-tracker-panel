@@ -294,7 +294,7 @@ export default function DriverSharePage() {
           </div>
           <RouteRows from={order.dispatch_from} to={order.dispatch_to} />
           <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-gray-100">
-            Vehicle: {order.vehicle_number}
+            Vehicle: <span className="font-bold text-gray-600">{order.vehicle_number}</span>
             {routeSummary && <span> · {routeSummary}</span>}
           </p>
         </div>
