@@ -143,6 +143,32 @@ export interface TrackerOrder {
   // booked_for/consignee/transporter email, which each map to a specific party.
   cc_emails: string[];
   bcc_emails: string[];
+
+  // Documents (backend migration 044) — replaces the old single e-way-bill
+  // upload. Every doc_type is always optional; there is no mandatory-
+  // document enforcement. eway_bill_number/eway_bill_file_url above still
+  // exist for pre-migration orders but new uploads go through this list.
+  documents: TrackerOrderDocument[];
+}
+
+export type TrackerDocType = 'coa' | 'invoice' | 'lr' | 'eway_bill' | 'other';
+
+export const DOC_TYPE_LABELS: Record<TrackerDocType, string> = {
+  coa: 'COA',
+  invoice: 'Invoice',
+  lr: 'LR',
+  eway_bill: 'E-way Bill',
+  other: 'Other',
+};
+
+export interface TrackerOrderDocument {
+  id: string;
+  order_id: string;
+  doc_type: TrackerDocType;
+  custom_label: string | null;
+  file_url: string;
+  expiry_date: string | null;
+  created_at: string;
 }
 
 // Plan/subscription billing — see backend migration 032. No payment gateway

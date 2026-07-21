@@ -6,9 +6,10 @@ import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
 import TrackingMap from '@/components/TrackingMap';
 import RouteRows from '@/components/RouteRows';
+import { FileText } from 'lucide-react';
 import {
-  STATUS_LABELS, STATUS_STYLES, STATUS_STEPS,
-  type OrderStatus, type TrackerOrderEvent, type TrackerLocationPing,
+  STATUS_LABELS, STATUS_STYLES, STATUS_STEPS, DOC_TYPE_LABELS,
+  type OrderStatus, type TrackerOrderEvent, type TrackerLocationPing, type TrackerDocType,
 } from '@/lib/types';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://gogobackend-production.up.railway.app';
@@ -42,6 +43,13 @@ interface PublicOrder {
   route_distance_km: number | null;
   route_duration_mins: number | null;
   received_confirmed_at: string | null;
+  // Public-safe document subset (backend migration 044) — no expiry_date or
+  // internal ids, just enough to view/download the file. This is also
+  // where the creation email's "exceeded size limits, view it here"
+  // fallback note (see backend's tracker_creation_email.go) actually
+  // points — a document skipped from the email attachment is always
+  // findable here instead.
+  documents: { doc_type: TrackerDocType; custom_label: string | null; file_url: string }[];
 }
 
 export default function PublicTrackingPage() {
@@ -120,6 +128,19 @@ export default function PublicTrackingPage() {
           </div>
 
           <StatusStepper status={order.status} events={order.events} />
+
+          {order.documents.length > 0 && (
+            <div className="mt-5 pt-5 border-t border-gray-100 space-y-2">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Documents</p>
+              {order.documents.map((doc, i) => (
+                <a key={i} href={doc.file_url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-sm text-orange-600 hover:text-orange-800 font-semibold">
+                  <FileText size={14} className="flex-shrink-0" />
+                  {doc.doc_type === 'other' ? (doc.custom_label || 'Other') : DOC_TYPE_LABELS[doc.doc_type]}
+                </a>
+              ))}
+            </div>
+          )}
 
           {order.received_confirmed_at && (
             <div className="mt-5 pt-5 border-t border-gray-100 text-center">

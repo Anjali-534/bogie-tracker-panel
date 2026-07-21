@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Link2, FileText, MessageCircle, Send, CheckCircle2, Mail } from 'lucide-react';
+import { ArrowLeft, Link2, FileText, MessageCircle, Send, CheckCircle2, Mail, Upload, X, Trash2 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
@@ -11,9 +11,9 @@ import RouteRows from '@/components/RouteRows';
 import { api } from '@/lib/api';
 import {
   STATUS_LABELS, STATUS_STYLES, STATUS_STEPS, TERMINAL_STATUSES, STATUS_RADIO_OPTIONS,
-  NOTIFY_RECIPIENT_LABELS,
+  NOTIFY_RECIPIENT_LABELS, DOC_TYPE_LABELS,
   type TrackerOrder, type TrackerOrderEvent, type OrderStatus, type TrackerLocationPing,
-  type NotifyRecipient,
+  type NotifyRecipient, type TrackerDocType,
 } from '@/lib/types';
 
 const NOTIFY_RECIPIENTS: NotifyRecipient[] = ['booked_for', 'consignee', 'transporter', 'driver'];
@@ -53,6 +53,55 @@ export default function OrderDetailsPage() {
   const [notifyRecipients, setNotifyRecipients] = useState<NotifyRecipient[]>(['booked_for']);
   const [sendingNotify, setSendingNotify] = useState(false);
   const [notifyResults, setNotifyResults] = useState<NotifyResult[] | null>(null);
+
+  // Document restructure (Phase 2) — the order already exists on this page,
+  // but a file is still staged (with its expiry/custom-label) before it's
+  // actually uploaded, same two-step pattern as the new-order page's
+  // pending-documents queue.
+  interface StagedDoc { key: string; docType: TrackerDocType; customLabel: string; expiryDate: string; file: File }
+  const [stagedDocs, setStagedDocs] = useState<StagedDoc[]>([]);
+  const [uploadingKey, setUploadingKey] = useState<string | null>(null);
+
+  function addStagedDoc(docType: TrackerDocType, file: File) {
+    setStagedDocs(prev => [...prev, { key: `${Date.now()}-${Math.random()}`, docType, customLabel: '', expiryDate: '', file }]);
+  }
+  function updateStagedDoc(key: string, patch: Partial<StagedDoc>) {
+    setStagedDocs(prev => prev.map(d => d.key === key ? { ...d, ...patch } : d));
+  }
+  function removeStagedDoc(key: string) {
+    setStagedDocs(prev => prev.filter(d => d.key !== key));
+  }
+
+  async function commitStagedDoc(doc: StagedDoc) {
+    if (!order) return;
+    setUploadingKey(doc.key);
+    try {
+      const form = new FormData();
+      form.append('file', doc.file);
+      form.append('doc_type', doc.docType);
+      if (doc.docType === 'other' && doc.customLabel) form.append('custom_label', doc.customLabel);
+      if (doc.expiryDate) form.append('expiry_date', doc.expiryDate);
+      await api.post(`/gogoo/tracker/orders/${order.id}/documents`, form);
+      removeStagedDoc(doc.key);
+      toast.success('Document uploaded');
+      await load();
+    } catch {
+      toast.error('Upload failed');
+    } finally {
+      setUploadingKey(null);
+    }
+  }
+
+  async function removeDocument(docId: string) {
+    if (!order) return;
+    try {
+      await api.delete(`/gogoo/tracker/orders/${order.id}/documents/${docId}`);
+      toast.success('Document removed');
+      await load();
+    } catch {
+      toast.error('Failed to remove document');
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -468,20 +517,61 @@ export default function OrderDetailsPage() {
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-            <h2 className="text-sm font-bold text-gray-900">E-way Bill</h2>
-            {order.eway_bill_number ? (
-              <>
-                <Field label="Number" value={order.eway_bill_number} />
-                {order.eway_bill_file_url ? (
-                  <a href={order.eway_bill_file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 hover:text-orange-800">
-                    <FileText size={14} />View uploaded file
-                  </a>
-                ) : (
-                  <p className="text-xs text-gray-400">No file uploaded</p>
-                )}
-              </>
-            ) : (
-              <p className="text-xs text-gray-400">Not provided</p>
+            <h2 className="text-sm font-bold text-gray-900">E-way Bill Number</h2>
+            <Field label="Number" value={order.eway_bill_number || '—'} />
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+            <h2 className="text-sm font-bold text-gray-900">Documents <span className="text-gray-400 font-normal">(optional — all documents, always)</span></h2>
+            <div className="flex flex-wrap gap-2">
+              {(['coa', 'invoice', 'lr', 'eway_bill', 'other'] as TrackerDocType[]).map(dt => (
+                <label key={dt} className="flex items-center gap-1.5 border border-dashed border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <Upload size={13} />{DOC_TYPE_LABELS[dt]}
+                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) addStagedDoc(dt, f); e.target.value = ''; }} />
+                </label>
+              ))}
+            </div>
+
+            {stagedDocs.length > 0 && (
+              <div className="space-y-2">
+                {stagedDocs.map(doc => (
+                  <div key={doc.key} className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2">
+                    <FileText size={14} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-xs font-bold text-gray-700 flex-shrink-0">{DOC_TYPE_LABELS[doc.docType]}</span>
+                    <span className="text-xs text-gray-500 truncate flex-1">{doc.file.name}</span>
+                    {doc.docType === 'other' && (
+                      <input value={doc.customLabel} onChange={e => updateStagedDoc(doc.key, { customLabel: e.target.value })}
+                        placeholder="Label" className="w-24 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
+                    )}
+                    <input type="date" value={doc.expiryDate} onChange={e => updateStagedDoc(doc.key, { expiryDate: e.target.value })}
+                      title="Expiry date (optional)" className="w-32 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
+                    <button type="button" onClick={() => commitStagedDoc(doc)} disabled={uploadingKey === doc.key}
+                      className="text-xs font-bold text-green-600 hover:text-green-700 disabled:opacity-50 flex-shrink-0">
+                      {uploadingKey === doc.key ? 'Uploading…' : 'Upload'}
+                    </button>
+                    <button type="button" onClick={() => removeStagedDoc(doc.key)} className="text-gray-400 hover:text-red-500 flex-shrink-0"><X size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {order.documents.length > 0 ? (
+              <div className="space-y-2 pt-1">
+                {order.documents.map(doc => (
+                  <div key={doc.id} className="flex items-center gap-2 border-t border-gray-50 pt-2 first:border-t-0 first:pt-0">
+                    <FileText size={14} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-xs font-bold text-gray-700 flex-shrink-0">
+                      {doc.doc_type === 'other' ? (doc.custom_label || 'Other') : DOC_TYPE_LABELS[doc.doc_type]}
+                    </span>
+                    {doc.expiry_date && <span className="text-[11px] text-gray-400 flex-shrink-0">exp. {new Date(doc.expiry_date).toLocaleDateString()}</span>}
+                    <a href={doc.file_url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-orange-600 hover:text-orange-800 flex-1 truncate">View file</a>
+                    <button type="button" onClick={() => removeDocument(doc.id)} className="text-gray-400 hover:text-red-500 flex-shrink-0"><Trash2 size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            ) : stagedDocs.length === 0 && (
+              <p className="text-xs text-gray-400">No documents uploaded</p>
             )}
           </div>
         </div>

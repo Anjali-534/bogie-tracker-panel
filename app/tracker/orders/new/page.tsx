@@ -2,11 +2,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, BookmarkPlus, RotateCcw, Upload, X } from 'lucide-react';
+import { ArrowLeft, BookmarkPlus, RotateCcw, Upload, X, FileText } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import { api } from '@/lib/api';
-import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient, type OrderPriority, PRIORITY_LABELS, SPECIAL_HANDLING_OPTIONS } from '@/lib/types';
+import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient, type OrderPriority, type TrackerDocType, PRIORITY_LABELS, SPECIAL_HANDLING_OPTIONS, DOC_TYPE_LABELS } from '@/lib/types';
 import LocationInput from '@/components/LocationInput';
 import GSTInput from '@/components/GSTInput';
 
@@ -36,7 +36,6 @@ export default function NewOrderPage() {
   const [transporterEmail, setTransporterEmail] = useState('');
   const [vehicleNumber,    setVehicleNumber]    = useState('');
   const [ewayBillNumber,   setEwayBillNumber]   = useState('');
-  const [ewayBillFile,     setEwayBillFile]     = useState<File | null>(null);
 
   const [consigneeName,       setConsigneeName]       = useState('');
   const [consigneeEmail,      setConsigneeEmail]      = useState('');
@@ -67,6 +66,24 @@ export default function NewOrderPage() {
 
   function toggleSpecialHandling(option: string) {
     setSpecialHandling(prev => prev.includes(option) ? prev.filter(o => o !== option) : [...prev, option]);
+  }
+
+  // Document restructure (Phase 2) — the order doesn't exist yet on this
+  // page, so documents are staged locally and uploaded one by one to
+  // POST /tracker/orders/:id/documents right after order creation succeeds
+  // (same "create order, then attach files" pattern the old single e-way-
+  // bill upload used). Every doc_type is always optional.
+  interface PendingDoc { key: string; docType: TrackerDocType; customLabel: string; expiryDate: string; file: File }
+  const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
+
+  function addPendingDoc(docType: TrackerDocType, file: File) {
+    setPendingDocs(prev => [...prev, { key: `${Date.now()}-${Math.random()}`, docType, customLabel: '', expiryDate: '', file }]);
+  }
+  function updatePendingDoc(key: string, patch: Partial<PendingDoc>) {
+    setPendingDocs(prev => prev.map(d => d.key === key ? { ...d, ...patch } : d));
+  }
+  function removePendingDoc(key: string) {
+    setPendingDocs(prev => prev.filter(d => d.key !== key));
   }
 
   const [driverMode, setDriverMode] = useState<'select' | 'new'>('select');
@@ -321,15 +338,29 @@ export default function NewOrderPage() {
         bcc_emails: bccEmails.filter(e => e.trim() !== ''),
       });
 
-      if (ewayBillFile) {
-        const form = new FormData();
-        form.append('file', ewayBillFile);
-        try {
-          await api.post(`/gogoo/tracker/orders/${order.id}/eway-bill`, form);
-        } catch {
-          toast.error('Shipment created, but e-way bill upload failed — you can retry from the shipment page');
+      if (pendingDocs.length > 0) {
+        let failed = 0;
+        for (const doc of pendingDocs) {
+          const form = new FormData();
+          form.append('file', doc.file);
+          form.append('doc_type', doc.docType);
+          if (doc.docType === 'other' && doc.customLabel) form.append('custom_label', doc.customLabel);
+          if (doc.expiryDate) form.append('expiry_date', doc.expiryDate);
+          try {
+            await api.post(`/gogoo/tracker/orders/${order.id}/documents`, form);
+          } catch {
+            failed++;
+          }
+        }
+        if (failed > 0) {
+          toast.error(`Shipment created, but ${failed} document${failed > 1 ? 's' : ''} failed to upload — you can retry from the shipment page`);
         }
       }
+
+      // Fire-and-forget: the backend builds the email (with whatever
+      // documents made it) and sends it async — this call doesn't block
+      // navigation and its result is never surfaced to the user.
+      api.post(`/gogoo/tracker/orders/${order.id}/creation-email`).catch(() => {});
 
       toast.success('Shipment created');
       router.push(`/tracker/orders/${order.id}`);
@@ -625,27 +656,42 @@ export default function NewOrderPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-sm font-bold text-gray-900">E-way Bill <span className="text-gray-400 font-normal">(optional)</span></h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>E-way Bill Number</label>
-              <input value={ewayBillNumber} onChange={e => setEwayBillNumber(e.target.value)} className={inputClass} placeholder="EWB2507150001" />
-            </div>
-            <div>
-              <label className={labelClass}>Upload E-way Bill</label>
-              {ewayBillFile ? (
-                <div className="flex items-center justify-between border border-gray-200 rounded-xl px-4 py-2.5 text-sm">
-                  <span className="truncate text-gray-700">{ewayBillFile.name}</span>
-                  <button type="button" onClick={() => setEwayBillFile(null)} className="text-gray-400 hover:text-red-500"><X size={14} /></button>
-                </div>
-              ) : (
-                <label className="flex items-center justify-center gap-2 border border-dashed border-gray-300 rounded-xl px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 cursor-pointer transition-colors">
-                  <Upload size={14} />Choose file (PDF/JPG/PNG)
-                  <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => setEwayBillFile(e.target.files?.[0] ?? null)} />
-                </label>
-              )}
-            </div>
+          <h2 className="text-sm font-bold text-gray-900">E-way Bill Number <span className="text-gray-400 font-normal">(optional)</span></h2>
+          <div>
+            <label className={labelClass}>E-way Bill Number</label>
+            <input value={ewayBillNumber} onChange={e => setEwayBillNumber(e.target.value)} className={`${inputClass} max-w-sm`} placeholder="EWB2507150001" />
           </div>
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-sm font-bold text-gray-900">Documents <span className="text-gray-400 font-normal">(optional — all documents, always)</span></h2>
+          <div className="flex flex-wrap gap-2">
+            {(['coa', 'invoice', 'lr', 'eway_bill', 'other'] as TrackerDocType[]).map(dt => (
+              <label key={dt} className="flex items-center gap-1.5 border border-dashed border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
+                <Upload size={13} />{DOC_TYPE_LABELS[dt]}
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) addPendingDoc(dt, f); e.target.value = ''; }} />
+              </label>
+            ))}
+          </div>
+          {pendingDocs.length > 0 && (
+            <div className="space-y-2">
+              {pendingDocs.map(doc => (
+                <div key={doc.key} className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2.5">
+                  <FileText size={14} className="text-gray-400 flex-shrink-0" />
+                  <span className="text-xs font-bold text-gray-700 flex-shrink-0">{DOC_TYPE_LABELS[doc.docType]}</span>
+                  <span className="text-xs text-gray-500 truncate flex-1">{doc.file.name}</span>
+                  {doc.docType === 'other' && (
+                    <input value={doc.customLabel} onChange={e => updatePendingDoc(doc.key, { customLabel: e.target.value })}
+                      placeholder="Label" className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
+                  )}
+                  <input type="date" value={doc.expiryDate} onChange={e => updatePendingDoc(doc.key, { expiryDate: e.target.value })}
+                    title="Expiry date (optional)" className="w-36 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
+                  <button type="button" onClick={() => removePendingDoc(doc.key)} className="text-gray-400 hover:text-red-500 flex-shrink-0"><X size={14} /></button>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {showSavePrompt && (
