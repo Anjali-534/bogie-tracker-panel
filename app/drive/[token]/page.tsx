@@ -30,6 +30,7 @@ interface DriverMessage {
 interface DriverOrder {
   status: OrderStatus;
   company_name: string;
+  booked_for_company_name: string;
   dispatch_from: string;
   dispatch_to: string;
   vehicle_number: string;
@@ -278,6 +279,9 @@ export default function DriverSharePage() {
           {order.company_name ? (
             <>
               <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{order.company_name}</h1>
+              {order.booked_for_company_name && (
+                <p className="text-xs text-gray-400 mt-0.5">For: {order.booked_for_company_name}</p>
+              )}
               <p className="text-[11px] font-semibold text-orange-500 uppercase tracking-wider mt-1">Location Sharing</p>
             </>
           ) : (
