@@ -7,6 +7,9 @@ import { olaAutocomplete, olaPlaceDetails, type OlaSuggestion } from '@/lib/olaP
 
 const DEBOUNCE_MS = 300;
 const MIN_CHARS = 2;
+// Delhi NCR — tracker companies are predominantly NCR-based, so this is a
+// reasonable proximity-bias fallback when geolocation isn't granted.
+const DEFAULT_BIAS = { lat: 28.6139, lng: 77.2090 };
 
 interface Props {
   label: string;
@@ -29,6 +32,9 @@ export default function LocationInput({ label, value, onChange, placeholder, cla
   const [locating, setLocating] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Biases autocomplete toward the user's rough location; falls back to
+  // Delhi NCR if geolocation is unavailable or denied.
+  const biasRef = useRef(DEFAULT_BIAS);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -38,6 +44,15 @@ export default function LocationInput({ label, value, onChange, placeholder, cla
     }
     document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { biasRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude }; },
+      () => {},
+      { enableHighAccuracy: false, timeout: 8000 },
+    );
   }, []);
 
   function handleTextChange(text: string) {
@@ -53,7 +68,8 @@ export default function LocationInput({ label, value, onChange, placeholder, cla
       return;
     }
     debounceRef.current = setTimeout(async () => {
-      const results = await olaAutocomplete(text);
+      const { lat, lng } = biasRef.current;
+      const results = await olaAutocomplete(text, lat, lng);
       setSuggestions(results);
       setShowDropdown(results.length > 0);
     }, DEBOUNCE_MS);

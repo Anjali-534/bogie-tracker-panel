@@ -18,6 +18,7 @@ export async function olaAutocomplete(input: string, lat?: number, lng?: number)
   try {
     let url = `${BASE}/places/v1/autocomplete?input=${encodeURIComponent(input)}&api_key=${OLA_KEY}`;
     if (lat != null && lng != null) url += `&location=${lat},${lng}`;
+    url += `&components=country:in`;
     const res = await fetch(url);
     if (!res.ok) return [];
     const data = await res.json();
