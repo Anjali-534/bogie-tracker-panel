@@ -6,7 +6,7 @@ import { ArrowLeft, BookmarkPlus, RotateCcw, Upload, X, FileText } from 'lucide-
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import { api } from '@/lib/api';
-import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient, type OrderPriority, type TrackerDocType, PRIORITY_LABELS, SPECIAL_HANDLING_OPTIONS, DOC_TYPE_LABELS } from '@/lib/types';
+import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient, type OrderPriority, type TrackerDocType, PRIORITY_LABELS, DOC_TYPE_LABELS } from '@/lib/types';
 import LocationInput from '@/components/LocationInput';
 import GSTInput from '@/components/GSTInput';
 
@@ -58,15 +58,8 @@ export default function NewOrderPage() {
   const [contactPersonDesignation, setContactPersonDesignation] = useState('');
   const [priority,                 setPriority]                 = useState<OrderPriority>('normal');
   const [expectedDeliveryDate,     setExpectedDeliveryDate]     = useState('');
-  const [declaredValue,            setDeclaredValue]            = useState('');
-  const [specialHandling,          setSpecialHandling]          = useState<string[]>([]);
-  const [internalReference,        setInternalReference]        = useState('');
   const [ccEmails,                 setCcEmails]                 = useState<string[]>([]);
   const [bccEmails,                setBccEmails]                = useState<string[]>([]);
-
-  function toggleSpecialHandling(option: string) {
-    setSpecialHandling(prev => prev.includes(option) ? prev.filter(o => o !== option) : [...prev, option]);
-  }
 
   // Document restructure (Phase 2) — the order doesn't exist yet on this
   // page, so documents are staged locally and uploaded one by one to
@@ -244,13 +237,10 @@ export default function NewOrderPage() {
       setContactPersonEmail(o.contact_person_email ?? '');
       setContactPersonDesignation(o.contact_person_designation ?? '');
       setPriority(o.priority ?? 'normal');
-      setDeclaredValue(o.declared_value != null ? String(o.declared_value) : '');
-      setSpecialHandling(o.special_handling ?? []);
-      // Internal reference/PO number and expected delivery date are
-      // deliberately NOT carried over — same footgun as dispatch_datetime
-      // and the e-way bill, a stale PO number or delivery date silently
-      // reused would be worse than an empty field.
-      toast.success('Prefilled from your last shipment — dispatch date, e-way bill, PO number & delivery date start fresh');
+      // Expected delivery date is deliberately NOT carried over — same
+      // footgun as dispatch_datetime and the e-way bill, a stale delivery
+      // date silently reused would be worse than an empty field.
+      toast.success('Prefilled from your last shipment — dispatch date, e-way bill & delivery date start fresh');
     } catch {
       toast.error('Failed to load your last shipment');
     } finally {
@@ -331,9 +321,6 @@ export default function NewOrderPage() {
         contact_person_designation: contactPersonDesignation || undefined,
         priority,
         expected_delivery_date: expectedDeliveryDate ? new Date(expectedDeliveryDate).toISOString() : undefined,
-        declared_value: declaredValue ? Number(declaredValue) : undefined,
-        special_handling: specialHandling.length > 0 ? specialHandling : undefined,
-        internal_reference: internalReference || undefined,
         cc_emails: ccEmails.filter(e => e.trim() !== ''),
         bcc_emails: bccEmails.filter(e => e.trim() !== ''),
       });
@@ -511,25 +498,6 @@ export default function NewOrderPage() {
             <div>
               <label className={labelClass}>Expected Delivery Date</label>
               <input type="date" value={expectedDeliveryDate} onChange={e => setExpectedDeliveryDate(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Declared Value (₹)</label>
-              <input type="number" min="0" step="0.01" value={declaredValue} onChange={e => setDeclaredValue(e.target.value)} className={inputClass} placeholder="For insurance/legal purposes" />
-            </div>
-            <div>
-              <label className={labelClass}>Internal Reference / PO Number</label>
-              <input value={internalReference} onChange={e => setInternalReference(e.target.value)} className={inputClass} placeholder="Your company's own tracking number" />
-            </div>
-            <div className="col-span-2">
-              <label className={labelClass}>Special Handling Instructions</label>
-              <div className="flex flex-wrap gap-3">
-                {SPECIAL_HANDLING_OPTIONS.map(opt => (
-                  <label key={opt} className="flex items-center gap-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50">
-                    <input type="checkbox" checked={specialHandling.includes(opt)} onChange={() => toggleSpecialHandling(opt)} className="accent-green-500" />
-                    {opt}
-                  </label>
-                ))}
-              </div>
             </div>
             <div className="col-span-2 space-y-2">
               <label className={labelClass}>CC Emails <span className="text-gray-400 font-normal">(dispatch &amp; status-update notifications)</span></label>
