@@ -299,6 +299,12 @@ export default function DriverSharePage() {
           </p>
         </div>
 
+        {mapMarkers.length === 0 && (
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 text-center">
+            <p className="text-xs text-gray-400">Route details not available for this order.</p>
+          </div>
+        )}
+
         {mapMarkers.length > 0 && (
           /* The same element hosts both states so the OlaMap instance (and the
              geolocation stream feeding it) survives expand/collapse — only the
