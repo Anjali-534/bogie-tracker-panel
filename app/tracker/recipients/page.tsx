@@ -25,6 +25,8 @@ const EMPTY = {
   booked_for_gstin: '', booked_for_state: '',
   consignee_name: '', consignee_email: '', consignee_gstin: '', consignee_state: '',
   dispatch_to: '', dispatch_to_lat: null as number | null, dispatch_to_lng: null as number | null,
+  registered_address: '', factory_address: '',
+  contact_person_name: '', contact_person_phone: '', contact_person_email: '', contact_person_designation: '',
 };
 
 export default function RecipientsPage() {
@@ -78,6 +80,12 @@ export default function RecipientsPage() {
       dispatch_to: r.dispatch_to ?? '',
       dispatch_to_lat: r.dispatch_to_lat,
       dispatch_to_lng: r.dispatch_to_lng,
+      registered_address: r.registered_address ?? '',
+      factory_address: r.factory_address ?? '',
+      contact_person_name: r.contact_person_name ?? '',
+      contact_person_phone: r.contact_person_phone ?? '',
+      contact_person_email: r.contact_person_email ?? '',
+      contact_person_designation: r.contact_person_designation ?? '',
     });
     setShowModal(true);
   }
@@ -255,6 +263,34 @@ export default function RecipientsPage() {
                   className={inputClass}
                   labelClassName={labelClass}
                 />
+              </div>
+
+              <div className="col-span-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2">Addresses <span className="font-normal normal-case">(optional)</span></div>
+              <div className="col-span-2">
+                <label className={labelClass}>Registered Address</label>
+                <textarea value={form.registered_address} onChange={e => setForm(f => ({ ...f, registered_address: e.target.value }))} className={inputClass} rows={2} placeholder="Company's registered office address" />
+              </div>
+              <div className="col-span-2">
+                <label className={labelClass}>Factory / Godown Address</label>
+                <textarea value={form.factory_address} onChange={e => setForm(f => ({ ...f, factory_address: e.target.value }))} className={inputClass} rows={2} placeholder="If different from registered address" />
+              </div>
+
+              <div className="col-span-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2">Contact Person <span className="font-normal normal-case">(optional)</span></div>
+              <div>
+                <label className={labelClass}>Name</label>
+                <input value={form.contact_person_name} onChange={e => setForm(f => ({ ...f, contact_person_name: e.target.value }))} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Designation</label>
+                <input value={form.contact_person_designation} onChange={e => setForm(f => ({ ...f, contact_person_designation: e.target.value }))} className={inputClass} placeholder="e.g. Purchase Manager" />
+              </div>
+              <div>
+                <label className={labelClass}>Phone</label>
+                <input value={form.contact_person_phone} onChange={e => setForm(f => ({ ...f, contact_person_phone: e.target.value }))} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Email</label>
+                <input type="email" value={form.contact_person_email} onChange={e => setForm(f => ({ ...f, contact_person_email: e.target.value }))} className={inputClass} />
               </div>
             </div>
             <div className="p-6 pt-0 flex gap-3">

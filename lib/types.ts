@@ -1,5 +1,25 @@
 export type OrderStatus = 'created' | 'loading' | 'loaded' | 'dispatched' | 'in_transit' | 'delivered' | 'cancelled';
 
+export type OrderPriority = 'normal' | 'urgent' | 'same_day';
+
+export const PRIORITY_LABELS: Record<OrderPriority, string> = {
+  normal: 'Normal',
+  urgent: 'Urgent',
+  same_day: 'Same-day',
+};
+
+// Special-handling checkbox catalog for the order form — matches no fixed
+// DB enum (the column is a plain TEXT[]), just the standard set companies
+// asked for. Free-text entries typed elsewhere in the array still round-trip
+// fine; this list only drives which checkboxes are pre-rendered.
+export const SPECIAL_HANDLING_OPTIONS = [
+  'Fragile',
+  'Keep Upright',
+  'Temperature Sensitive',
+  'Handle with Care',
+  'Do Not Stack',
+] as const;
+
 export interface TrackerDriver {
   id: string;
   company_id: string;
@@ -104,6 +124,25 @@ export interface TrackerOrder {
   // onStateResolved) but a normal editable field; manual override always works.
   consignee_state: string | null;
   booked_for_state: string | null;
+
+  // Shipment-detail expansion (backend migration 043) — all optional except
+  // priority, which the server defaults to 'normal' when omitted.
+  registered_address: string | null;
+  factory_address: string | null;
+  contact_person_name: string | null;
+  contact_person_phone: string | null;
+  contact_person_email: string | null;
+  contact_person_designation: string | null;
+  priority: OrderPriority;
+  expected_delivery_date: string | null;
+  declared_value: number | null;
+  special_handling: string[] | null;
+  internal_reference: string | null;
+
+  // Additional dispatch-email recipients, variable count — distinct from
+  // booked_for/consignee/transporter email, which each map to a specific party.
+  cc_emails: string[];
+  bcc_emails: string[];
 }
 
 // Plan/subscription billing — see backend migration 032. No payment gateway
@@ -169,6 +208,18 @@ export interface TrackerSavedRecipient {
   dispatch_to: string | null;
   dispatch_to_lat: number | null;
   dispatch_to_lng: number | null;
+
+  // Address/contact-person fields (backend migration 043) — captured on the
+  // recipient so picking one pre-fills the fuller picture, same split the
+  // table already draws for the party fields above (shipment-specific
+  // fields like priority/declared value stay order-only).
+  registered_address: string | null;
+  factory_address: string | null;
+  contact_person_name: string | null;
+  contact_person_phone: string | null;
+  contact_person_email: string | null;
+  contact_person_designation: string | null;
+
   use_count: number;
   last_used_at: string | null;
   created_at: string;

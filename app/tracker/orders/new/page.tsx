@@ -6,7 +6,7 @@ import { ArrowLeft, BookmarkPlus, RotateCcw, Upload, X } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import { api } from '@/lib/api';
-import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient } from '@/lib/types';
+import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient, type OrderPriority, PRIORITY_LABELS, SPECIAL_HANDLING_OPTIONS } from '@/lib/types';
 import LocationInput from '@/components/LocationInput';
 import GSTInput from '@/components/GSTInput';
 
@@ -46,6 +46,28 @@ export default function NewOrderPage() {
   const [quantity,             setQuantity]           = useState('');
   const [dispatchDatetime,     setDispatchDatetime]   = useState('');
   const [documentsEnclosed,    setDocumentsEnclosed]  = useState('');
+
+  // Shipment-detail expansion (Phase 1) — registered/factory address and
+  // contact person are informational text, not route waypoints, so plain
+  // inputs rather than LocationInput (which drives Ola autocomplete + route
+  // caching for dispatch_from/dispatch_to specifically).
+  const [registeredAddress,        setRegisteredAddress]        = useState('');
+  const [factoryAddress,           setFactoryAddress]           = useState('');
+  const [contactPersonName,        setContactPersonName]        = useState('');
+  const [contactPersonPhone,       setContactPersonPhone]       = useState('');
+  const [contactPersonEmail,       setContactPersonEmail]       = useState('');
+  const [contactPersonDesignation, setContactPersonDesignation] = useState('');
+  const [priority,                 setPriority]                 = useState<OrderPriority>('normal');
+  const [expectedDeliveryDate,     setExpectedDeliveryDate]     = useState('');
+  const [declaredValue,            setDeclaredValue]            = useState('');
+  const [specialHandling,          setSpecialHandling]          = useState<string[]>([]);
+  const [internalReference,        setInternalReference]        = useState('');
+  const [ccEmails,                 setCcEmails]                 = useState<string[]>([]);
+  const [bccEmails,                setBccEmails]                = useState<string[]>([]);
+
+  function toggleSpecialHandling(option: string) {
+    setSpecialHandling(prev => prev.includes(option) ? prev.filter(o => o !== option) : [...prev, option]);
+  }
 
   const [driverMode, setDriverMode] = useState<'select' | 'new'>('select');
   const [driverId,    setDriverId]    = useState('');
@@ -97,6 +119,12 @@ export default function NewOrderPage() {
       setDispatchToLat(r.dispatch_to_lat);
       setDispatchToLng(r.dispatch_to_lng);
     }
+    setRegisteredAddress(r.registered_address ?? '');
+    setFactoryAddress(r.factory_address ?? '');
+    setContactPersonName(r.contact_person_name ?? '');
+    setContactPersonPhone(r.contact_person_phone ?? '');
+    setContactPersonEmail(r.contact_person_email ?? '');
+    setContactPersonDesignation(r.contact_person_designation ?? '');
   }
 
   const recipientFilter = recipientQuery.trim().toLowerCase();
@@ -132,6 +160,12 @@ export default function NewOrderPage() {
         dispatch_to: dispatchTo || undefined,
         dispatch_to_lat: dispatchToLat ?? undefined,
         dispatch_to_lng: dispatchToLng ?? undefined,
+        registered_address: registeredAddress || undefined,
+        factory_address: factoryAddress || undefined,
+        contact_person_name: contactPersonName || undefined,
+        contact_person_phone: contactPersonPhone || undefined,
+        contact_person_email: contactPersonEmail || undefined,
+        contact_person_designation: contactPersonDesignation || undefined,
       });
       setRecipients(prev => [...prev, data]);
       // The just-saved recipient counts as "used" for this order too.
@@ -186,7 +220,20 @@ export default function NewOrderPage() {
       setVehicleNumber(o.vehicle_number);
       setDriverMode('select');
       setDriverId(o.driver_id ?? '');
-      toast.success('Prefilled from your last shipment — dispatch date and e-way bill start fresh');
+      setRegisteredAddress(o.registered_address ?? '');
+      setFactoryAddress(o.factory_address ?? '');
+      setContactPersonName(o.contact_person_name ?? '');
+      setContactPersonPhone(o.contact_person_phone ?? '');
+      setContactPersonEmail(o.contact_person_email ?? '');
+      setContactPersonDesignation(o.contact_person_designation ?? '');
+      setPriority(o.priority ?? 'normal');
+      setDeclaredValue(o.declared_value != null ? String(o.declared_value) : '');
+      setSpecialHandling(o.special_handling ?? []);
+      // Internal reference/PO number and expected delivery date are
+      // deliberately NOT carried over — same footgun as dispatch_datetime
+      // and the e-way bill, a stale PO number or delivery date silently
+      // reused would be worse than an empty field.
+      toast.success('Prefilled from your last shipment — dispatch date, e-way bill, PO number & delivery date start fresh');
     } catch {
       toast.error('Failed to load your last shipment');
     } finally {
@@ -259,6 +306,19 @@ export default function NewOrderPage() {
         quantity: quantity || undefined,
         dispatch_datetime: dispatchDatetime ? new Date(dispatchDatetime).toISOString() : undefined,
         documents_enclosed: documentsEnclosed || undefined,
+        registered_address: registeredAddress || undefined,
+        factory_address: factoryAddress || undefined,
+        contact_person_name: contactPersonName || undefined,
+        contact_person_phone: contactPersonPhone || undefined,
+        contact_person_email: contactPersonEmail || undefined,
+        contact_person_designation: contactPersonDesignation || undefined,
+        priority,
+        expected_delivery_date: expectedDeliveryDate ? new Date(expectedDeliveryDate).toISOString() : undefined,
+        declared_value: declaredValue ? Number(declaredValue) : undefined,
+        special_handling: specialHandling.length > 0 ? specialHandling : undefined,
+        internal_reference: internalReference || undefined,
+        cc_emails: ccEmails.filter(e => e.trim() !== ''),
+        bcc_emails: bccEmails.filter(e => e.trim() !== ''),
       });
 
       if (ewayBillFile) {
@@ -383,6 +443,95 @@ export default function NewOrderPage() {
         </section>
 
         <section className="space-y-4">
+          <h2 className="text-sm font-bold text-gray-900">Shipment Details <span className="text-gray-400 font-normal">(optional)</span></h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2">
+              <label className={labelClass}>Registered Address</label>
+              <textarea value={registeredAddress} onChange={e => setRegisteredAddress(e.target.value)} className={inputClass} rows={2} placeholder="Company's registered office address" />
+            </div>
+            <div className="col-span-2">
+              <label className={labelClass}>Factory / Godown Address</label>
+              <textarea value={factoryAddress} onChange={e => setFactoryAddress(e.target.value)} className={inputClass} rows={2} placeholder="If different from registered address" />
+            </div>
+            <div>
+              <label className={labelClass}>Contact Person Name</label>
+              <input value={contactPersonName} onChange={e => setContactPersonName(e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Contact Person Designation</label>
+              <input value={contactPersonDesignation} onChange={e => setContactPersonDesignation(e.target.value)} className={inputClass} placeholder="e.g. Purchase Manager" />
+            </div>
+            <div>
+              <label className={labelClass}>Contact Person Phone</label>
+              <input value={contactPersonPhone} onChange={e => setContactPersonPhone(e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Contact Person Email</label>
+              <input type="email" value={contactPersonEmail} onChange={e => setContactPersonEmail(e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Priority</label>
+              <select value={priority} onChange={e => setPriority(e.target.value as OrderPriority)} className={`${inputClass} bg-white`}>
+                {(Object.keys(PRIORITY_LABELS) as OrderPriority[]).map(p => (
+                  <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Expected Delivery Date</label>
+              <input type="date" value={expectedDeliveryDate} onChange={e => setExpectedDeliveryDate(e.target.value)} className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Declared Value (₹)</label>
+              <input type="number" min="0" step="0.01" value={declaredValue} onChange={e => setDeclaredValue(e.target.value)} className={inputClass} placeholder="For insurance/legal purposes" />
+            </div>
+            <div>
+              <label className={labelClass}>Internal Reference / PO Number</label>
+              <input value={internalReference} onChange={e => setInternalReference(e.target.value)} className={inputClass} placeholder="Your company's own tracking number" />
+            </div>
+            <div className="col-span-2">
+              <label className={labelClass}>Special Handling Instructions</label>
+              <div className="flex flex-wrap gap-3">
+                {SPECIAL_HANDLING_OPTIONS.map(opt => (
+                  <label key={opt} className="flex items-center gap-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50">
+                    <input type="checkbox" checked={specialHandling.includes(opt)} onChange={() => toggleSpecialHandling(opt)} className="accent-green-500" />
+                    {opt}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="col-span-2 space-y-2">
+              <label className={labelClass}>CC Emails <span className="text-gray-400 font-normal">(dispatch &amp; status-update notifications)</span></label>
+              {ccEmails.map((email, i) => (
+                <div key={i} className="flex gap-2">
+                  <input type="email" value={email}
+                    onChange={e => setCcEmails(prev => prev.map((v, j) => j === i ? e.target.value : v))}
+                    className={inputClass} placeholder="name@example.com" />
+                  <button type="button" onClick={() => setCcEmails(prev => prev.filter((_, j) => j !== i))}
+                    className="flex-shrink-0 px-3 border border-gray-200 rounded-xl text-gray-400 hover:bg-gray-50"><X size={14} /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setCcEmails(prev => [...prev, ''])}
+                className="text-xs font-semibold text-green-600 hover:text-green-700">+ Add CC email</button>
+            </div>
+            <div className="col-span-2 space-y-2">
+              <label className={labelClass}>BCC Emails</label>
+              {bccEmails.map((email, i) => (
+                <div key={i} className="flex gap-2">
+                  <input type="email" value={email}
+                    onChange={e => setBccEmails(prev => prev.map((v, j) => j === i ? e.target.value : v))}
+                    className={inputClass} placeholder="name@example.com" />
+                  <button type="button" onClick={() => setBccEmails(prev => prev.filter((_, j) => j !== i))}
+                    className="flex-shrink-0 px-3 border border-gray-200 rounded-xl text-gray-400 hover:bg-gray-50"><X size={14} /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setBccEmails(prev => [...prev, ''])}
+                className="text-xs font-semibold text-green-600 hover:text-green-700">+ Add BCC email</button>
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-4">
           <h2 className="text-sm font-bold text-gray-900">Dispatch Details <span className="text-gray-400 font-normal">(optional)</span></h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -403,7 +552,7 @@ export default function NewOrderPage() {
               <input type="datetime-local" value={dispatchDatetime} onChange={e => setDispatchDatetime(e.target.value)} className={inputClass} />
             </div>
             <div>
-              <label className={labelClass}>Material</label>
+              <label className={labelClass}>Material Description</label>
               <input value={material} onChange={e => setMaterial(e.target.value)} className={inputClass} placeholder="e.g. PFD 96%" />
             </div>
             <div>
