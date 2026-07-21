@@ -280,7 +280,9 @@ export default function DriverSharePage() {
             <>
               <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{order.company_name}</h1>
               {order.booked_for_company_name && (
-                <p className="text-xs text-gray-400 mt-0.5">For: {order.booked_for_company_name}</p>
+                <p className="text-sm text-gray-400 mt-0.5">
+                  For: <span className="font-bold text-gray-700">{order.booked_for_company_name}</span>
+                </p>
               )}
               <p className="text-[11px] font-semibold text-orange-500 uppercase tracking-wider mt-1">Location Sharing</p>
             </>
