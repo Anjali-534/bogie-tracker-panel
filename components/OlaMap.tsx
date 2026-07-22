@@ -77,16 +77,23 @@ export async function fetchOlaRoute(
       `https://api.olamaps.io/routing/v1/directions?origin=${origin.lat},${origin.lng}&destination=${dest.lat},${dest.lng}&api_key=${OLA_KEY}`,
       { method: "POST" },
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[fetchOlaRoute] HTTP ${res.status} ${res.statusText}: ${await res.text().catch(() => "")}`);
+      return null;
+    }
     const data = await res.json();
     const route = data?.routes?.[0];
-    if (!route?.overview_polyline) return null;
+    if (!route?.overview_polyline) {
+      console.error("[fetchOlaRoute] no overview_polyline in response", data?.status, data);
+      return null;
+    }
     return {
       coords: decodePolyline(route.overview_polyline),
       distanceKm: (route?.legs?.[0]?.distance ?? 0) / 1000,
       durationMins: Math.round((route?.legs?.[0]?.duration ?? 0) / 60),
     };
-  } catch {
+  } catch (err) {
+    console.error("[fetchOlaRoute] request failed", err);
     return null;
   }
 }
