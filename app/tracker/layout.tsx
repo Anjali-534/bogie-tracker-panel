@@ -5,13 +5,14 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
-  LayoutDashboard, Package, Users, BookUser, CreditCard, Settings, LogOut,
+  LayoutDashboard, Package, Users, BookUser, CreditCard, Settings, LogOut, CarFront,
 } from 'lucide-react';
 import { clearSession } from '@/lib/api';
 import InstallButton from '@/components/InstallButton';
 
 const NAV = [
   { href: '/tracker',             icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/tracker/rides',       icon: CarFront,        label: 'Book a Ride' },
   { href: '/tracker/orders',      icon: Package,         label: 'Shipment Details' },
   { href: '/tracker/drivers',     icon: Users,           label: 'Driver Details' },
   { href: '/tracker/recipients',  icon: BookUser,        label: 'Consignee Directory' },
