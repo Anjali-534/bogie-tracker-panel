@@ -2,7 +2,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
   LayoutDashboard, Package, Users, BookUser, CreditCard, Settings, LogOut, CarFront,
@@ -23,15 +23,6 @@ const NAV = [
 export default function TrackerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-
-  // Re-reads on every navigation so a logo uploaded/removed on the Settings
-  // page shows up in the sidebar as soon as the user navigates away from it
-  // — the layout instance persists across client-side navigation, so it
-  // otherwise wouldn't pick up a change written to localStorage mid-session.
-  useEffect(() => {
-    setLogoUrl(localStorage.getItem('tracker_company_logo_url'));
-  }, [pathname]);
 
   // Only checks that a token exists — not the stored status. A stored
   // status is just a UI hint from the last login/response and can go stale
@@ -61,13 +52,8 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
 
         {/* Logo */}
         <div className="px-5 py-5 border-b border-gray-100">
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt="Company logo" className="w-full h-16 object-contain" />
-          ) : (
-            <Image src="/logo.png" alt="bogie" width={1058} height={330} priority
-              className="w-full h-auto" />
-          )}
+          <Image src="/logo.png" alt="bogie" width={1058} height={330} priority
+            className="w-full h-auto" />
           <span className="mt-2 inline-block text-[10px] font-bold text-orange-500 bg-orange-50 rounded-full px-2 py-0.5 uppercase tracking-wider">
             Tracker Panel
           </span>

@@ -30,6 +30,7 @@ interface DriverMessage {
 interface DriverOrder {
   status: OrderStatus;
   company_name: string;
+  company_logo_url: string | null;
   booked_for_company_name: string;
   dispatch_from: string;
   dispatch_to: string;
@@ -275,7 +276,12 @@ export default function DriverSharePage() {
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-md mx-auto space-y-5">
         <div className="text-center">
-          <Image src="/logo.png" alt="bogie" width={1058} height={330} priority className="w-24 h-auto mx-auto mb-2" />
+          {order.company_logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={order.company_logo_url} alt={order.company_name || 'Company logo'} className="h-16 w-auto object-contain mx-auto mb-2" />
+          ) : (
+            <Image src="/logo.png" alt="bogie" width={1058} height={330} priority className="w-24 h-auto mx-auto mb-2" />
+          )}
           {order.company_name ? (
             <>
               <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{order.company_name}</h1>

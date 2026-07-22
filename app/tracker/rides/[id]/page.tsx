@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, User, Phone, Car, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api';
+import OlaMap, { type OlaMarker } from '@/components/OlaMap';
 
 const POLL_MS = 4000;
 
@@ -15,13 +16,15 @@ interface Driver {
   vehicle_number?: string;
   vehicle_model?: string;
   rating?: number;
+  lat?: number;
+  lng?: number;
 }
 
 interface RideDetail {
   id: string;
   status: string;
-  pickup: { address: string };
-  drop: { address: string };
+  pickup: { lat: number; lng: number; address: string };
+  drop: { lat: number; lng: number; address: string };
   estimated_fare: number;
   final_fare: number | null;
   distance_km: number;
@@ -103,6 +106,8 @@ export default function RideTrackingPage() {
           <p className="text-sm font-semibold text-gray-500">Ride not found</p>
         </div>
       ) : (
+        <>
+          <RideMap ride={ride} />
         <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-5">
           <div className="flex items-start justify-between">
             <div>
@@ -158,7 +163,30 @@ export default function RideTrackingPage() {
             <p className="text-lg font-bold text-gray-900">₹{ride.final_fare ?? ride.estimated_fare}</p>
           </div>
         </div>
+        </>
       )}
+    </div>
+  );
+}
+
+function RideMap({ ride }: { ride: RideDetail }) {
+  const markers: OlaMarker[] = [
+    { lng: ride.pickup.lng, lat: ride.pickup.lat, color: '#22C55E', icon: 'pin', popup: 'Pickup' },
+    { lng: ride.drop.lng, lat: ride.drop.lat, color: '#EF4444', icon: 'pin', popup: 'Drop' },
+  ];
+  if (ride.driver?.lat != null && ride.driver?.lng != null) {
+    markers.push({ lng: ride.driver.lng, lat: ride.driver.lat, color: '#FF6B2B', id: 'driver', icon: 'truck', popup: 'Driver' });
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-3">
+      <OlaMap
+        center={[ride.pickup.lng, ride.pickup.lat]}
+        zoom={12}
+        markers={markers}
+        fitToMarkers
+        className="w-full h-64 rounded-xl overflow-hidden"
+      />
     </div>
   );
 }
