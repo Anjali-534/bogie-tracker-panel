@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, User, Phone, Car, KeyRound } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api';
-import OlaMap, { type OlaMarker } from '@/components/OlaMap';
+import OlaMap, { fetchOlaRoute, type OlaMarker } from '@/components/OlaMap';
 
 const POLL_MS = 4000;
 
@@ -169,13 +169,45 @@ export default function RideTrackingPage() {
   );
 }
 
+// Before pickup (driver en route to rider) the map should show the
+// driver→pickup leg dashed in green; once the ride is under way it
+// switches to a solid orange pickup→drop leg — matches the convention
+// already established in user-app's tracking/[id].tsx (mapAccent/beforePickup).
+const PRE_PICKUP_STATUSES = ['searching', 'scheduled', 'accepted', 'arriving'];
+
 function RideMap({ ride }: { ride: RideDetail }) {
+  const [plannedRoute, setPlannedRoute] = useState<[number, number][] | undefined>(undefined);
+  const lastRouteKeyRef = useRef('');
+
+  const beforePickup = PRE_PICKUP_STATUSES.includes(ride.status);
+  const hasDriver = ride.driver?.lat != null && ride.driver?.lng != null;
+
+  useEffect(() => {
+    let origin: { lat: number; lng: number } | null = null;
+    let dest: { lat: number; lng: number } | null = null;
+
+    if (beforePickup && hasDriver) {
+      origin = { lat: ride.driver!.lat!, lng: ride.driver!.lng! };
+      dest = { lat: ride.pickup.lat, lng: ride.pickup.lng };
+    } else if (ride.status !== 'cancelled') {
+      origin = { lat: ride.pickup.lat, lng: ride.pickup.lng };
+      dest = { lat: ride.drop.lat, lng: ride.drop.lng };
+    }
+    if (!origin || !dest) return;
+
+    const key = `${origin.lat.toFixed(4)},${origin.lng.toFixed(4)}-${dest.lat.toFixed(4)},${dest.lng.toFixed(4)}`;
+    if (key === lastRouteKeyRef.current) return;
+    lastRouteKeyRef.current = key;
+
+    fetchOlaRoute(origin, dest).then(r => setPlannedRoute(r?.coords));
+  }, [beforePickup, hasDriver, ride.driver?.lat, ride.driver?.lng, ride.pickup.lat, ride.pickup.lng, ride.drop.lat, ride.drop.lng, ride.status]);
+
   const markers: OlaMarker[] = [
     { lng: ride.pickup.lng, lat: ride.pickup.lat, color: '#22C55E', icon: 'pin', popup: 'Pickup' },
     { lng: ride.drop.lng, lat: ride.drop.lat, color: '#EF4444', icon: 'pin', popup: 'Drop' },
   ];
-  if (ride.driver?.lat != null && ride.driver?.lng != null) {
-    markers.push({ lng: ride.driver.lng, lat: ride.driver.lat, color: '#FF6B2B', id: 'driver', icon: 'truck', popup: 'Driver' });
+  if (hasDriver) {
+    markers.push({ lng: ride.driver!.lng!, lat: ride.driver!.lat!, color: '#FF6B2B', id: 'driver', icon: 'truck', popup: 'Driver' });
   }
 
   return (
@@ -184,6 +216,9 @@ function RideMap({ ride }: { ride: RideDetail }) {
         center={[ride.pickup.lng, ride.pickup.lat]}
         zoom={12}
         markers={markers}
+        plannedRoute={plannedRoute}
+        plannedRouteColor={beforePickup ? '#22C55E' : '#FF6B2B'}
+        plannedRouteDashed={beforePickup}
         fitToMarkers
         className="w-full h-64 rounded-xl overflow-hidden"
       />

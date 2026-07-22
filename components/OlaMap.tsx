@@ -41,7 +41,9 @@ type OlaMapProps = {
   zoom?: number;
   markers?: OlaMarker[];
   route?: [number, number][]; // [lng, lat][] — GeoJSON LineString (thinner/deeper — actual trail)
-  plannedRoute?: [number, number][]; // [lng, lat][] — solid orange, matches cab-panel's route line
+  plannedRoute?: [number, number][]; // [lng, lat][] — solid orange by default, matches cab-panel's route line
+  plannedRouteColor?: string; // defaults to orange (#FF6B2B)
+  plannedRouteDashed?: boolean; // dashed pre-pickup leg, matching user-app's tracking screen convention
   fitToMarkers?: boolean;
   fitTrigger?: number;
   className?: string;
@@ -62,12 +64,41 @@ export function decodePolyline(encoded: string): [number, number][] {
   return coords;
 }
 
+// Mirrors user-app's services/olamaps.ts olaDirections() — same Ola Maps
+// directions endpoint, called directly from the client (no backend route
+// endpoint exists). Returned coords are already [lng, lat][], matching
+// OlaMap's plannedRoute prop directly.
+export async function fetchOlaRoute(
+  origin: { lat: number; lng: number },
+  dest: { lat: number; lng: number },
+): Promise<{ coords: [number, number][]; distanceKm: number; durationMins: number } | null> {
+  try {
+    const res = await fetch(
+      `https://api.olamaps.io/routing/v1/directions?origin=${origin.lat},${origin.lng}&destination=${dest.lat},${dest.lng}&api_key=${OLA_KEY}`,
+      { method: "POST" },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const route = data?.routes?.[0];
+    if (!route?.overview_polyline) return null;
+    return {
+      coords: decodePolyline(route.overview_polyline),
+      distanceKm: (route?.legs?.[0]?.distance ?? 0) / 1000,
+      durationMins: Math.round((route?.legs?.[0]?.duration ?? 0) / 60),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export default function OlaMap({
   center = [77.2090, 28.6139],
   zoom = 12,
   markers = [],
   route,
   plannedRoute,
+  plannedRouteColor = "#FF6B2B",
+  plannedRouteDashed = false,
   fitToMarkers = false,
   fitTrigger = 0,
   className = "w-full h-80 rounded-2xl overflow-hidden",
@@ -88,7 +119,7 @@ export default function OlaMap({
   // our load handler has added the sources, or transiently false after it),
   // so track readiness ourselves and queue updates that arrive too early.
   const loadedRef = useRef(false);
-  const pendingRef = useRef<{ markers?: () => void; route?: () => void; planned?: () => void; fit?: () => void }>({});
+  const pendingRef = useRef<{ markers?: () => void; route?: () => void; planned?: () => void; paint?: () => void; fit?: () => void }>({});
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
@@ -133,6 +164,7 @@ export default function OlaMap({
       pendingRef.current.markers?.();
       pendingRef.current.route?.();
       pendingRef.current.planned?.();
+      pendingRef.current.paint?.();
       pendingRef.current.fit?.();
       pendingRef.current = {};
       onMapReady?.(map);
@@ -283,6 +315,18 @@ export default function OlaMap({
     };
     if (loadedRef.current) update(); else pendingRef.current.planned = update;
   }, [JSON.stringify(plannedRoute)]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const update = () => {
+      if (!map.getLayer("planned-route-line")) return;
+      map.setPaintProperty("planned-route-line", "line-color", plannedRouteColor);
+      // Passing undefined resets to the style default (no dasharray = solid).
+      map.setPaintProperty("planned-route-line", "line-dasharray", plannedRouteDashed ? [2, 1.6] : undefined);
+    };
+    if (loadedRef.current) update(); else pendingRef.current.paint = update;
+  }, [plannedRouteColor, plannedRouteDashed]);
 
   return (
     <div className="relative">
