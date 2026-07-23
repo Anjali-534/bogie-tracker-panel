@@ -324,6 +324,23 @@ export interface TrackerLocationPing {
   created_at: string;
 }
 
+// Trimmed shape returned by GET /gogoo/tracker/live-map — one entry per
+// currently-trackable shipment (dispatched/in_transit with a location fix).
+export interface TrackerLiveMapOrder {
+  id: string;
+  driver_name: string;
+  vehicle_number: string;
+  booked_for_company_name: string;
+  dispatch_from: string;
+  dispatch_to: string;
+  status: OrderStatus;
+  last_lat: number | null;
+  last_lng: number | null;
+  last_location_at: string | null;
+  route_distance_km: number | null;
+  route_duration_mins: number | null;
+}
+
 export const STATUS_LABELS: Record<OrderStatus, string> = {
   created: 'Created',
   loading: 'Loading',
