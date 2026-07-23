@@ -2,7 +2,8 @@
 import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
-import { Upload, X, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { Upload, X, Trash2, FileText } from 'lucide-react';
 import { api, isTrackerOwner } from '@/lib/api';
 import { TrackerStaffUser, TrackerStaffListResponse } from '@/lib/types';
 
@@ -349,6 +350,28 @@ export default function SettingsPage() {
           </form>
         </div>
       )}
+
+      <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-3">
+        <h2 className="text-sm font-bold text-gray-900">Legal</h2>
+        <ul className="divide-y divide-gray-100">
+          {[
+            { href: '/terms', label: 'Terms of Service' },
+            { href: '/privacy', label: 'Privacy Policy' },
+            { href: '/refund-policy', label: 'Refund & Cancellation Policy' },
+            { href: '/cookie-policy', label: 'Cookie Policy' },
+          ].map(item => (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                className="flex items-center gap-2.5 py-2.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <FileText size={14} className="text-gray-400" />
+                {item.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

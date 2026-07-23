@@ -107,6 +107,15 @@ function TrackerLoginPageInner() {
         <p className="text-center text-xs text-gray-400 mt-6">
           bogie Tracker · Aggarwal Publicity and Marketing Pvt. Ltd.
         </p>
+        <p className="text-center text-xs text-gray-400 mt-2 space-x-3">
+          <a href="/terms" className="hover:text-gray-600">Terms</a>
+          <span>·</span>
+          <a href="/privacy" className="hover:text-gray-600">Privacy</a>
+          <span>·</span>
+          <a href="/refund-policy" className="hover:text-gray-600">Refunds</a>
+          <span>·</span>
+          <a href="/cookie-policy" className="hover:text-gray-600">Cookies</a>
+        </p>
       </div>
     </div>
   );
