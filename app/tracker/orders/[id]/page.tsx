@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Link2, FileText, MessageCircle, Send, CheckCircle2, Mail, Upload, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, Link2, FileText, MessageCircle, Send, CheckCircle2, AlertTriangle, XCircle, Mail, Upload, X, Trash2 } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
@@ -49,7 +49,6 @@ export default function OrderDetailsPage() {
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | ''>('');
   const [messageBody, setMessageBody] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
-  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
   const [notifyRecipients, setNotifyRecipients] = useState<NotifyRecipient[]>(['booked_for']);
   const [sendingNotify, setSendingNotify] = useState(false);
   const [notifyResults, setNotifyResults] = useState<NotifyResult[] | null>(null);
@@ -214,12 +213,6 @@ export default function OrderDetailsPage() {
     }
   }
 
-  async function confirmDelivered() {
-    setConfirmingDelivery(true);
-    await setStatus('delivered');
-    setConfirmingDelivery(false);
-  }
-
   function toggleNotifyRecipient(r: NotifyRecipient) {
     setNotifyRecipients(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]);
   }
@@ -266,8 +259,6 @@ export default function OrderDetailsPage() {
 
   const isTerminal = TERMINAL_STATUSES.includes(order.status);
   const showMap = STATUS_STEPS.indexOf(order.status) >= STATUS_STEPS.indexOf('dispatched');
-  const hasDeliveryClaim = events.some(e => e.reported_by === 'driver' && e.event_kind === 'delivery_claimed');
-  const showConfirmDeliveryBanner = !isTerminal && hasDeliveryClaim && !!order.signature_url;
 
   return (
     <div className="max-w-4xl space-y-5">
@@ -289,9 +280,22 @@ export default function OrderDetailsPage() {
             {STATUS_LABELS[order.status]}
           </span>
           {order.received_confirmed_at && (
-            <span className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-semibold bg-green-100 text-green-700" title={new Date(order.received_confirmed_at).toLocaleString()}>
-              <CheckCircle2 size={12} />Consignee confirmed receipt
-            </span>
+            order.delivery_condition === 'bad' ? (
+              <span
+                className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-semibold bg-red-100 text-red-700"
+                title={`${new Date(order.received_confirmed_at).toLocaleString()}${order.delivery_condition_reason ? ` — ${order.delivery_condition_reason}` : ''}`}
+              >
+                <XCircle size={12} />Reported bad condition
+              </span>
+            ) : (
+              <span
+                className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-semibold bg-green-100 text-green-700"
+                title={new Date(order.received_confirmed_at).toLocaleString()}
+              >
+                <CheckCircle2 size={12} />
+                {order.delivery_condition === 'good' ? 'Received in good condition' : 'Consignee confirmed receipt'}
+              </span>
+            )
           )}
           <button onClick={copyTrackingLink} className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
             <Link2 size={14} />Copy Tracking Link
@@ -322,20 +326,27 @@ export default function OrderDetailsPage() {
             />
           )}
 
-          {showConfirmDeliveryBanner && (
-            <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-2xl p-5">
-              <CheckCircle2 size={20} className="text-green-600 flex-shrink-0" />
+          {order.needs_staff_attention && (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-2xl p-5">
+              <AlertTriangle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-bold text-green-800">Driver has claimed delivery — confirm?</p>
-                <p className="text-xs text-green-600 mt-0.5">A signed proof of delivery has been uploaded (see Proof of Delivery below).</p>
+                <p className="text-sm font-bold text-amber-800">Needs staff attention</p>
+                <p className="text-xs text-amber-600 mt-0.5">
+                  The consignee hasn&apos;t responded on the receipt page after 7 daily reminders. Follow up with them directly — this doesn&apos;t block anything in the system.
+                </p>
               </div>
-              <button
-                onClick={confirmDelivered}
-                disabled={confirmingDelivery}
-                className="px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 disabled:opacity-50 transition-colors flex-shrink-0"
-              >
-                {confirmingDelivery ? 'Confirming…' : 'Confirm Delivered'}
-              </button>
+            </div>
+          )}
+
+          {order.delivery_condition === 'bad' && (
+            <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-2xl p-5">
+              <XCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-bold text-red-800">Consignee reported bad condition</p>
+                {order.delivery_condition_reason && (
+                  <p className="text-xs text-red-600 mt-0.5">{order.delivery_condition_reason}</p>
+                )}
+              </div>
             </div>
           )}
 

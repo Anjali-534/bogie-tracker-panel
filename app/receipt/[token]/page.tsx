@@ -3,10 +3,12 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import axios from 'axios';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, XCircle } from 'lucide-react';
 import RouteRows from '@/components/RouteRows';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://gogobackend-production.up.railway.app';
+
+type DeliveryCondition = 'good' | 'bad';
 
 interface ReceiptOrder {
   status: string;
@@ -18,12 +20,18 @@ interface ReceiptOrder {
   quantity: string | null;
   delivered_at: string | null;
   received_confirmed_at: string | null;
+  driver_claimed: boolean;
+  delivery_condition: DeliveryCondition | null;
+  delivery_condition_reason: string | null;
 }
 
 export default function ReceiptPage() {
   const { token } = useParams<{ token: string }>();
   const [order, setOrder] = useState<ReceiptOrder | null | undefined>(undefined);
-  const [confirming, setConfirming] = useState(false);
+  const [confirming, setConfirming] = useState<DeliveryCondition | null>(null);
+  const [showBadForm, setShowBadForm] = useState(false);
+  const [badReason, setBadReason] = useState('');
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -33,19 +41,35 @@ export default function ReceiptPage() {
     return () => { cancelled = true; };
   }, [token]);
 
-  async function confirmReceipt() {
-    setConfirming(true);
+  async function confirmReceipt(condition: DeliveryCondition, reason?: string) {
+    setError('');
+    setConfirming(condition);
     try {
       const { data } = await axios.post<{ received_confirmed_at: string }>(
-        `${API}/gogoo/public/tracker/receipt/${token}/confirm`
+        `${API}/gogoo/public/tracker/receipt/${token}/confirm`,
+        { condition, reason: reason || undefined }
       );
-      setOrder(prev => prev ? { ...prev, received_confirmed_at: data.received_confirmed_at } : prev);
-    } catch {
-      // Swallow — the button re-enables and the summary above still shows
-      // the current (unconfirmed) state, so the user can just tap again.
+      setOrder(prev => prev ? {
+        ...prev,
+        received_confirmed_at: data.received_confirmed_at,
+        delivery_condition: condition,
+        delivery_condition_reason: reason || null,
+      } : prev);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        setError(body.error || 'Something went wrong — please try again.');
+      } else {
+        setError('Something went wrong — please try again.');
+      }
     } finally {
-      setConfirming(false);
+      setConfirming(null);
     }
+  }
+
+  function submitBadCondition() {
+    if (!badReason.trim()) return;
+    confirmReceipt('bad', badReason.trim());
   }
 
   if (order === undefined) {
@@ -95,27 +119,83 @@ export default function ReceiptPage() {
           </div>
 
           {order.received_confirmed_at ? (
-            <div className="text-center py-4">
-              <CheckCircle2 size={40} className="text-green-500 mx-auto mb-3" />
-              <p className="text-green-600 font-bold">Goods received — confirmed</p>
-              <p className="text-xs text-gray-400 mt-1">
-                Confirmed on {new Date(order.received_confirmed_at).toLocaleString()}
-              </p>
+            order.delivery_condition === 'bad' ? (
+              <div className="text-center py-4">
+                <XCircle size={40} className="text-red-500 mx-auto mb-3" />
+                <p className="text-red-600 font-bold">Reported — not in good condition</p>
+                {order.delivery_condition_reason && (
+                  <p className="text-xs text-gray-500 mt-2 text-left bg-gray-50 rounded-xl p-3">{order.delivery_condition_reason}</p>
+                )}
+                <p className="text-xs text-gray-400 mt-2">
+                  Reported on {new Date(order.received_confirmed_at).toLocaleString()}
+                </p>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <CheckCircle2 size={40} className="text-green-500 mx-auto mb-3" />
+                <p className="text-green-600 font-bold">Goods received — confirmed</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Confirmed on {new Date(order.received_confirmed_at).toLocaleString()}
+                </p>
+              </div>
+            )
+          ) : order.driver_claimed ? (
+            <div className="space-y-3">
+              {error && <p className="text-xs text-red-500 text-center">{error}</p>}
+
+              <button
+                onClick={() => confirmReceipt('good')}
+                disabled={confirming !== null}
+                className="w-full py-4 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
+              >
+                {confirming === 'good' ? 'Confirming…' : 'Goods received in perfect condition'}
+              </button>
+
+              {!showBadForm ? (
+                <button
+                  onClick={() => setShowBadForm(true)}
+                  disabled={confirming !== null}
+                  className="w-full py-4 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors"
+                >
+                  Products delivered — not in good condition
+                </button>
+              ) : (
+                <div className="border border-red-200 rounded-xl p-4 space-y-3">
+                  <label className="block text-xs font-semibold text-gray-600">
+                    What&apos;s wrong with the shipment?
+                  </label>
+                  <textarea
+                    value={badReason}
+                    onChange={e => setBadReason(e.target.value)}
+                    placeholder="e.g. Two boxes were crushed, material spilled out"
+                    rows={3}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-400 resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={submitBadCondition}
+                      disabled={confirming !== null || !badReason.trim()}
+                      className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      {confirming === 'bad' ? 'Submitting…' : 'Submit Report'}
+                    </button>
+                    <button
+                      onClick={() => { setShowBadForm(false); setBadReason(''); }}
+                      disabled={confirming !== null}
+                      className="px-4 py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm font-bold hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
-          ) : order.status === 'delivered' ? (
-            <button
-              onClick={confirmReceipt}
-              disabled={confirming}
-              className="w-full py-4 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
-            >
-              {confirming ? 'Confirming…' : 'Goods received in proper condition'}
-            </button>
           ) : (
             <div className="text-center py-4">
               <button disabled className="w-full py-4 bg-gray-100 text-gray-400 rounded-xl text-sm font-bold cursor-not-allowed mb-2">
-                Goods received in proper condition
+                Goods received in perfect condition
               </button>
-              <p className="text-sm text-gray-400">You can confirm receipt once delivery is complete.</p>
+              <p className="text-sm text-gray-400">You can confirm receipt once the driver has marked delivery.</p>
             </div>
           )}
         </div>

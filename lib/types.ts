@@ -34,6 +34,8 @@ export interface TrackerDriver {
 
 export type DriverEventKind = 'on_break' | 'about_to_reach' | 'reached' | 'unloading' | 'delivery_claimed';
 
+export type DeliveryCondition = 'good' | 'bad';
+
 export interface TrackerOrderEvent {
   id: string;
   order_id: string;
@@ -110,10 +112,22 @@ export interface TrackerOrder {
   transporter_email: string | null;
 
   // Goods-received confirmation — received_confirmation_token is generated
-  // the first time the order reaches 'delivered'; received_confirmed_at is
-  // set once by the consignee via the public receipt page.
+  // at order creation (or lazily backfilled on first notify send);
+  // received_confirmed_at is set once by the consignee via the public
+  // receipt page, for either button. delivery_condition/_reason are set
+  // alongside it — a separate flag that never blocks the 'delivered'
+  // transition itself (see tryAutoCompleteDelivery, backend). Once both
+  // this AND the driver's claim (signature_url + a 'delivery_claimed'
+  // event) exist, the order auto-transitions to 'delivered' server-side —
+  // there is no company-side action for this anymore.
   received_confirmation_token: string | null;
   received_confirmed_at: string | null;
+  delivery_condition: DeliveryCondition | null;
+  delivery_condition_reason: string | null;
+
+  // Set by the daily delivery-reminder job once 7 reminders to the
+  // consignee get no response — informational only, never blocks anything.
+  needs_staff_attention: boolean;
 
   // GSTIN for the two other dispatch-sheet parties — optional, format/
   // checksum validated client-side only (see components/GSTInput.tsx).
@@ -369,8 +383,12 @@ export const STATUS_STEPS: OrderStatus[] = ['created', 'loading', 'loaded', 'dis
 
 // The status control on the order detail page is a radio group over these —
 // 'created' is the implicit starting state (not a choice) and 'cancelled' is
-// a separate action, not part of the forward sequence.
-export const STATUS_RADIO_OPTIONS: OrderStatus[] = ['loading', 'loaded', 'dispatched', 'in_transit', 'delivered'];
+// a separate action, not part of the forward sequence. 'delivered' is
+// deliberately absent: it's system-only now, set automatically once the
+// driver's delivery claim and the consignee's receipt response both exist
+// (see tryAutoCompleteDelivery, backend) — the company has no manual say
+// over this transition. Matches validOrderStatuses server-side.
+export const STATUS_RADIO_OPTIONS: OrderStatus[] = ['loading', 'loaded', 'dispatched', 'in_transit'];
 
 // Drive-page quick-status button row. 'delivery_claimed' is special-cased on
 // the drive page (it triggers the signature pad instead of posting directly)
