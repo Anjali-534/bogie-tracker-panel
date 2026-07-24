@@ -51,6 +51,10 @@ export default function DriverSharePage() {
   const [sharing, setSharing] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
+  // Set on POSITION_UNAVAILABLE/TIMEOUT — transient (weak signal, indoors),
+  // so watchPosition keeps running, but the UI must stop claiming "Sharing"
+  // when no fix has actually landed since the issue started.
+  const [gpsIssue, setGpsIssue] = useState(false);
   const [sendError, setSendError] = useState(false);
   const [lastSentAt, setLastSentAt] = useState<Date | null>(null);
   const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null);
@@ -193,6 +197,7 @@ export default function DriverSharePage() {
     }
     setPermissionDenied(false);
     setUnsupported(false);
+    setGpsIssue(false);
     setSharing(true);
 
     watchIdRef.current = navigator.geolocation.watchPosition(
@@ -200,12 +205,18 @@ export default function DriverSharePage() {
         const isFirstFix = latestPosRef.current === null;
         latestPosRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setMyPos(latestPosRef.current);
+        setGpsIssue(false);
         if (isFirstFix) sendLocation();
       },
       (err) => {
         if (err.code === err.PERMISSION_DENIED) {
           setPermissionDenied(true);
           stopSharing();
+        } else {
+          // POSITION_UNAVAILABLE or TIMEOUT — no fix right now, but often
+          // transient. Keep watchPosition running instead of stopping, and
+          // let the render below reflect that nothing is currently being sent.
+          setGpsIssue(true);
         }
       },
       { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
@@ -219,6 +230,7 @@ export default function DriverSharePage() {
     watchIdRef.current = null;
     intervalRef.current = null;
     latestPosRef.current = null;
+    setGpsIssue(false);
     setSharing(false);
   }
 
@@ -254,9 +266,16 @@ export default function DriverSharePage() {
   }
 
   const routeSummary = formatRouteSummary(order.route_distance_km, order.route_duration_mins);
-  const lastSentText = lastSentAt
+  // Honest sharing state: only claim "Sharing" once a fix has actually landed
+  // and nothing is currently blocking it — otherwise nothing is being sent,
+  // regardless of how long `sharing` (the watch/interval being armed) has been true.
+  const gpsWaiting = sharing && (myPos === null || gpsIssue);
+  const sharingHeadline = gpsWaiting ? 'No GPS signal yet, retrying…' : 'Sharing your location';
+  const sharingSubtext = lastSentAt
     ? `Last update sent ${Math.max(0, Math.round((Date.now() - lastSentAt.getTime()) / 1000))}s ago`
-    : 'Waiting for GPS fix…';
+    : gpsWaiting
+      ? 'Will resume automatically once signal improves.'
+      : 'Waiting for GPS fix…';
   const navigateHref = order.dispatch_to_lat != null && order.dispatch_to_lng != null
     ? `https://www.google.com/maps/dir/?api=1&destination=${order.dispatch_to_lat},${order.dispatch_to_lng}`
     : null;
@@ -379,10 +398,10 @@ export default function DriverSharePage() {
                   <p className="text-center text-sm font-semibold text-gray-500 py-2">This trip has ended.</p>
                 ) : sharing ? (
                   <div className="flex items-center gap-3">
-                    <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse flex-shrink-0" />
+                    <span className={`w-2.5 h-2.5 rounded-full animate-pulse flex-shrink-0 ${gpsWaiting ? 'bg-amber-500' : 'bg-green-500'}`} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-green-600">Sharing your location</p>
-                      <p className="text-[11px] text-gray-400 truncate">{lastSentText}</p>
+                      <p className={`text-sm font-semibold ${gpsWaiting ? 'text-amber-600' : 'text-green-600'}`}>{sharingHeadline}</p>
+                      <p className="text-[11px] text-gray-400 truncate">{sharingSubtext}</p>
                     </div>
                     {navigateHref && (
                       <a
@@ -471,11 +490,11 @@ export default function DriverSharePage() {
 
             {sharing ? (
               <>
-                <div className="flex items-center justify-center gap-2 text-green-600 bg-green-50 rounded-xl py-3 font-semibold text-sm">
-                  <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
-                  Sharing your location
+                <div className={`flex items-center justify-center gap-2 rounded-xl py-3 font-semibold text-sm ${gpsWaiting ? 'text-amber-600 bg-amber-50' : 'text-green-600 bg-green-50'}`}>
+                  <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${gpsWaiting ? 'bg-amber-500' : 'bg-green-500'}`} />
+                  {sharingHeadline}
                 </div>
-                <p className="text-center text-xs text-gray-400">{lastSentText}</p>
+                <p className="text-center text-xs text-gray-400">{sharingSubtext}</p>
                 <button
                   onClick={stopSharing}
                   className="w-full py-4 bg-white border-2 border-red-200 text-red-600 rounded-2xl text-base font-bold hover:bg-red-50 transition-colors"
