@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Car, Truck, Siren } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -40,12 +40,16 @@ function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
   return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
 
-export default function BookRidePage() {
+function BookRidePageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialType = searchParams.get('type');
 
   const [services, setServices] = useState<ServiceType[]>([]);
   const [servicesLoading, setServicesLoading] = useState(true);
-  const [category, setCategory] = useState('cab');
+  const [category, setCategory] = useState(
+    initialType && CATEGORY_ORDER.includes(initialType) ? initialType : 'cab'
+  );
   const [selected, setSelected] = useState<ServiceType | null>(null);
 
   const [pickupAddress, setPickupAddress] = useState('');
@@ -212,5 +216,13 @@ export default function BookRidePage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function BookRidePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-gray-400 text-sm">Loading…</div>}>
+      <BookRidePageInner />
+    </Suspense>
   );
 }

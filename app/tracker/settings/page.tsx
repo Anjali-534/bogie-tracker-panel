@@ -7,6 +7,30 @@ import { Upload, X, Trash2, FileText } from 'lucide-react';
 import { api, isTrackerOwner } from '@/lib/api';
 import { TrackerStaffUser, TrackerStaffListResponse } from '@/lib/types';
 
+// The sidebar's Settings dropdown deep-links here via #password/#staff/#logo.
+// Next.js's default hash-scroll only fires on the initial load of the route,
+// not on a same-route client-side <Link> navigation (App Router treats a
+// hash-only href change as no navigation), so we scroll manually on mount.
+function useHashScroll(ready: boolean) {
+  useEffect(() => {
+    function scrollToHash() {
+      const hash = window.location.hash.slice(1);
+      if (!hash) return;
+      const el = document.getElementById(hash);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    // Sections don't exist in the DOM until the profile fetch finishes (the
+    // page renders a bare "Loading…" placeholder until then), so wait for
+    // that before attempting the initial scroll.
+    if (ready) scrollToHash();
+    // Clicking a #password/#staff/#logo link while already on /tracker/settings
+    // doesn't remount this component (App Router sees it as the same route),
+    // so the effect above won't rerun on its own — hashchange covers that case.
+    window.addEventListener('hashchange', scrollToHash);
+    return () => window.removeEventListener('hashchange', scrollToHash);
+  }, [ready]);
+}
+
 const inputClass = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400';
 const labelClass = 'block text-xs font-semibold text-gray-500 mb-1.5';
 
@@ -201,6 +225,8 @@ export default function SettingsPage() {
     }
   }
 
+  useHashScroll(!loading);
+
   if (loading) {
     return <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>;
   }
@@ -229,7 +255,7 @@ export default function SettingsPage() {
             <input value={gstin} onChange={e => setGstin(e.target.value.toUpperCase())} className={inputClass} placeholder="07AAAAA0000A1Z5" />
           </div>
         </div>
-        <div>
+        <div id="logo">
           <label className={labelClass}>Company Logo <span className="text-gray-400 font-normal">(optional)</span></label>
           {logoUrl ? (
             <div className="flex items-center gap-3">
@@ -270,7 +296,7 @@ export default function SettingsPage() {
         </div>
       </form>
 
-      <form onSubmit={savePassword} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+      <form id="password" onSubmit={savePassword} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
         <h2 className="text-sm font-bold text-gray-900">Change Password</h2>
         <div>
           <label className={labelClass}>Current Password</label>
@@ -294,7 +320,7 @@ export default function SettingsPage() {
       </form>
 
       {isOwner && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+        <div id="staff" className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-gray-900">Team</h2>
             <span className="text-xs text-gray-400">
