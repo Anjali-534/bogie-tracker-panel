@@ -1,7 +1,7 @@
 'use client';
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Pagination from '@/components/Pagination';
@@ -14,15 +14,27 @@ const STATUS_FILTERS: (OrderStatus | '')[] = ['', 'created', 'dispatched', 'in_t
 const VALID_STATUSES = new Set(STATUS_FILTERS.filter(Boolean));
 
 function OrdersPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const initialStatus = searchParams.get('status');
-  const [orders,       setOrders]       = useState<TrackerOrder[]>([]);
-  const [loading,      setLoading]      = useState(true);
-  const [search,       setSearch]       = useState('');
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>(
-    initialStatus && VALID_STATUSES.has(initialStatus as OrderStatus) ? (initialStatus as OrderStatus) : ''
-  );
-  const [page,         setPage]         = useState(1);
+  // The URL's ?status= param is the single source of truth for the active
+  // filter — deriving it here (rather than mirroring it into its own
+  // useState) keeps the dropdown, the actual query, and the sidebar's
+  // highlighted item from ever drifting apart, regardless of whether the
+  // filter changed via sidebar link, direct URL, or the dropdown itself.
+  const statusParam = searchParams.get('status');
+  const statusFilter: OrderStatus | '' =
+    statusParam && VALID_STATUSES.has(statusParam as OrderStatus) ? (statusParam as OrderStatus) : '';
+  const [orders,  setOrders]  = useState<TrackerOrder[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search,  setSearch]  = useState('');
+  const [page,    setPage]    = useState(1);
+
+  function handleStatusChange(next: OrderStatus | '') {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next) params.set('status', next); else params.delete('status');
+    router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname);
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,7 +76,7 @@ function OrdersPageInner() {
           <p className="text-xs text-gray-400">{orders.length} shipments</p>
         </div>
         <div className="flex items-center gap-2">
-          <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value as OrderStatus | ''); setPage(1); }}
+          <select value={statusFilter} onChange={e => { handleStatusChange(e.target.value as OrderStatus | ''); setPage(1); }}
             className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-orange-400">
             {STATUS_FILTERS.map(s => (
               <option key={s || 'all'} value={s}>{s ? STATUS_LABELS[s] : 'All statuses'}</option>

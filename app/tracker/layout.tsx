@@ -12,7 +12,7 @@ import { clearSession } from '@/lib/api';
 import InstallButton from '@/components/InstallButton';
 
 interface NavLeaf { href: string; label: string; }
-interface NavFlat { href: string; icon: typeof Home; label: string; }
+interface NavFlat { href: string; icon: typeof Home; label: string; iconOnly?: boolean; }
 interface NavSection { label: string; icon: typeof Home; basePaths: string[]; children: NavLeaf[]; }
 type NavEntry = NavFlat | NavSection;
 
@@ -35,7 +35,7 @@ function parseHref(href: string) {
 }
 
 const NAV: NavEntry[] = [
-  { href: '/tracker', icon: Home, label: 'Home' },
+  { href: '/tracker', icon: Home, label: 'Home', iconOnly: true },
   {
     label: 'Shipment', icon: Package, basePaths: ['/tracker/orders'],
     children: [
@@ -146,7 +146,7 @@ function SidebarNavInner() {
               }`}
             >
               <entry.icon size={16} className="flex-shrink-0" />
-              {entry.label}
+              {!entry.iconOnly && entry.label}
             </Link>
           );
         }
