@@ -33,3 +33,20 @@ body {
 .sheet-expand {
   animation: sheet-up 0.25s ease-out;
 }
+
+/* Ola Maps attribution (required by Ola's Platform Terms, Section 16 — see
+   OlaMap.tsx) — kept visible per ToS, just toned down so it reads as a
+   quiet corner credit instead of a loud badge over map content. Never set
+   display:none/opacity:0/zero-size here. */
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib {
+  background-color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+}
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib a {
+  color: rgba(0, 0, 0, 0.55);
+}
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib-button {
+  width: 18px;
+  height: 18px;
+  background-size: 14px;
+}
