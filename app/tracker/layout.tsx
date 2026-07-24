@@ -139,6 +139,8 @@ function SidebarNavInner() {
             <Link
               key={entry.href}
               href={entry.href}
+              aria-label={entry.iconOnly ? entry.label : undefined}
+              title={entry.iconOnly ? entry.label : undefined}
               className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 isFlatActive(entry.href)
                   ? 'bg-orange-50 text-orange-500 border-l-[3px] border-orange-500 pl-[9px] font-semibold'
