@@ -167,6 +167,20 @@ export default function OrderDetailsPage() {
     window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
   }
 
+  // Booked For's WhatsApp share reuses the public tracking link (same one as
+  // "Copy Tracking Link" up top) — unlike the driver link above, which uses
+  // the driver-only token and points at /drive instead of /track.
+  function whatsAppBookedForLink() {
+    if (!order?.public_tracking_token || !order.booked_for_phone) return;
+    const url = `${window.location.origin}/track/${order.public_tracking_token}`;
+    const digits = order.booked_for_phone.replace(/\D/g, '');
+    const waNumber = digits.length === 10 ? `91${digits}` : digits;
+    const message =
+      `नमस्ते! आपके शिपमेंट को लाइव ट्रैक करने के लिए यह लिंक खोलें: ${url}\n\n` +
+      `Hi, here's the live tracking link for your shipment: ${url}`;
+    window.open(`https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+  }
+
   async function setStatus(next: OrderStatus) {
     if (!order) return;
     setUpdating(true);
@@ -595,6 +609,11 @@ export default function OrderDetailsPage() {
             <h2 className="text-sm font-bold text-gray-900">Shipment Details</h2>
             <Field label="Booked For" value={order.booked_for_company_name} />
             <Field label="Contact Phone" value={order.booked_for_phone} />
+            {order.booked_for_phone && order.public_tracking_token && (
+              <button onClick={whatsAppBookedForLink} className="flex items-center justify-center gap-1.5 px-4 py-2 bg-green-500 text-white rounded-xl text-xs font-bold hover:bg-green-600 transition-colors">
+                <MessageCircle size={13} />Send via WhatsApp
+              </button>
+            )}
             <Field label="Driver" value={order.driver_name || '—'} />
             <Field label="Driver Phone" value={order.driver_phone || '—'} />
             <Field label="Vehicle Number" value={order.vehicle_number} />
