@@ -6,7 +6,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
   Home, Package, Users, BookUser, CreditCard, Settings, LogOut, CarFront, MapPin,
-  ChevronDown, ChevronRight,
+  ChevronDown, ChevronRight, HelpCircle,
 } from 'lucide-react';
 import { clearSession } from '@/lib/api';
 import InstallButton from '@/components/InstallButton';
@@ -80,6 +80,7 @@ const NAV: NavEntry[] = [
     ],
   },
   { href: '/tracker/plan-orders', icon: CreditCard, label: 'Billing & Subscription' },
+  { href: '/tracker/help', icon: HelpCircle, label: 'How to Use' },
 ];
 
 function SidebarNavInner() {
