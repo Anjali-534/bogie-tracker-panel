@@ -444,6 +444,8 @@ export default function NewOrderPage() {
             <LocationInput
               label="Dispatch From *"
               value={dispatchFrom}
+              lat={dispatchFromLat}
+              lng={dispatchFromLng}
               onChange={(address, lat, lng) => { setDispatchFrom(address); setDispatchFromLat(lat); setDispatchFromLng(lng); }}
               placeholder="Search for an address or city"
               className={inputClass}
@@ -452,6 +454,8 @@ export default function NewOrderPage() {
             <LocationInput
               label="Dispatch To *"
               value={dispatchTo}
+              lat={dispatchToLat}
+              lng={dispatchToLng}
               onChange={(address, lat, lng) => { setDispatchTo(address); setDispatchToLat(lat); setDispatchToLng(lng); }}
               placeholder="Search for an address or city"
               className={inputClass}

@@ -258,6 +258,8 @@ export default function RecipientsPage() {
                 <LocationInput
                   label="Dispatch To"
                   value={form.dispatch_to}
+                  lat={form.dispatch_to_lat}
+                  lng={form.dispatch_to_lng}
                   onChange={(address, lat, lng) => setForm(f => ({ ...f, dispatch_to: address, dispatch_to_lat: lat, dispatch_to_lng: lng }))}
                   placeholder="Search for an address or city"
                   className={inputClass}

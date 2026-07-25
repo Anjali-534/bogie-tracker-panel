@@ -168,6 +168,8 @@ function BookRidePageInner() {
             <LocationInput
               label="Pickup Location *"
               value={pickupAddress}
+              lat={pickupLat}
+              lng={pickupLng}
               onChange={(address, lat, lng) => { setPickupAddress(address); setPickupLat(lat); setPickupLng(lng); }}
               placeholder="Search for an address or city"
               className={inputClass}
@@ -176,6 +178,8 @@ function BookRidePageInner() {
             <LocationInput
               label="Drop Location *"
               value={dropAddress}
+              lat={dropLat}
+              lng={dropLng}
               onChange={(address, lat, lng) => { setDropAddress(address); setDropLat(lat); setDropLng(lng); }}
               placeholder="Search for an address or city"
               className={inputClass}

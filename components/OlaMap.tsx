@@ -13,6 +13,10 @@ export type OlaMarker = {
   // jump instantly, which is correct since they never move mid-trip).
   id?: string;
   icon?: "truck" | "pin";
+  // Lets the user reposition this marker by hand (location-picker preview).
+  // Only wired up on the static (no id) marker path — animated markers are
+  // driven by live position updates, dragging one would fight the RAF lerp.
+  draggable?: boolean;
 };
 
 const ANIM_MS = 900;
@@ -48,6 +52,8 @@ type OlaMapProps = {
   fitTrigger?: number;
   className?: string;
   onMapReady?: (map: maplibregl.Map) => void;
+  // Fires when a draggable marker is dropped, with its new position.
+  onMarkerDragEnd?: (lngLat: { lng: number; lat: number }) => void;
 };
 
 export function decodePolyline(encoded: string): [number, number][] {
@@ -110,8 +116,12 @@ export default function OlaMap({
   fitTrigger = 0,
   className = "w-full h-80 rounded-2xl overflow-hidden",
   onMapReady,
+  onMarkerDragEnd,
 }: OlaMapProps) {
   const ref = useRef<HTMLDivElement>(null);
+  // Ref so the marker-creation effect (keyed on JSON.stringify(markers)) can
+  // always call the latest callback without needing it in its own deps.
+  const onMarkerDragEndRef = useRef(onMarkerDragEnd);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   // Animated (id-tagged) markers, keyed by id — kept alive across updates so
@@ -205,6 +215,10 @@ export default function OlaMap({
   }, [markers, plannedRoute]);
 
   useEffect(() => {
+    onMarkerDragEndRef.current = onMarkerDragEnd;
+  }, [onMarkerDragEnd]);
+
+  useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     const update = () => {
@@ -273,8 +287,14 @@ export default function OlaMap({
           el.style.cssText = `width:28px;height:28px;border-radius:50%;background:${m.color || "#FF6B2B"};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.25);display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;font-weight:800`;
           if (m.label) el.textContent = m.label;
         }
-        const marker = new maplibregl.Marker({ element: el, anchor: m.icon === "pin" ? "bottom" : "center" }).setLngLat([m.lng, m.lat]);
+        const marker = new maplibregl.Marker({ element: el, anchor: m.icon === "pin" ? "bottom" : "center", draggable: !!m.draggable }).setLngLat([m.lng, m.lat]);
         if (m.popup) marker.setPopup(new maplibregl.Popup({ offset: 16 }).setHTML(m.popup));
+        if (m.draggable) {
+          marker.on("dragend", () => {
+            const ll = marker.getLngLat();
+            onMarkerDragEndRef.current?.({ lng: ll.lng, lat: ll.lat });
+          });
+        }
         marker.addTo(map);
         markersRef.current.push(marker);
       });
