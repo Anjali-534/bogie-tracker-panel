@@ -14,9 +14,9 @@ export default function Pagination({ page, total, perPage, onChange }: Props) {
   const end   = Math.min(page * perPage, total);
 
   return (
-    <div className="flex items-center justify-between mt-4 px-1">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 px-1">
       <p className="text-xs text-gray-400">{start}–{end} of {total}</p>
-      <div className="flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1">
         <button
           onClick={() => onChange(page - 1)}
           disabled={page === 1}

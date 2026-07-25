@@ -297,7 +297,7 @@ export default function DriverSharePage() {
         <div className="text-center">
           {order.company_logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={order.company_logo_url} alt={order.company_name || 'Company logo'} className="h-16 w-auto object-contain mx-auto mb-2" />
+            <img src={order.company_logo_url} alt={order.company_name || 'Company logo'} className="h-16 w-auto max-w-[160px] sm:max-w-none object-contain mx-auto mb-2" />
           ) : (
             <Image src="/logo.png" alt="bogie" width={1058} height={330} priority className="w-24 h-auto mx-auto mb-2" />
           )}

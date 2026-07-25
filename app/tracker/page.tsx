@@ -71,7 +71,7 @@ export default function OverviewPage() {
       <div className="text-center pt-4">
         {logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logoUrl} alt={companyName || 'Company logo'} className="h-16 w-auto object-contain mx-auto mb-3" />
+          <img src={logoUrl} alt={companyName || 'Company logo'} className="h-16 w-auto max-w-[160px] sm:max-w-none object-contain mx-auto mb-3" />
         ) : (
           <Image src="/logo.png" alt="bogie" width={1058} height={330} priority className="h-12 w-auto mx-auto mb-3" />
         )}
