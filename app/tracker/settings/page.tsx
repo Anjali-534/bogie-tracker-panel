@@ -361,7 +361,7 @@ export default function SettingsPage() {
                 <label className={labelClass}>Company Name</label>
                 <input value={companyName} onChange={e => setCompanyName(e.target.value)} className={inputClass} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Contact Phone</label>
                   <input value={phone} onChange={e => setPhone(e.target.value)} className={inputClass} placeholder="+91 98765 43210" />
@@ -454,14 +454,14 @@ export default function SettingsPage() {
               {staff.length > 0 && (
                 <ul className="divide-y divide-gray-100">
                   {staff.map(s => (
-                    <li key={s.id} className="flex items-center justify-between py-2.5">
-                      <span className={`text-sm ${s.disabled_at ? 'text-gray-400' : 'text-gray-700'}`}>
+                    <li key={s.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <span className={`text-sm min-w-0 truncate ${s.disabled_at ? 'text-gray-400' : 'text-gray-700'}`}>
                         {s.email}
                         {s.disabled_at && (
                           <span className="ml-2 text-[11px] font-semibold text-amber-500">Disabled — plan downgrade</span>
                         )}
                       </span>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-shrink-0">
                         {s.disabled_at && (
                           <button onClick={() => reactivateStaff(s.id)} className="text-xs font-semibold text-green-600 hover:text-green-700">
                             Reactivate
@@ -476,7 +476,7 @@ export default function SettingsPage() {
                 </ul>
               )}
 
-              <form onSubmit={addStaff} className="grid grid-cols-2 gap-4 pt-1">
+              <form onSubmit={addStaff} className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                 <div>
                   <label className={labelClass}>Staff Email</label>
                   <input type="email" value={staffEmail} onChange={e => setStaffEmail(e.target.value)} className={inputClass} placeholder="teammate@company.com" />
@@ -485,7 +485,7 @@ export default function SettingsPage() {
                   <label className={labelClass}>Staff Password</label>
                   <input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} className={inputClass} placeholder="min 8 characters" />
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <button type="submit" disabled={addingStaff} className="px-5 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors">
                     {addingStaff ? 'Adding…' : 'Add Staff Login'}
                   </button>

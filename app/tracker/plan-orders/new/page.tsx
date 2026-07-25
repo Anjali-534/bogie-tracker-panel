@@ -175,7 +175,7 @@ export default function NewPlanOrderPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {RECURRING_PLANS.map(p => {
                 const a = computeAmounts(p, duration);
                 return (
@@ -222,12 +222,12 @@ export default function NewPlanOrderPage() {
             <h2 className="text-sm font-bold text-gray-900">Billing details</h2>
             <button type="button" onClick={() => setStep('pick')} className="text-xs font-semibold text-gray-500 hover:text-gray-800">Change plan</button>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
               <label className={labelClass}>Billing Name *</label>
               <input value={billingName} onChange={e => setBillingName(e.target.value)} className={inputClass} placeholder="Name on the invoice" />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className={labelClass}>Address *</label>
               <input value={billingAddressLine} onChange={e => setBillingAddressLine(e.target.value)} className={inputClass} placeholder="Street address" />
             </div>

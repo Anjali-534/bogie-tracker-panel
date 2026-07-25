@@ -53,12 +53,12 @@ export default function PlanOrdersPage() {
     <div className="space-y-5">
       <Toaster position="top-right" />
 
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Plan Orders</h1>
           <p className="text-xs text-gray-400">{orders.length} billing orders</p>
         </div>
-        <Link href="/tracker/plan-orders/new" className="flex items-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors">
+        <Link href="/tracker/plan-orders/new" className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors">
           <Plus size={14} />New Plan Order
         </Link>
       </div>
@@ -75,39 +75,74 @@ export default function PlanOrdersPage() {
             </Link>
           </div>
         ) : (
-          <table className="w-full">
-            <thead><tr className="bg-gray-50">
-              {['Plan', 'Duration', 'Amount', 'Status', 'Invoice', 'Created', ''].map(h => (
-                <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {orders.map(o => (
-                <tr key={o.id} className="border-t border-gray-50 hover:bg-gray-50/50">
-                  <td className="px-5 py-3 text-sm font-semibold text-gray-900">{PLAN_LABELS[o.plan]}</td>
-                  <td className="px-5 py-3 text-sm text-gray-600">{DURATION_LABELS[o.billing_duration]}</td>
-                  <td className="px-5 py-3 text-sm text-gray-900">{fmtINR(o.total_amount)}</td>
-                  <td className="px-5 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${PLAN_ORDER_STATUS_STYLES[o.status]}`}>
-                      {PLAN_ORDER_STATUS_LABELS[o.status]}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-xs text-gray-500">{o.invoice_number || '—'}</td>
-                  <td className="px-5 py-3 text-xs text-gray-500">{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                  <td className="px-5 py-3">
-                    {o.status === 'paid' ? (
-                      <button onClick={() => downloadInvoice(o)} disabled={downloadingId === o.id}
-                        className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 hover:text-orange-800 disabled:opacity-50">
-                        <Download size={13} />{downloadingId === o.id ? 'Downloading…' : 'Invoice'}
-                      </button>
-                    ) : o.status === 'pending_payment' ? (
-                      <span className="text-xs text-gray-400">Awaiting payment confirmation</span>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+          {/* Table — md: and above */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full">
+              <thead><tr className="bg-gray-50">
+                {['Plan', 'Duration', 'Amount', 'Status', 'Invoice', 'Created', ''].map(h => (
+                  <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {orders.map(o => (
+                  <tr key={o.id} className="border-t border-gray-50 hover:bg-gray-50/50">
+                    <td className="px-5 py-3 text-sm font-semibold text-gray-900">{PLAN_LABELS[o.plan]}</td>
+                    <td className="px-5 py-3 text-sm text-gray-600">{DURATION_LABELS[o.billing_duration]}</td>
+                    <td className="px-5 py-3 text-sm text-gray-900">{fmtINR(o.total_amount)}</td>
+                    <td className="px-5 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${PLAN_ORDER_STATUS_STYLES[o.status]}`}>
+                        {PLAN_ORDER_STATUS_LABELS[o.status]}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-xs text-gray-500">{o.invoice_number || '—'}</td>
+                    <td className="px-5 py-3 text-xs text-gray-500">{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                    <td className="px-5 py-3">
+                      {o.status === 'paid' ? (
+                        <button onClick={() => downloadInvoice(o)} disabled={downloadingId === o.id}
+                          className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 hover:text-orange-800 disabled:opacity-50">
+                          <Download size={13} />{downloadingId === o.id ? 'Downloading…' : 'Invoice'}
+                        </button>
+                      ) : o.status === 'pending_payment' ? (
+                        <span className="text-xs text-gray-400">Awaiting payment confirmation</span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Card list — below md: */}
+          <div className="md:hidden divide-y divide-gray-50">
+            {orders.map(o => (
+              <div key={o.id} className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm">{PLAN_LABELS[o.plan]}</p>
+                    <p className="text-xs text-gray-400">{DURATION_LABELS[o.billing_duration]}</p>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold whitespace-nowrap flex-shrink-0 ${PLAN_ORDER_STATUS_STYLES[o.status]}`}>
+                    {PLAN_ORDER_STATUS_LABELS[o.status]}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span>{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                  <span className="text-sm font-semibold text-gray-900">{fmtINR(o.total_amount)}</span>
+                </div>
+                {o.invoice_number && <p className="text-xs text-gray-400">Invoice: {o.invoice_number}</p>}
+                {o.status === 'paid' ? (
+                  <button onClick={() => downloadInvoice(o)} disabled={downloadingId === o.id}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 hover:text-orange-800 disabled:opacity-50 pt-1">
+                    <Download size={13} />{downloadingId === o.id ? 'Downloading…' : 'Invoice'}
+                  </button>
+                ) : o.status === 'pending_payment' ? (
+                  <span className="block text-xs text-gray-400 pt-1">Awaiting payment confirmation</span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+          </>
         )}
       </div>
     </div>
