@@ -568,7 +568,7 @@ export default function OrderDetailsPage() {
 
           {order.driver_tracking_token && !isTerminal && (
             <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-              <h2 className="text-sm font-bold text-gray-900">Message Driver</h2>
+              <h2 className="text-sm font-bold text-gray-900">Message to Driver</h2>
               <form onSubmit={sendMessage} className="space-y-2.5">
                 <textarea
                   value={messageBody}
