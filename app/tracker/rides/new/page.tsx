@@ -62,6 +62,9 @@ function BookRidePageInner() {
   const [receiverName, setReceiverName] = useState('');
   const [receiverPhone, setReceiverPhone] = useState('');
 
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'company_wallet'>('cash');
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+
   const [booking, setBooking] = useState(false);
 
   useEffect(() => {
@@ -69,6 +72,9 @@ function BookRidePageInner() {
       .then(({ data }) => setServices(data || []))
       .catch(() => toast.error('Failed to load service types'))
       .finally(() => setServicesLoading(false));
+    api.get('/gogoo/tracker/wallet/ledger')
+      .then(({ data }) => setWalletBalance(data.balance))
+      .catch(() => {});
   }, []);
 
   const categoriesPresent = CATEGORY_ORDER.filter(c => services.some(s => s.category === c));
@@ -97,6 +103,7 @@ function BookRidePageInner() {
         estimated_fare: estimatedFare,
         distance_km: Math.round(dist * 10) / 10,
         source: 'website',
+        payment_method: paymentMethod,
         ...(category === 'truck' ? { receiver_name: receiverName, receiver_phone: receiverPhone } : {}),
       });
       toast.success('Ride booked');
@@ -203,6 +210,29 @@ function BookRidePageInner() {
             </div>
           </section>
         )}
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold text-gray-900">Payment Method</h2>
+          <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden w-fit">
+            {([
+              { key: 'cash' as const, label: 'Cash' },
+              { key: 'company_wallet' as const, label: 'Company Wallet' },
+            ]).map(o => (
+              <button key={o.key} type="button" onClick={() => setPaymentMethod(o.key)}
+                className={`px-3 py-1.5 font-semibold transition-colors ${paymentMethod === o.key ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+          {paymentMethod === 'company_wallet' && (
+            <p className="text-xs text-gray-400">
+              Wallet balance: {walletBalance == null ? '—' : `₹${walletBalance.toFixed(2)}`}
+              {walletBalance != null && estimatedFare > 0 && walletBalance < estimatedFare && (
+                <span className="text-red-500"> — insufficient for this fare, will fall back to cash</span>
+              )}
+            </p>
+          )}
+        </section>
 
         {selected && (
           <div className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3">
