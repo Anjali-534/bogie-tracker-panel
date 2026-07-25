@@ -43,13 +43,13 @@ export default function RidesListPage() {
 
   return (
     <div className="max-w-3xl space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">My Rides</h1>
           <p className="text-xs text-gray-400">Rides booked directly through the tracker panel</p>
         </div>
         <Link href="/tracker/rides/new"
-          className="flex items-center gap-1.5 text-sm font-semibold text-white bg-orange-500 rounded-xl px-4 py-2.5 hover:bg-orange-600 transition-colors">
+          className="flex items-center justify-center gap-1.5 text-sm font-semibold text-white bg-orange-500 rounded-xl px-4 py-2.5 hover:bg-orange-600 transition-colors">
           <Plus size={15} />
           Book a Ride
         </Link>

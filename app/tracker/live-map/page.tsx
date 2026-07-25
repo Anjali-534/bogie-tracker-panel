@@ -111,7 +111,7 @@ export default function LiveMapPage() {
           markers={markers}
           fitToMarkers
           fitTrigger={fitTrigger}
-          className="w-full h-[calc(100vh-320px)] min-h-[500px] rounded-2xl overflow-hidden border border-gray-100"
+          className="w-full h-[60vh] lg:h-[calc(100vh-320px)] min-h-[350px] lg:min-h-[500px] rounded-2xl overflow-hidden border border-gray-100"
         />
       )}
     </div>

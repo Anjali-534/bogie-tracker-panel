@@ -171,7 +171,7 @@ function BookRidePageInner() {
 
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-gray-900">Route</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <LocationInput
               label="Pickup Location *"
               value={pickupAddress}
@@ -198,7 +198,7 @@ function BookRidePageInner() {
         {category === 'truck' && (
           <section className="space-y-4">
             <h2 className="text-sm font-bold text-gray-900">Receiver Details <span className="text-gray-400 font-normal">(optional)</span></h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Receiver Name</label>
                 <input value={receiverName} onChange={e => setReceiverName(e.target.value)} className={inputClass} />
