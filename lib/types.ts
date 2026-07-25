@@ -36,6 +36,21 @@ export type DriverEventKind = 'on_break' | 'about_to_reach' | 'reached' | 'unloa
 
 export type DeliveryCondition = 'good' | 'bad';
 
+// Order type (backend migration 050) — 'outbound' (default, goods sent out)
+// or 'inbound' (goods received from a supplier — see New Order page's
+// toggle and ORDER_TYPE_LABELS).
+export type OrderType = 'outbound' | 'inbound';
+
+export const ORDER_TYPE_LABELS: Record<OrderType, string> = {
+  outbound: 'Outbound',
+  inbound: 'Inbound',
+};
+
+export const ORDER_TYPE_STYLES: Record<OrderType, string> = {
+  outbound: 'bg-blue-100 text-blue-700',
+  inbound: 'bg-purple-100 text-purple-700',
+};
+
 export interface TrackerOrderEvent {
   id: string;
   order_id: string;
@@ -46,8 +61,9 @@ export interface TrackerOrderEvent {
   // reported_by/event_kind: added for driver quick-status taps. Existing
   // company-driven status-change events still come back with
   // reported_by: 'company' and event_kind: '' (server defaults). 'consignee'
-  // is the one-off receipt-confirmation event (see ConfirmTrackerReceipt).
-  reported_by: 'company' | 'driver' | 'consignee';
+  // is the one-off receipt-confirmation event (see ConfirmTrackerReceipt);
+  // 'staff' is the equivalent panel-side action (see MarkTrackerOrderReceivedByStaff).
+  reported_by: 'company' | 'driver' | 'consignee' | 'staff';
   event_kind: DriverEventKind | '';
 }
 
@@ -69,6 +85,11 @@ export interface TrackerOrder {
   status: OrderStatus;
   public_tracking_token: string;
   created_at: string;
+
+  // Order type (backend migration 050) — see OrderType above. Existing
+  // orders (created before this shipped) come back 'outbound', the
+  // server-side default.
+  order_type: OrderType;
 
   // Dispatch details — from the real dispatch sheet, all optional. Orders
   // created before this feature shipped return null for all five.

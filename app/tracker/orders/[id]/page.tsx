@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Link2, FileText, MessageCircle, Send, CheckCircle2, AlertTriangle, XCircle, Mail, Upload, X, Trash2 } from 'lucide-react';
+import { ArrowLeft, Link2, FileText, MessageCircle, Send, CheckCircle2, AlertTriangle, XCircle, Mail, Upload, X, Trash2, PackageCheck } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
@@ -11,9 +11,9 @@ import RouteRows from '@/components/RouteRows';
 import { api } from '@/lib/api';
 import {
   STATUS_LABELS, STATUS_STYLES, STATUS_STEPS, TERMINAL_STATUSES, STATUS_RADIO_OPTIONS,
-  NOTIFY_RECIPIENT_LABELS, DOC_TYPE_LABELS,
+  NOTIFY_RECIPIENT_LABELS, DOC_TYPE_LABELS, ORDER_TYPE_LABELS, ORDER_TYPE_STYLES,
   type TrackerOrder, type TrackerOrderEvent, type OrderStatus, type TrackerLocationPing,
-  type NotifyRecipient, type TrackerDocType,
+  type NotifyRecipient, type TrackerDocType, type DeliveryCondition,
 } from '@/lib/types';
 
 const NOTIFY_RECIPIENTS: NotifyRecipient[] = ['booked_for', 'consignee', 'transporter', 'driver'];
@@ -52,6 +52,13 @@ export default function OrderDetailsPage() {
   const [notifyRecipients, setNotifyRecipients] = useState<NotifyRecipient[]>(['booked_for']);
   const [sendingNotify, setSendingNotify] = useState(false);
   const [notifyResults, setNotifyResults] = useState<NotifyResult[] | null>(null);
+
+  // Staff-side "Mark Received" (inbound orders only) — mirrors the public
+  // receipt page's good/bad condition capture, POSTing to mark-received
+  // instead of the consignee's public confirm endpoint.
+  const [showMarkReceivedForm, setShowMarkReceivedForm] = useState(false);
+  const [markReceivedReason, setMarkReceivedReason] = useState('');
+  const [markingReceived, setMarkingReceived] = useState<DeliveryCondition | null>(null);
 
   // Document restructure (Phase 2) — the order already exists on this page,
   // but a file is still staged (with its expiry/custom-label) before it's
@@ -244,6 +251,27 @@ export default function OrderDetailsPage() {
     }
   }
 
+  async function markReceived(condition: DeliveryCondition, reason?: string) {
+    if (!order) return;
+    setMarkingReceived(condition);
+    try {
+      await api.post(`/gogoo/tracker/orders/${order.id}/mark-received`, { condition, reason: reason || undefined });
+      toast.success('Marked as received');
+      setShowMarkReceivedForm(false);
+      setMarkReceivedReason('');
+      await load();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        toast.error(body.error || 'Failed to mark received');
+      } else {
+        toast.error('Failed to mark received');
+      }
+    } finally {
+      setMarkingReceived(null);
+    }
+  }
+
   if (order === undefined) {
     return <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>;
   }
@@ -259,6 +287,10 @@ export default function OrderDetailsPage() {
 
   const isTerminal = TERMINAL_STATUSES.includes(order.status);
   const showMap = STATUS_STEPS.indexOf(order.status) >= STATUS_STEPS.indexOf('dispatched');
+  // Same precondition the backend enforces on mark-received (and on the
+  // consignee's ConfirmTrackerReceipt): the driver must have claimed
+  // delivery — a 'delivery_claimed' event plus an uploaded signature.
+  const driverClaimed = events.some(e => e.reported_by === 'driver' && e.event_kind === 'delivery_claimed') && !!order.signature_url;
 
   return (
     <div className="max-w-4xl space-y-5">
@@ -276,6 +308,9 @@ export default function OrderDetailsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <span className={`text-xs px-3 py-1.5 rounded-full font-semibold ${ORDER_TYPE_STYLES[order.order_type]}`}>
+            {ORDER_TYPE_LABELS[order.order_type]}
+          </span>
           <span className={`text-xs px-3 py-1.5 rounded-full font-semibold ${STATUS_STYLES[order.status]}`}>
             {STATUS_LABELS[order.status]}
           </span>
@@ -406,6 +441,59 @@ export default function OrderDetailsPage() {
         </div>
 
         <div className="space-y-5">
+          {order.order_type === 'inbound' && !order.received_confirmed_at && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2"><PackageCheck size={16} className="text-green-500" />Mark Received</h2>
+              {!driverClaimed ? (
+                <p className="text-xs text-gray-400">You can mark this shipment received once the driver has marked delivery.</p>
+              ) : !showMarkReceivedForm ? (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => markReceived('good')}
+                    disabled={markingReceived !== null}
+                    className="w-full py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
+                  >
+                    {markingReceived === 'good' ? 'Marking…' : 'Goods received in perfect condition'}
+                  </button>
+                  <button
+                    onClick={() => setShowMarkReceivedForm(true)}
+                    disabled={markingReceived !== null}
+                    className="w-full py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  >
+                    Not in good condition
+                  </button>
+                </div>
+              ) : (
+                <div className="border border-red-200 rounded-xl p-4 space-y-3">
+                  <label className="block text-xs font-semibold text-gray-600">What&apos;s wrong with the shipment?</label>
+                  <textarea
+                    value={markReceivedReason}
+                    onChange={e => setMarkReceivedReason(e.target.value)}
+                    placeholder="e.g. Two boxes were crushed, material spilled out"
+                    rows={3}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-400 resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => markReceived('bad', markReceivedReason.trim())}
+                      disabled={markingReceived !== null || !markReceivedReason.trim()}
+                      className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      {markingReceived === 'bad' ? 'Submitting…' : 'Submit Report'}
+                    </button>
+                    <button
+                      onClick={() => { setShowMarkReceivedForm(false); setMarkReceivedReason(''); }}
+                      disabled={markingReceived !== null}
+                      className="px-4 py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm font-bold hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {order.signature_url && (
             <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
               <h2 className="text-sm font-bold text-gray-900">Proof of Delivery</h2>

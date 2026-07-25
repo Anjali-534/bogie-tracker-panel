@@ -1,12 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, BookmarkPlus, RotateCcw, Upload, X, FileText } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import { api } from '@/lib/api';
-import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient, type OrderPriority, type TrackerDocType, PRIORITY_LABELS, DOC_TYPE_LABELS } from '@/lib/types';
+import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient, type OrderPriority, type TrackerDocType, type OrderType, PRIORITY_LABELS, DOC_TYPE_LABELS, ORDER_TYPE_LABELS } from '@/lib/types';
 import LocationInput from '@/components/LocationInput';
 import GSTInput from '@/components/GSTInput';
 
@@ -17,6 +17,14 @@ export default function NewOrderPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [drivers, setDrivers] = useState<TrackerDriver[]>([]);
+
+  const [orderType, setOrderType] = useState<OrderType>('outbound');
+  // The company's own address (Settings → Default Company Address), used to
+  // prefill Deliver To once orderType flips to 'inbound' — see the effect
+  // below. Fetched once on mount alongside drivers/recipients.
+  const [companyDefaultAddress,    setCompanyDefaultAddress]    = useState('');
+  const [companyDefaultAddressLat, setCompanyDefaultAddressLat] = useState<number | null>(null);
+  const [companyDefaultAddressLng, setCompanyDefaultAddressLng] = useState<number | null>(null);
 
   const [bookedForCompany, setBookedForCompany] = useState('');
   const [bookedForPhone,   setBookedForPhone]   = useState('');
@@ -109,7 +117,32 @@ export default function NewOrderPage() {
     api.get<TrackerOrder[]>('/gogoo/tracker/orders')
       .then(({ data }) => setLastOrderId(data[0]?.id ?? null))
       .catch(() => {});
+    api.get('/gogoo/tracker/company/profile')
+      .then(({ data }) => {
+        setCompanyDefaultAddress(data.default_address ?? '');
+        setCompanyDefaultAddressLat(data.default_address_lat ?? null);
+        setCompanyDefaultAddressLng(data.default_address_lng ?? null);
+      })
+      .catch(() => {});
   }, []);
+
+  // Inbound orders deliver back to the company itself — prefill Deliver To
+  // from the company's default address the moment the toggle flips to
+  // 'inbound', but only if the field is still empty (never clobber
+  // something the user already typed, or a value carried over from
+  // "Repeat last shipment"). Fires once per flip (tracked via prevOrderType,
+  // not a dispatchTo dependency) so clearing the field back out afterward
+  // doesn't immediately re-fill it — still fully editable, same as Deliver
+  // To always is.
+  const prevOrderType = useRef<OrderType>('outbound');
+  useEffect(() => {
+    if (orderType === 'inbound' && prevOrderType.current === 'outbound' && dispatchTo === '' && companyDefaultAddress !== '') {
+      setDispatchTo(companyDefaultAddress);
+      setDispatchToLat(companyDefaultAddressLat);
+      setDispatchToLng(companyDefaultAddressLng);
+    }
+    prevOrderType.current = orderType;
+  }, [orderType, companyDefaultAddress, companyDefaultAddressLat, companyDefaultAddressLng, dispatchTo]);
 
   function applyRecipient(r: TrackerSavedRecipient) {
     setSelectedRecipientId(r.id);
@@ -287,6 +320,7 @@ export default function NewOrderPage() {
       }
 
       const { data: order } = await api.post('/gogoo/tracker/orders', {
+        order_type: orderType,
         booked_for_company_name: bookedForCompany,
         booked_for_phone: bookedForPhone,
         dispatch_from: dispatchFrom,
@@ -374,6 +408,14 @@ export default function NewOrderPage() {
           <h1 className="text-xl font-bold text-gray-900">New Shipment</h1>
           <p className="text-xs text-gray-400">Create a new shipment</p>
         </div>
+        <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
+          {(['outbound', 'inbound'] as OrderType[]).map(t => (
+            <button key={t} type="button" onClick={() => setOrderType(t)}
+              className={`px-3 py-1.5 font-semibold transition-colors ${orderType === t ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+              {ORDER_TYPE_LABELS[t]}
+            </button>
+          ))}
+        </div>
         {lastOrderId && (
           <button type="button" onClick={repeatLastOrder} disabled={repeating}
             className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 border border-orange-200 rounded-lg px-3 py-2 hover:bg-orange-50 disabled:opacity-50 transition-colors">
@@ -384,7 +426,7 @@ export default function NewOrderPage() {
 
       <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-6">
 
-        {recipients.length > 0 && (
+        {orderType === 'outbound' && recipients.length > 0 && (
           <section className="space-y-2">
             <h2 className="text-sm font-bold text-gray-900">Saved Recipient <span className="text-gray-400 font-normal">(optional)</span></h2>
             <div className="relative">
@@ -416,11 +458,11 @@ export default function NewOrderPage() {
         )}
 
         <section className="space-y-4">
-          <h2 className="text-sm font-bold text-gray-900">Booked For</h2>
+          <h2 className="text-sm font-bold text-gray-900">{orderType === 'inbound' ? 'Supplier / Vendor' : 'Booked For'}</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>Company Name *</label>
-              <input value={bookedForCompany} onChange={e => setBookedForCompany(e.target.value)} className={inputClass} placeholder="Receiving company name" />
+              <label className={labelClass}>{orderType === 'inbound' ? 'Supplier / Vendor Name *' : 'Company Name *'}</label>
+              <input value={bookedForCompany} onChange={e => setBookedForCompany(e.target.value)} className={inputClass} placeholder={orderType === 'inbound' ? 'Supplier / vendor name' : 'Receiving company name'} />
             </div>
             <div>
               <label className={labelClass}>Phone Number *</label>
@@ -442,7 +484,7 @@ export default function NewOrderPage() {
           <h2 className="text-sm font-bold text-gray-900">Route</h2>
           <div className="grid grid-cols-2 gap-4">
             <LocationInput
-              label="Dispatch From *"
+              label={orderType === 'inbound' ? 'Pickup From *' : 'Dispatch From *'}
               value={dispatchFrom}
               lat={dispatchFromLat}
               lng={dispatchFromLng}
@@ -452,7 +494,7 @@ export default function NewOrderPage() {
               labelClassName={labelClass}
             />
             <LocationInput
-              label="Dispatch To *"
+              label={orderType === 'inbound' ? 'Deliver To *' : 'Dispatch To *'}
               value={dispatchTo}
               lat={dispatchToLat}
               lng={dispatchToLng}
@@ -538,11 +580,11 @@ export default function NewOrderPage() {
           <h2 className="text-sm font-bold text-gray-900">Dispatch Details <span className="text-gray-400 font-normal">(optional)</span></h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>Consignee Name</label>
-              <input value={consigneeName} onChange={e => setConsigneeName(e.target.value)} className={inputClass} placeholder="Receiving entity, if different from Booked For" />
+              <label className={labelClass}>{orderType === 'inbound' ? 'Received By' : 'Consignee Name'}</label>
+              <input value={consigneeName} onChange={e => setConsigneeName(e.target.value)} className={inputClass} placeholder={orderType === 'inbound' ? 'Who received the goods, if different from Supplier' : 'Receiving entity, if different from Booked For'} />
             </div>
             <div>
-              <label className={labelClass}>Consignee Email</label>
+              <label className={labelClass}>{orderType === 'inbound' ? 'Received By Email' : 'Consignee Email'}</label>
               <input type="email" value={consigneeEmail} onChange={e => setConsigneeEmail(e.target.value)} className={inputClass} placeholder="for dispatch notification email" />
             </div>
             <GSTInput label="Consignee GSTIN" value={consigneeGstin} onChange={setConsigneeGstin} onStateResolved={setConsigneeState} />

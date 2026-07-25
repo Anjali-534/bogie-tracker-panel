@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Upload, X, Trash2, FileText } from 'lucide-react';
 import { api, isTrackerOwner } from '@/lib/api';
 import { TrackerStaffUser, TrackerStaffListResponse } from '@/lib/types';
+import LocationInput from '@/components/LocationInput';
 
 // The sidebar's Settings dropdown deep-links here via #password/#staff/#logo.
 // Next.js's default hash-scroll only fires on the initial load of the route,
@@ -42,6 +43,9 @@ interface CompanyProfile {
   status: string;
   notification_email: string | null;
   logo_url: string | null;
+  default_address: string | null;
+  default_address_lat: number | null;
+  default_address_lng: number | null;
 }
 
 export default function SettingsPage() {
@@ -50,6 +54,9 @@ export default function SettingsPage() {
   const [phone,        setPhone]        = useState('');
   const [gstin,        setGstin]        = useState('');
   const [notificationEmail, setNotificationEmail] = useState('');
+  const [defaultAddress,    setDefaultAddress]    = useState('');
+  const [defaultAddressLat, setDefaultAddressLat] = useState<number | null>(null);
+  const [defaultAddressLng, setDefaultAddressLng] = useState<number | null>(null);
   const [loading,       setLoading]       = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
 
@@ -137,6 +144,9 @@ export default function SettingsPage() {
         setGstin(data.gstin || '');
         setNotificationEmail(data.notification_email || '');
         setLogoUrl(data.logo_url || null);
+        setDefaultAddress(data.default_address || '');
+        setDefaultAddressLat(data.default_address_lat ?? null);
+        setDefaultAddressLng(data.default_address_lng ?? null);
       })
       .catch(() => toast.error('Failed to load profile'))
       .finally(() => setLoading(false));
@@ -186,6 +196,9 @@ export default function SettingsPage() {
         contact_phone: phone,
         gstin: gstin || undefined,
         notification_email: notificationEmail || undefined,
+        default_address: defaultAddress || undefined,
+        default_address_lat: defaultAddressLat ?? undefined,
+        default_address_lng: defaultAddressLng ?? undefined,
       });
       localStorage.setItem('tracker_company_name', companyName);
       toast.success('Profile updated');
@@ -254,6 +267,19 @@ export default function SettingsPage() {
             <label className={labelClass}>GSTIN <span className="text-gray-400 font-normal">(optional)</span></label>
             <input value={gstin} onChange={e => setGstin(e.target.value.toUpperCase())} className={inputClass} placeholder="07AAAAA0000A1Z5" />
           </div>
+        </div>
+        <div>
+          <LocationInput
+            label="Default Company Address (optional)"
+            value={defaultAddress}
+            lat={defaultAddressLat}
+            lng={defaultAddressLng}
+            onChange={(address, lat, lng) => { setDefaultAddress(address); setDefaultAddressLat(lat); setDefaultAddressLng(lng); }}
+            placeholder="Search for an address or city"
+            className={inputClass}
+            labelClassName={labelClass}
+          />
+          <p className="text-[11px] text-gray-400 mt-1">Used to prefill Deliver To on inbound shipments — the goods coming back to you.</p>
         </div>
         <div id="logo">
           <label className={labelClass}>Company Logo <span className="text-gray-400 font-normal">(optional)</span></label>
