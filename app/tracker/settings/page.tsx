@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import Link from 'next/link';
-import { Upload, X, Trash2, FileText } from 'lucide-react';
+import { Upload, X, Trash2, FileText, Building2, UserPlus, KeyRound, HelpCircle } from 'lucide-react';
 import { api, isTrackerOwner } from '@/lib/api';
 import { TrackerStaffUser, TrackerStaffListResponse } from '@/lib/types';
 import LocationInput from '@/components/LocationInput';
@@ -48,6 +48,22 @@ interface CompanyProfile {
   default_address_lng: number | null;
 }
 
+interface ProfileFormState {
+  companyName: string;
+  phone: string;
+  gstin: string;
+  notificationEmail: string;
+  defaultAddress: string;
+  defaultAddressLat: number | null;
+  defaultAddressLng: number | null;
+}
+
+const SUBSCRIPTION_BADGE: Record<string, { label: string; className: string }> = {
+  active: { label: 'Active', className: 'bg-green-50 text-green-600 border-green-200' },
+  overdue: { label: 'Overdue', className: 'bg-red-50 text-red-600 border-red-200' },
+  paused: { label: 'Paused', className: 'bg-amber-50 text-amber-600 border-amber-200' },
+};
+
 export default function SettingsPage() {
   const [companyName, setCompanyName] = useState('');
   const [email,        setEmail]        = useState('');
@@ -59,9 +75,12 @@ export default function SettingsPage() {
   const [defaultAddressLng, setDefaultAddressLng] = useState<number | null>(null);
   const [loading,       setLoading]       = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [savedProfile,  setSavedProfile]  = useState<ProfileFormState | null>(null);
 
   const [logoUrl,        setLogoUrl]        = useState<string | null>(null);
   const [uploadingLogo,  setUploadingLogo]  = useState(false);
+
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword,     setNewPassword]     = useState('');
@@ -147,10 +166,35 @@ export default function SettingsPage() {
         setDefaultAddress(data.default_address || '');
         setDefaultAddressLat(data.default_address_lat ?? null);
         setDefaultAddressLng(data.default_address_lng ?? null);
+        setSavedProfile({
+          companyName: data.company_name,
+          phone: data.contact_phone,
+          gstin: data.gstin || '',
+          notificationEmail: data.notification_email || '',
+          defaultAddress: data.default_address || '',
+          defaultAddressLat: data.default_address_lat ?? null,
+          defaultAddressLng: data.default_address_lng ?? null,
+        });
       })
       .catch(() => toast.error('Failed to load profile'))
       .finally(() => setLoading(false));
+    // Subscription status badge — same wallet ledger endpoint the rides/new
+    // payment toggle already uses, just reading subscription_status off it.
+    api.get('/gogoo/tracker/wallet/ledger')
+      .then(({ data }) => setSubscriptionStatus(data.subscription_status || null))
+      .catch(() => {});
   }, []);
+
+  function cancelProfileEdits() {
+    if (!savedProfile) return;
+    setCompanyName(savedProfile.companyName);
+    setPhone(savedProfile.phone);
+    setGstin(savedProfile.gstin);
+    setNotificationEmail(savedProfile.notificationEmail);
+    setDefaultAddress(savedProfile.defaultAddress);
+    setDefaultAddressLat(savedProfile.defaultAddressLat);
+    setDefaultAddressLng(savedProfile.defaultAddressLng);
+  }
 
   async function uploadLogo(file: File) {
     setUploadingLogo(true);
@@ -201,7 +245,11 @@ export default function SettingsPage() {
         default_address_lng: defaultAddressLng ?? undefined,
       });
       localStorage.setItem('tracker_company_name', companyName);
-      toast.success('Profile updated');
+      setSavedProfile({
+        companyName, phone, gstin, notificationEmail,
+        defaultAddress, defaultAddressLat, defaultAddressLng,
+      });
+      toast.success('Settings saved successfully');
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {
         const body = err.response.data as { error?: string };
@@ -244,185 +292,258 @@ export default function SettingsPage() {
     return <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>;
   }
 
+  const subBadge = subscriptionStatus ? SUBSCRIPTION_BADGE[subscriptionStatus] : null;
+
   return (
-    <div className="max-w-2xl space-y-5">
-      <Toaster position="top-right" />
+    <div className="max-w-6xl space-y-5">
+      <Toaster position="top-right" toastOptions={{ success: { iconTheme: { primary: '#22c55e', secondary: '#fff' } } }} />
       <div>
         <h1 className="text-xl font-bold text-gray-900">Settings</h1>
         <p className="text-xs text-gray-400">Company profile & account</p>
       </div>
 
-      <form onSubmit={saveProfile} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-        <h2 className="text-sm font-bold text-gray-900">Company Profile</h2>
-        <div>
-          <label className={labelClass}>Company Name</label>
-          <input value={companyName} onChange={e => setCompanyName(e.target.value)} className={inputClass} />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>Contact Phone</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)} className={inputClass} placeholder="+91 98765 43210" />
-          </div>
-          <div>
-            <label className={labelClass}>GSTIN <span className="text-gray-400 font-normal">(optional)</span></label>
-            <input value={gstin} onChange={e => setGstin(e.target.value.toUpperCase())} className={inputClass} placeholder="07AAAAA0000A1Z5" />
-          </div>
-        </div>
-        <div>
-          <LocationInput
-            label="Default Company Address (optional)"
-            value={defaultAddress}
-            lat={defaultAddressLat}
-            lng={defaultAddressLng}
-            onChange={(address, lat, lng) => { setDefaultAddress(address); setDefaultAddressLat(lat); setDefaultAddressLng(lng); }}
-            placeholder="Search for an address or city"
-            className={inputClass}
-            labelClassName={labelClass}
-          />
-          <p className="text-[11px] text-gray-400 mt-1">Used to prefill Deliver To on inbound shipments — the goods coming back to you.</p>
-        </div>
-        <div id="logo">
-          <label className={labelClass}>Company Logo <span className="text-gray-400 font-normal">(optional)</span></label>
-          {logoUrl ? (
-            <div className="flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={logoUrl} alt="Company logo" className="w-14 h-14 object-contain rounded-xl border border-gray-200 bg-gray-50" />
-              <label className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
-                <Upload size={14} />Change
-                <input type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" disabled={uploadingLogo}
-                  onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ''; }} />
-              </label>
-              <button type="button" onClick={removeLogo} disabled={uploadingLogo} className="text-gray-400 hover:text-red-500 disabled:opacity-50">
-                <X size={16} />
-              </button>
-            </div>
-          ) : (
-            <label className="flex items-center justify-center gap-2 border border-dashed border-gray-300 rounded-xl px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 cursor-pointer transition-colors max-w-xs">
-              <Upload size={14} />{uploadingLogo ? 'Uploading…' : 'Choose file (JPG/PNG/WEBP)'}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* LEFT COLUMN — logo + quick info */}
+        <div className="lg:col-span-3 space-y-6">
+          <div id="logo" className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col items-center text-center space-y-3">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="Company logo" className="w-24 h-24 object-contain rounded-xl border border-gray-200 bg-gray-50" />
+            ) : (
+              <div className="w-24 h-24 rounded-xl border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center">
+                <Building2 size={28} className="text-gray-300" />
+              </div>
+            )}
+            <label className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
+              <Upload size={13} />{uploadingLogo ? 'Uploading…' : 'Upload Logo'}
               <input type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" disabled={uploadingLogo}
                 onChange={e => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ''; }} />
             </label>
-          )}
-          <p className="text-[11px] text-gray-400 mt-1">Shown on your dashboard and, if approved, in Bogie&apos;s partner list.</p>
-        </div>
-        <div>
-          <label className={labelClass}>Contact Email</label>
-          <input value={email} disabled className={`${inputClass} bg-gray-50 text-gray-400 cursor-not-allowed`} />
-          <p className="text-[11px] text-gray-400 mt-1">Login email can&apos;t be changed here — contact support to update it.</p>
-        </div>
-        <div>
-          <label className={labelClass}>Notification Email <span className="text-gray-400 font-normal">(optional)</span></label>
-          <input type="email" value={notificationEmail} onChange={e => setNotificationEmail(e.target.value)} className={inputClass} placeholder={email || 'you@company.com'} />
-          <p className="text-[11px] text-gray-400 mt-1">Replies to dispatch emails go here; defaults to your signup email.</p>
-        </div>
-        <div className="pt-1">
-          <button type="submit" disabled={savingProfile} className="px-5 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors">
-            {savingProfile ? 'Saving…' : 'Save Profile'}
-          </button>
-        </div>
-      </form>
-
-      <form id="password" onSubmit={savePassword} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-        <h2 className="text-sm font-bold text-gray-900">Change Password</h2>
-        <div>
-          <label className={labelClass}>Current Password</label>
-          <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className={inputClass} />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className={labelClass}>New Password</label>
-            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className={labelClass}>Confirm New Password</label>
-            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={inputClass} />
-          </div>
-        </div>
-        <div className="pt-1">
-          <button type="submit" disabled={savingPassword} className="px-5 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors">
-            {savingPassword ? 'Updating…' : 'Change Password'}
-          </button>
-        </div>
-      </form>
-
-      {isOwner && (
-        <div id="staff" className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-gray-900">Team</h2>
-            <span className="text-xs text-gray-400">
-              {(() => {
-                const activeCount = staff.filter(s => !s.disabled_at).length;
-                return staffUnlimited
-                  ? `${activeCount} staff login(s) · unlimited`
-                  : `${activeCount}${staffLimit !== null ? ` / ${staffLimit}` : ''} staff login(s)`;
-              })()}
-            </span>
+            {logoUrl && (
+              <button type="button" onClick={removeLogo} disabled={uploadingLogo} className="text-xs text-gray-400 hover:text-red-500 disabled:opacity-50">
+                Remove Logo
+              </button>
+            )}
+            <p className="text-[11px] text-gray-400">Shown on your dashboard and, if approved, in Bogie&apos;s partner list.</p>
           </div>
 
-          {staff.length > 0 && (
-            <ul className="divide-y divide-gray-100">
-              {staff.map(s => (
-                <li key={s.id} className="flex items-center justify-between py-2.5">
-                  <span className={`text-sm ${s.disabled_at ? 'text-gray-400' : 'text-gray-700'}`}>
-                    {s.email}
-                    {s.disabled_at && (
-                      <span className="ml-2 text-[11px] font-semibold text-amber-500">Disabled — plan downgrade</span>
-                    )}
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+            <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Quick Info</h2>
+            <div className="space-y-2 text-sm">
+              <div>
+                <p className="text-[11px] text-gray-400">Company Name</p>
+                <p className="font-semibold text-gray-800 truncate">{companyName || '—'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-gray-400">Contact Phone</p>
+                <p className="font-semibold text-gray-800">{phone || '—'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-gray-400 mb-1">Subscription</p>
+                {subBadge ? (
+                  <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${subBadge.className}`}>
+                    {subBadge.label}
                   </span>
-                  <div className="flex items-center gap-3">
-                    {s.disabled_at && (
-                      <button onClick={() => reactivateStaff(s.id)} className="text-xs font-semibold text-green-600 hover:text-green-700">
-                        Reactivate
-                      </button>
-                    )}
-                    <button onClick={() => removeStaff(s.id)} className="text-gray-400 hover:text-red-500" title="Remove staff login">
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
+                ) : (
+                  <span className="text-xs text-gray-300">—</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* MIDDLE COLUMN — form cards */}
+        <div className="lg:col-span-6 space-y-6">
+          <form onSubmit={saveProfile} className="space-y-6">
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+              <h2 className="text-sm font-bold text-gray-900">Company Profile</h2>
+              <div>
+                <label className={labelClass}>Company Name</label>
+                <input value={companyName} onChange={e => setCompanyName(e.target.value)} className={inputClass} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Contact Phone</label>
+                  <input value={phone} onChange={e => setPhone(e.target.value)} className={inputClass} placeholder="+91 98765 43210" />
+                </div>
+                <div>
+                  <label className={labelClass}>GSTIN <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input value={gstin} onChange={e => setGstin(e.target.value.toUpperCase())} className={inputClass} placeholder="07AAAAA0000A1Z5" />
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Contact Email</label>
+                <input value={email} disabled className={`${inputClass} bg-gray-50 text-gray-400 cursor-not-allowed`} />
+                <p className="text-[11px] text-gray-400 mt-1">Login email can&apos;t be changed here — contact support to update it.</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+              <h2 className="text-sm font-bold text-gray-900">Default Company Address</h2>
+              <div>
+                <LocationInput
+                  label="Default Company Address (optional)"
+                  value={defaultAddress}
+                  lat={defaultAddressLat}
+                  lng={defaultAddressLng}
+                  onChange={(address, lat, lng) => { setDefaultAddress(address); setDefaultAddressLat(lat); setDefaultAddressLng(lng); }}
+                  placeholder="Search for an address or city"
+                  className={inputClass}
+                  labelClassName={labelClass}
+                />
+                <p className="text-[11px] text-gray-400 mt-1">Used to prefill Deliver To on inbound shipments — the goods coming back to you.</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+              <h2 className="text-sm font-bold text-gray-900">Notifications</h2>
+              <div>
+                <label className={labelClass}>Notification Email <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input type="email" value={notificationEmail} onChange={e => setNotificationEmail(e.target.value)} className={inputClass} placeholder={email || 'you@company.com'} />
+                <p className="text-[11px] text-gray-400 mt-1">Replies to dispatch emails go here; defaults to your signup email.</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button type="submit" disabled={savingProfile} className="px-5 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 transition-colors">
+                {savingProfile ? 'Saving…' : 'Save Changes'}
+              </button>
+              <button type="button" onClick={cancelProfileEdits} disabled={savingProfile} className="px-5 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 disabled:opacity-50 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </form>
+
+          <form id="password" onSubmit={savePassword} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+            <h2 className="text-sm font-bold text-gray-900">Change Password</h2>
+            <div>
+              <label className={labelClass}>Current Password</label>
+              <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className={inputClass} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>New Password</label>
+                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className={inputClass} />
+              </div>
+              <div>
+                <label className={labelClass}>Confirm New Password</label>
+                <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={inputClass} />
+              </div>
+            </div>
+            <div className="pt-1">
+              <button type="submit" disabled={savingPassword} className="px-5 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors">
+                {savingPassword ? 'Updating…' : 'Change Password'}
+              </button>
+            </div>
+          </form>
+
+          {isOwner && (
+            <div id="staff" className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-gray-900">Team</h2>
+                <span className="text-xs text-gray-400">
+                  {(() => {
+                    const activeCount = staff.filter(s => !s.disabled_at).length;
+                    return staffUnlimited
+                      ? `${activeCount} staff login(s) · unlimited`
+                      : `${activeCount}${staffLimit !== null ? ` / ${staffLimit}` : ''} staff login(s)`;
+                  })()}
+                </span>
+              </div>
+
+              {staff.length > 0 && (
+                <ul className="divide-y divide-gray-100">
+                  {staff.map(s => (
+                    <li key={s.id} className="flex items-center justify-between py-2.5">
+                      <span className={`text-sm ${s.disabled_at ? 'text-gray-400' : 'text-gray-700'}`}>
+                        {s.email}
+                        {s.disabled_at && (
+                          <span className="ml-2 text-[11px] font-semibold text-amber-500">Disabled — plan downgrade</span>
+                        )}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        {s.disabled_at && (
+                          <button onClick={() => reactivateStaff(s.id)} className="text-xs font-semibold text-green-600 hover:text-green-700">
+                            Reactivate
+                          </button>
+                        )}
+                        <button onClick={() => removeStaff(s.id)} className="text-gray-400 hover:text-red-500" title="Remove staff login">
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <form onSubmit={addStaff} className="grid grid-cols-2 gap-4 pt-1">
+                <div>
+                  <label className={labelClass}>Staff Email</label>
+                  <input type="email" value={staffEmail} onChange={e => setStaffEmail(e.target.value)} className={inputClass} placeholder="teammate@company.com" />
+                </div>
+                <div>
+                  <label className={labelClass}>Staff Password</label>
+                  <input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} className={inputClass} placeholder="min 8 characters" />
+                </div>
+                <div className="col-span-2">
+                  <button type="submit" disabled={addingStaff} className="px-5 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors">
+                    {addingStaff ? 'Adding…' : 'Add Staff Login'}
+                  </button>
+                  <p className="text-[11px] text-gray-400 mt-2">Staff have the same full access as you, except managing other staff logins.</p>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-3">
+            <h2 className="text-sm font-bold text-gray-900">Legal</h2>
+            <ul className="divide-y divide-gray-100">
+              {[
+                { href: '/terms', label: 'Terms of Service' },
+                { href: '/privacy', label: 'Privacy Policy' },
+                { href: '/refund-policy', label: 'Refund & Cancellation Policy' },
+                { href: '/cookie-policy', label: 'Cookie Policy' },
+              ].map(item => (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className="flex items-center gap-2.5 py-2.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    <FileText size={14} className="text-gray-400" />
+                    {item.label}
+                  </Link>
                 </li>
               ))}
             </ul>
-          )}
-
-          <form onSubmit={addStaff} className="grid grid-cols-2 gap-4 pt-1">
-            <div>
-              <label className={labelClass}>Staff Email</label>
-              <input type="email" value={staffEmail} onChange={e => setStaffEmail(e.target.value)} className={inputClass} placeholder="teammate@company.com" />
-            </div>
-            <div>
-              <label className={labelClass}>Staff Password</label>
-              <input type="password" value={staffPassword} onChange={e => setStaffPassword(e.target.value)} className={inputClass} placeholder="min 8 characters" />
-            </div>
-            <div className="col-span-2">
-              <button type="submit" disabled={addingStaff} className="px-5 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors">
-                {addingStaff ? 'Adding…' : 'Add Staff Login'}
-              </button>
-              <p className="text-[11px] text-gray-400 mt-2">Staff have the same full access as you, except managing other staff logins.</p>
-            </div>
-          </form>
+          </div>
         </div>
-      )}
 
-      <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-3">
-        <h2 className="text-sm font-bold text-gray-900">Legal</h2>
-        <ul className="divide-y divide-gray-100">
-          {[
-            { href: '/terms', label: 'Terms of Service' },
-            { href: '/privacy', label: 'Privacy Policy' },
-            { href: '/refund-policy', label: 'Refund & Cancellation Policy' },
-            { href: '/cookie-policy', label: 'Cookie Policy' },
-          ].map(item => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className="flex items-center gap-2.5 py-2.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                <FileText size={14} className="text-gray-400" />
-                {item.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
+        {/* FAR RIGHT SIDEBAR — quick tips */}
+        <div className="lg:col-span-3">
+          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3 lg:sticky lg:top-6">
+            <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Quick Tips</h2>
+            <ul className="space-y-3">
+              <li>
+                <Link href="#staff" className="flex items-start gap-2 text-xs text-gray-600 hover:text-orange-600 transition-colors">
+                  <UserPlus size={14} className="text-gray-400 mt-0.5 shrink-0" />
+                  <span>Need to add a team member? <span className="font-semibold">Add Staff</span></span>
+                </Link>
+              </li>
+              <li>
+                <Link href="#password" className="flex items-start gap-2 text-xs text-gray-600 hover:text-orange-600 transition-colors">
+                  <KeyRound size={14} className="text-gray-400 mt-0.5 shrink-0" />
+                  <span>Forgot your password? <span className="font-semibold">Change Password</span></span>
+                </Link>
+              </li>
+              <li>
+                <Link href="/tracker/help" className="flex items-start gap-2 text-xs text-gray-600 hover:text-orange-600 transition-colors">
+                  <HelpCircle size={14} className="text-gray-400 mt-0.5 shrink-0" />
+                  <span>New to the panel? <span className="font-semibold">How to Use</span></span>
+                </Link>
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   );
