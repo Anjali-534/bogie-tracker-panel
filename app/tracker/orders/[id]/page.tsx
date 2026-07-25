@@ -309,7 +309,7 @@ export default function OrderDetailsPage() {
   return (
     <div className="max-w-4xl space-y-5">
       <Toaster position="top-right" />
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
           <Link href="/tracker/orders" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
             <ArrowLeft size={18} className="text-gray-600" />
@@ -321,7 +321,7 @@ export default function OrderDetailsPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className={`text-xs px-3 py-1.5 rounded-full font-semibold ${ORDER_TYPE_STYLES[order.order_type]}`}>
             {ORDER_TYPE_LABELS[order.order_type]}
           </span>
@@ -357,8 +357,8 @@ export default function OrderDetailsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-5">
-        <div className="col-span-2 space-y-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 space-y-5">
           {showMap && (
             <TrackingMap
               lastLat={order.last_lat}
@@ -436,7 +436,7 @@ export default function OrderDetailsPage() {
 
           <div className="bg-white rounded-2xl border border-gray-100 p-6">
             <h2 className="text-sm font-bold text-gray-900 mb-4">Add Update</h2>
-            <form onSubmit={addEvent} className="flex gap-3 items-end">
+            <form onSubmit={addEvent} className="flex flex-col sm:flex-row gap-3 sm:items-end">
               <div className="flex-1">
                 <label className="block text-xs font-semibold text-gray-500 mb-1.5">Location</label>
                 <input value={location} onChange={e => setLocation(e.target.value)} placeholder="e.g. Vadodara, Gujarat"
@@ -654,7 +654,7 @@ export default function OrderDetailsPage() {
             {stagedDocs.length > 0 && (
               <div className="space-y-2">
                 {stagedDocs.map(doc => (
-                  <div key={doc.key} className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2">
+                  <div key={doc.key} className="flex flex-wrap items-center gap-2 border border-gray-200 rounded-xl px-3 py-2">
                     <FileText size={14} className="text-gray-400 flex-shrink-0" />
                     <span className="text-xs font-bold text-gray-700 flex-shrink-0">{DOC_TYPE_LABELS[doc.docType]}</span>
                     <span className="text-xs text-gray-500 truncate flex-1">{doc.file.name}</span>

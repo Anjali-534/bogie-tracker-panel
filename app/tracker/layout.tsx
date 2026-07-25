@@ -284,7 +284,7 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
             </div>
           </div>
         </header>
-        <main className="flex-1 p-8">{children}</main>
+        <main className="flex-1 p-4 lg:p-8">{children}</main>
       </div>
     </div>
   );

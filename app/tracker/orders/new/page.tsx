@@ -400,28 +400,32 @@ export default function NewOrderPage() {
   return (
     <div className="max-w-3xl space-y-5">
       <Toaster position="top-right" />
-      <div className="flex items-center gap-3">
-        <Link href="/tracker/orders" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-          <ArrowLeft size={18} className="text-gray-600" />
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-xl font-bold text-gray-900">New Shipment</h1>
-          <p className="text-xs text-gray-400">Create a new shipment</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3 flex-1">
+          <Link href="/tracker/orders" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+            <ArrowLeft size={18} className="text-gray-600" />
+          </Link>
+          <div className="flex-1">
+            <h1 className="text-xl font-bold text-gray-900">New Shipment</h1>
+            <p className="text-xs text-gray-400">Create a new shipment</p>
+          </div>
         </div>
-        <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
-          {(['outbound', 'inbound'] as OrderType[]).map(t => (
-            <button key={t} type="button" onClick={() => setOrderType(t)}
-              className={`px-3 py-1.5 font-semibold transition-colors ${orderType === t ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
-              {ORDER_TYPE_LABELS[t]}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
+            {(['outbound', 'inbound'] as OrderType[]).map(t => (
+              <button key={t} type="button" onClick={() => setOrderType(t)}
+                className={`px-3 py-1.5 font-semibold transition-colors ${orderType === t ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                {ORDER_TYPE_LABELS[t]}
+              </button>
+            ))}
+          </div>
+          {lastOrderId && (
+            <button type="button" onClick={repeatLastOrder} disabled={repeating}
+              className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 border border-orange-200 rounded-lg px-3 py-2 hover:bg-orange-50 disabled:opacity-50 transition-colors">
+              <RotateCcw size={13} />{repeating ? 'Loading…' : 'Repeat last shipment'}
             </button>
-          ))}
+          )}
         </div>
-        {lastOrderId && (
-          <button type="button" onClick={repeatLastOrder} disabled={repeating}
-            className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 border border-orange-200 rounded-lg px-3 py-2 hover:bg-orange-50 disabled:opacity-50 transition-colors">
-            <RotateCcw size={13} />{repeating ? 'Loading…' : 'Repeat last shipment'}
-          </button>
-        )}
       </div>
 
       <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-6">
@@ -459,7 +463,7 @@ export default function NewOrderPage() {
 
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-gray-900">{orderType === 'inbound' ? 'Supplier / Vendor' : 'Booked For'}</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>{orderType === 'inbound' ? 'Supplier / Vendor Name *' : 'Company Name *'}</label>
               <input value={bookedForCompany} onChange={e => setBookedForCompany(e.target.value)} className={inputClass} placeholder={orderType === 'inbound' ? 'Supplier / vendor name' : 'Receiving company name'} />
@@ -482,7 +486,7 @@ export default function NewOrderPage() {
 
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-gray-900">Route</h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <LocationInput
               label={orderType === 'inbound' ? 'Pickup From *' : 'Dispatch From *'}
               value={dispatchFrom}
@@ -508,12 +512,12 @@ export default function NewOrderPage() {
 
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-gray-900">Shipment Details <span className="text-gray-400 font-normal">(optional)</span></h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
               <label className={labelClass}>Registered Address</label>
               <textarea value={registeredAddress} onChange={e => setRegisteredAddress(e.target.value)} className={inputClass} rows={2} placeholder="Company's registered office address" />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className={labelClass}>Factory / Godown Address</label>
               <textarea value={factoryAddress} onChange={e => setFactoryAddress(e.target.value)} className={inputClass} rows={2} placeholder="If different from registered address" />
             </div>
@@ -545,7 +549,7 @@ export default function NewOrderPage() {
               <label className={labelClass}>Expected Delivery Date</label>
               <input type="date" value={expectedDeliveryDate} onChange={e => setExpectedDeliveryDate(e.target.value)} className={inputClass} />
             </div>
-            <div className="col-span-2 space-y-2">
+            <div className="sm:col-span-2 space-y-2">
               <label className={labelClass}>CC Emails <span className="text-gray-400 font-normal">(dispatch &amp; status-update notifications)</span></label>
               {ccEmails.map((email, i) => (
                 <div key={i} className="flex gap-2">
@@ -559,7 +563,7 @@ export default function NewOrderPage() {
               <button type="button" onClick={() => setCcEmails(prev => [...prev, ''])}
                 className="text-xs font-semibold text-green-600 hover:text-green-700">+ Add CC email</button>
             </div>
-            <div className="col-span-2 space-y-2">
+            <div className="sm:col-span-2 space-y-2">
               <label className={labelClass}>BCC Emails</label>
               {bccEmails.map((email, i) => (
                 <div key={i} className="flex gap-2">
@@ -578,7 +582,7 @@ export default function NewOrderPage() {
 
         <section className="space-y-4">
           <h2 className="text-sm font-bold text-gray-900">Dispatch Details <span className="text-gray-400 font-normal">(optional)</span></h2>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>{orderType === 'inbound' ? 'Received By' : 'Consignee Name'}</label>
               <input value={consigneeName} onChange={e => setConsigneeName(e.target.value)} className={inputClass} placeholder={orderType === 'inbound' ? 'Who received the goods, if different from Supplier' : 'Receiving entity, if different from Booked For'} />
@@ -604,7 +608,7 @@ export default function NewOrderPage() {
               <label className={labelClass}>Quantity</label>
               <input value={quantity} onChange={e => setQuantity(e.target.value)} className={inputClass} placeholder="e.g. 16.000 MT" />
             </div>
-            <div className="col-span-2">
+            <div className="sm:col-span-2">
               <label className={labelClass}>Documents Enclosed</label>
               <input value={documentsEnclosed} onChange={e => setDocumentsEnclosed(e.target.value)} className={inputClass} placeholder="e.g. Invoice, E-Way Bill, LR & COA to Driver" />
             </div>
@@ -637,7 +641,7 @@ export default function NewOrderPage() {
               </select>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Driver Name *</label>
                 <input value={driverName} onChange={e => setDriverName(e.target.value)} className={inputClass} />
@@ -649,7 +653,7 @@ export default function NewOrderPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Transporter Name</label>
               <input value={transporterName} onChange={e => setTransporterName(e.target.value)} className={inputClass} />
@@ -709,14 +713,14 @@ export default function NewOrderPage() {
         </section>
 
         {showSavePrompt && (
-          <div className="flex items-center gap-3 border border-orange-200 bg-orange-50 rounded-xl px-4 py-3">
+          <div className="flex flex-wrap items-center gap-3 border border-orange-200 bg-orange-50 rounded-xl px-4 py-3">
             <BookmarkPlus size={16} className="text-orange-500 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-[200px]">
               <p className="text-xs font-semibold text-gray-700">Save this recipient for future shipments?</p>
               <p className="text-[11px] text-gray-500">Booked For, Consignee &amp; Dispatch To are saved — shipment details are not.</p>
             </div>
             <input value={saveLabel} onChange={e => setSaveLabel(e.target.value)} placeholder={bookedForCompany}
-              className="w-44 border border-orange-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:border-orange-400" />
+              className="w-full sm:w-44 border border-orange-200 rounded-lg px-3 py-2 text-xs bg-white focus:outline-none focus:border-orange-400" />
             <button type="button" onClick={saveAsRecipient} disabled={savingRecipient}
               className="text-xs font-bold text-white bg-orange-500 rounded-lg px-3 py-2 hover:bg-orange-600 disabled:opacity-50 transition-colors">
               {savingRecipient ? 'Saving…' : 'Save'}

@@ -70,12 +70,12 @@ function OrdersPageInner() {
   return (
     <div className="space-y-5">
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Shipments</h1>
           <p className="text-xs text-gray-400">{orders.length} shipments</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <select value={statusFilter} onChange={e => { handleStatusChange(e.target.value as OrderStatus | ''); setPage(1); }}
             className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:border-orange-400">
             {STATUS_FILTERS.map(s => (
@@ -86,9 +86,9 @@ function OrdersPageInner() {
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search company, route, driver, vehicle…"
-              className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 w-72" />
+              className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 w-full sm:w-72" />
           </div>
-          <Link href="/tracker/orders/new" className="flex items-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors">
+          <Link href="/tracker/orders/new" className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors">
             <Plus size={14} />New Shipment
           </Link>
         </div>
@@ -109,49 +109,89 @@ function OrdersPageInner() {
             )}
           </div>
         ) : (
-          <ScrollBody>
-          <table className="w-full">
-            <thead className="sticky top-0 z-10"><tr className="bg-gray-50">
-              {['#','Booked For','Route','Driver / Vehicle','Status','Created','Actions'].map(h => (
-                <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {paged.map((o, i) => (
-                <tr key={o.id} className="border-t border-gray-50 hover:bg-gray-50/50">
-                  <td className="px-5 py-3 text-xs text-gray-400 font-medium">{(page - 1) * PER_PAGE + i + 1}</td>
-                  <td className="px-5 py-3">
-                    <Link href={`/tracker/orders/${o.id}`} className="font-semibold text-gray-900 text-sm hover:text-orange-600">{o.booked_for_company_name}</Link>
+          <>
+          {/* Table — md: and above */}
+          <div className="hidden md:block">
+            <ScrollBody>
+            <table className="w-full">
+              <thead className="sticky top-0 z-10"><tr className="bg-gray-50">
+                {['#','Booked For','Route','Driver / Vehicle','Status','Created','Actions'].map(h => (
+                  <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {paged.map((o, i) => (
+                  <tr key={o.id} className="border-t border-gray-50 hover:bg-gray-50/50">
+                    <td className="px-5 py-3 text-xs text-gray-400 font-medium">{(page - 1) * PER_PAGE + i + 1}</td>
+                    <td className="px-5 py-3">
+                      <Link href={`/tracker/orders/${o.id}`} className="font-semibold text-gray-900 text-sm hover:text-orange-600">{o.booked_for_company_name}</Link>
+                      <p className="text-xs text-gray-400">{o.booked_for_phone}</p>
+                    </td>
+                    <td className="px-5 py-3 text-xs text-gray-600">
+                      <p>{o.dispatch_from}</p>
+                      <p className="text-gray-400">→ {o.dispatch_to}</p>
+                      {(o.material || o.quantity) && (
+                        <p className="text-gray-400 mt-0.5">{[o.material, o.quantity].filter(Boolean).join(' · ')}</p>
+                      )}
+                    </td>
+                    <td className="px-5 py-3 text-xs text-gray-600">
+                      <p>{o.driver_name || '—'}</p>
+                      <p className="text-gray-400">{o.vehicle_number}</p>
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${STATUS_STYLES[o.status]}`}>
+                        {STATUS_LABELS[o.status]}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-xs text-gray-500">{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <Link href={`/tracker/orders/${o.id}`} className="text-xs font-semibold text-orange-600 hover:text-orange-800">View</Link>
+                        <button onClick={() => copyTrackingLink(o)} className="text-xs font-semibold text-gray-500 hover:text-gray-800">Copy Link</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </ScrollBody>
+          </div>
+
+          {/* Card list — below md: */}
+          <div className="md:hidden divide-y divide-gray-50">
+            {paged.map((o, i) => (
+              <div key={o.id} className="p-4 space-y-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-gray-400 font-medium">#{(page - 1) * PER_PAGE + i + 1}</p>
+                    <Link href={`/tracker/orders/${o.id}`} className="font-semibold text-gray-900 text-sm hover:text-orange-600 block truncate">{o.booked_for_company_name}</Link>
                     <p className="text-xs text-gray-400">{o.booked_for_phone}</p>
-                  </td>
-                  <td className="px-5 py-3 text-xs text-gray-600">
-                    <p>{o.dispatch_from}</p>
-                    <p className="text-gray-400">→ {o.dispatch_to}</p>
-                    {(o.material || o.quantity) && (
-                      <p className="text-gray-400 mt-0.5">{[o.material, o.quantity].filter(Boolean).join(' · ')}</p>
-                    )}
-                  </td>
-                  <td className="px-5 py-3 text-xs text-gray-600">
-                    <p>{o.driver_name || '—'}</p>
-                    <p className="text-gray-400">{o.vehicle_number}</p>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${STATUS_STYLES[o.status]}`}>
-                      {STATUS_LABELS[o.status]}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3 text-xs text-gray-500">{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2">
-                      <Link href={`/tracker/orders/${o.id}`} className="text-xs font-semibold text-orange-600 hover:text-orange-800">View</Link>
-                      <button onClick={() => copyTrackingLink(o)} className="text-xs font-semibold text-gray-500 hover:text-gray-800">Copy Link</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </ScrollBody>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[o.status]}`}>
+                    {STATUS_LABELS[o.status]}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-600">
+                  <p>{o.dispatch_from}</p>
+                  <p className="text-gray-400">→ {o.dispatch_to}</p>
+                  {(o.material || o.quantity) && (
+                    <p className="text-gray-400 mt-0.5">{[o.material, o.quantity].filter(Boolean).join(' · ')}</p>
+                  )}
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <div className="text-gray-600">
+                    <p>{o.driver_name || '—'} <span className="text-gray-400">· {o.vehicle_number}</span></p>
+                    <p className="text-gray-400 mt-0.5">{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Link href={`/tracker/orders/${o.id}`} className="font-semibold text-orange-600 hover:text-orange-800">View</Link>
+                    <button onClick={() => copyTrackingLink(o)} className="font-semibold text-gray-500 hover:text-gray-800">Copy Link</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
         <div className="px-5 py-3 border-t border-gray-100">
           <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />

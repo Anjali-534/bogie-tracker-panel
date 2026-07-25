@@ -92,7 +92,7 @@ export default function OverviewPage() {
       ) : (
         <>
           {/* Stats row */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {STATS.map(s => (
               <Link key={s.label} href={s.href} className="bg-white rounded-2xl border border-gray-100 p-5 hover:border-orange-200 hover:shadow-sm transition-all">
                 <div className="flex items-center justify-between mb-3">
@@ -113,12 +113,12 @@ export default function OverviewPage() {
             <div>
               {recentOrders.map(o => (
                 <Link key={o.id} href={`/tracker/orders/${o.id}`}
-                  className="flex items-center justify-between px-5 py-3.5 border-t border-gray-50 first:border-t-0 hover:bg-gray-50/50 transition-colors">
-                  <div>
-                    <p className="font-semibold text-gray-900 text-sm">{o.booked_for_company_name}</p>
-                    <p className="text-xs text-gray-400">{o.dispatch_from} → {o.dispatch_to}</p>
+                  className="flex items-center justify-between gap-3 px-5 py-3.5 border-t border-gray-50 first:border-t-0 hover:bg-gray-50/50 transition-colors">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm truncate">{o.booked_for_company_name}</p>
+                    <p className="text-xs text-gray-400 truncate">{o.dispatch_from} → {o.dispatch_to}</p>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold whitespace-nowrap ${STATUS_STYLES[o.status]}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[o.status]}`}>
                     {STATUS_LABELS[o.status]}
                   </span>
                 </Link>
