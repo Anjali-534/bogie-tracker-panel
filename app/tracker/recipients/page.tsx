@@ -134,19 +134,19 @@ export default function RecipientsPage() {
       <Toaster position="top-right" />
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Saved Recipients</h1>
           <p className="text-xs text-gray-400">{recipients.length} recipients — pre-fill Booked For, Consignee &amp; Dispatch To on new orders</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search label, company, phone…"
-              className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 w-64" />
+              className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 w-full sm:w-64" />
           </div>
-          <button onClick={openCreate} className="flex items-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors"><Plus size={14} />Add Recipient</button>
+          <button onClick={openCreate} className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors"><Plus size={14} />Add Recipient</button>
         </div>
       </div>
 
@@ -165,36 +165,65 @@ export default function RecipientsPage() {
             )}
           </div>
         ) : (
-          <ScrollBody>
-          <table className="w-full">
-            <thead className="sticky top-0 z-10"><tr className="bg-gray-50">
-              {['#','Label','Booked For','Consignee','Dispatch To','Used','Actions'].map(h => (
-                <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {paged.map((r, i) => (
-                <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/50">
-                  <td className="px-5 py-3 text-xs text-gray-400 font-medium">{(page - 1) * PER_PAGE + i + 1}</td>
-                  <td className="px-5 py-3 text-sm font-semibold text-gray-900">{r.label}</td>
-                  <td className="px-5 py-3">
-                    <p className="text-xs text-gray-600">{r.booked_for_company_name}</p>
-                    <p className="text-xs text-gray-400">{r.booked_for_phone}</p>
-                  </td>
-                  <td className="px-5 py-3 text-xs text-gray-600">{r.consignee_name || '—'}</td>
-                  <td className="px-5 py-3 text-xs text-gray-600 max-w-56 truncate">{r.dispatch_to || '—'}</td>
-                  <td className="px-5 py-3 text-xs text-gray-400">{r.use_count > 0 ? `${r.use_count}×` : '—'}</td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors"><Pencil size={14} /></button>
-                      <button onClick={() => setDeleteId(r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </ScrollBody>
+          <>
+          {/* Table — md: and above */}
+          <div className="hidden md:block">
+            <ScrollBody>
+            <table className="w-full">
+              <thead className="sticky top-0 z-10"><tr className="bg-gray-50">
+                {['#','Label','Booked For','Consignee','Dispatch To','Used','Actions'].map(h => (
+                  <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {paged.map((r, i) => (
+                  <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50/50">
+                    <td className="px-5 py-3 text-xs text-gray-400 font-medium">{(page - 1) * PER_PAGE + i + 1}</td>
+                    <td className="px-5 py-3 text-sm font-semibold text-gray-900">{r.label}</td>
+                    <td className="px-5 py-3">
+                      <p className="text-xs text-gray-600">{r.booked_for_company_name}</p>
+                      <p className="text-xs text-gray-400">{r.booked_for_phone}</p>
+                    </td>
+                    <td className="px-5 py-3 text-xs text-gray-600">{r.consignee_name || '—'}</td>
+                    <td className="px-5 py-3 text-xs text-gray-600 max-w-56 truncate">{r.dispatch_to || '—'}</td>
+                    <td className="px-5 py-3 text-xs text-gray-400">{r.use_count > 0 ? `${r.use_count}×` : '—'}</td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors"><Pencil size={14} /></button>
+                        <button onClick={() => setDeleteId(r.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 size={14} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </ScrollBody>
+          </div>
+
+          {/* Card list — below md: */}
+          <div className="md:hidden divide-y divide-gray-50">
+            {paged.map((r, i) => (
+              <div key={r.id} className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-gray-400 font-medium">#{(page - 1) * PER_PAGE + i + 1}</p>
+                    <p className="font-semibold text-gray-900 text-sm truncate">{r.label}</p>
+                  </div>
+                  <span className="text-xs text-gray-400 flex-shrink-0">{r.use_count > 0 ? `${r.use_count}×` : '—'}</span>
+                </div>
+                <div className="text-xs text-gray-600 space-y-0.5">
+                  <p>{r.booked_for_company_name} · {r.booked_for_phone}</p>
+                  {r.consignee_name && <p className="text-gray-400">Consignee: {r.consignee_name}</p>}
+                  {r.dispatch_to && <p className="text-gray-400 truncate">→ {r.dispatch_to}</p>}
+                </div>
+                <div className="flex items-center gap-4 pt-1">
+                  <button onClick={() => openEdit(r)} className="flex items-center gap-1.5 text-xs font-semibold text-blue-600"><Pencil size={13} />Edit</button>
+                  <button onClick={() => setDeleteId(r.id)} className="flex items-center gap-1.5 text-xs font-semibold text-red-600"><Trash2 size={13} />Remove</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
         <div className="px-5 py-3 border-t border-gray-100">
           <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
@@ -203,19 +232,19 @@ export default function RecipientsPage() {
 
       {/* Create / edit modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 sm:p-4">
+          <div className="bg-white w-full h-full sm:h-auto sm:rounded-2xl sm:max-w-lg max-h-full sm:max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10">
               <h2 className="text-lg font-bold text-gray-900">{editing ? 'Edit Recipient' : 'Add New Recipient'}</h2>
               <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><X size={18} /></button>
             </div>
-            <div className="p-6 grid grid-cols-2 gap-4">
-              <div className="col-span-2">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
                 <label className={labelClass}>Label *</label>
                 <input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} className={inputClass} placeholder='e.g. "Reliance Warehouse - Gurgaon"' />
               </div>
 
-              <div className="col-span-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2">Booked For</div>
+              <div className="sm:col-span-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2">Booked For</div>
               <div>
                 <label className={labelClass}>Company Name *</label>
                 <input value={form.booked_for_company_name} onChange={e => setForm(f => ({ ...f, booked_for_company_name: e.target.value }))} className={inputClass} />
@@ -231,12 +260,12 @@ export default function RecipientsPage() {
               <GSTInput label="GSTIN" value={form.booked_for_gstin}
                 onChange={v => setForm(f => ({ ...f, booked_for_gstin: v }))}
                 onStateResolved={s => setForm(f => ({ ...f, booked_for_state: s }))} />
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <label className={labelClass}>State</label>
                 <input value={form.booked_for_state} onChange={e => setForm(f => ({ ...f, booked_for_state: e.target.value }))} className={inputClass} placeholder="Auto-filled from GSTIN, or type manually" />
               </div>
 
-              <div className="col-span-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2">Consignee <span className="font-normal normal-case">(optional)</span></div>
+              <div className="sm:col-span-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2">Consignee <span className="font-normal normal-case">(optional)</span></div>
               <div>
                 <label className={labelClass}>Name</label>
                 <input value={form.consignee_name} onChange={e => setForm(f => ({ ...f, consignee_name: e.target.value }))} className={inputClass} placeholder="If different from Booked For" />
@@ -253,8 +282,8 @@ export default function RecipientsPage() {
                 <input value={form.consignee_state} onChange={e => setForm(f => ({ ...f, consignee_state: e.target.value }))} className={inputClass} />
               </div>
 
-              <div className="col-span-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2">Destination <span className="font-normal normal-case">(optional)</span></div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2">Destination <span className="font-normal normal-case">(optional)</span></div>
+              <div className="sm:col-span-2">
                 <LocationInput
                   label="Dispatch To"
                   value={form.dispatch_to}
@@ -267,17 +296,17 @@ export default function RecipientsPage() {
                 />
               </div>
 
-              <div className="col-span-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2">Addresses <span className="font-normal normal-case">(optional)</span></div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2">Addresses <span className="font-normal normal-case">(optional)</span></div>
+              <div className="sm:col-span-2">
                 <label className={labelClass}>Registered Address</label>
                 <textarea value={form.registered_address} onChange={e => setForm(f => ({ ...f, registered_address: e.target.value }))} className={inputClass} rows={2} placeholder="Company's registered office address" />
               </div>
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <label className={labelClass}>Factory / Godown Address</label>
                 <textarea value={form.factory_address} onChange={e => setForm(f => ({ ...f, factory_address: e.target.value }))} className={inputClass} rows={2} placeholder="If different from registered address" />
               </div>
 
-              <div className="col-span-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2">Contact Person <span className="font-normal normal-case">(optional)</span></div>
+              <div className="sm:col-span-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2">Contact Person <span className="font-normal normal-case">(optional)</span></div>
               <div>
                 <label className={labelClass}>Name</label>
                 <input value={form.contact_person_name} onChange={e => setForm(f => ({ ...f, contact_person_name: e.target.value }))} className={inputClass} />
@@ -307,8 +336,8 @@ export default function RecipientsPage() {
 
       {/* Delete confirm */}
       {deleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 w-96 text-center">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-sm text-center">
             <p className="text-4xl mb-3">🗑️</p>
             <p className="font-bold text-gray-900 mb-2">Remove this recipient?</p>
             <p className="text-sm text-gray-500 mb-6">Existing orders are not affected — recipients only pre-fill the new-order form.</p>

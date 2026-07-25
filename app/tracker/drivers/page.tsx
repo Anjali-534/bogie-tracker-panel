@@ -139,21 +139,21 @@ export default function DriversPage() {
       <Toaster position="top-right" />
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Driver Management</h1>
           <p className="text-xs text-gray-400">{drivers.length} drivers</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5 text-xs text-gray-500 font-medium px-1">
             <input type="checkbox" checked={showInactive} onChange={e => { setShowInactive(e.target.checked); setPage(1); }} />
             Show inactive
           </label>
-          <div className="relative">
+          <div className="relative flex-1 min-w-[180px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search name, phone, vehicle…"
-              className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 w-64" />
+              className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 w-full sm:w-64" />
           </div>
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importXLSX} />
           <button onClick={() => fileRef.current?.click()} disabled={importing} className="flex items-center gap-1.5 px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"><Upload size={14} />{importing ? 'Importing…' : 'Import'}</button>
@@ -177,44 +177,77 @@ export default function DriversPage() {
             )}
           </div>
         ) : (
-          <ScrollBody>
-          <table className="w-full">
-            <thead className="sticky top-0 z-10"><tr className="bg-gray-50">
-              {['#','Driver','Vehicle','Transporter','Status','Actions'].map(h => (
-                <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {paged.map((d, i) => (
-                <tr key={d.id} className="border-t border-gray-50 hover:bg-gray-50/50">
-                  <td className="px-5 py-3 text-xs text-gray-400 font-medium">{(page - 1) * PER_PAGE + i + 1}</td>
-                  <td className="px-5 py-3">
-                    <p className="font-semibold text-gray-900 text-sm">{d.driver_name}</p>
+          <>
+          {/* Table — md: and above */}
+          <div className="hidden md:block">
+            <ScrollBody>
+            <table className="w-full">
+              <thead className="sticky top-0 z-10"><tr className="bg-gray-50">
+                {['#','Driver','Vehicle','Transporter','Status','Actions'].map(h => (
+                  <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {paged.map((d, i) => (
+                  <tr key={d.id} className="border-t border-gray-50 hover:bg-gray-50/50">
+                    <td className="px-5 py-3 text-xs text-gray-400 font-medium">{(page - 1) * PER_PAGE + i + 1}</td>
+                    <td className="px-5 py-3">
+                      <p className="font-semibold text-gray-900 text-sm">{d.driver_name}</p>
+                      <p className="text-xs text-gray-400">{d.phone}</p>
+                    </td>
+                    <td className="px-5 py-3 text-xs text-gray-600">{d.vehicle_number || '—'}</td>
+                    <td className="px-5 py-3 text-xs text-gray-600">
+                      <p>{d.transporter_name || '—'}</p>
+                      {d.transporter_phone && <p className="text-gray-400">{d.transporter_phone}</p>}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${d.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                        {d.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => openEdit(d)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors"><Pencil size={14} /></button>
+                        {d.is_active && (
+                          <button onClick={() => setDeleteId(d.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 size={14} /></button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </ScrollBody>
+          </div>
+
+          {/* Card list — below md: */}
+          <div className="md:hidden divide-y divide-gray-50">
+            {paged.map((d, i) => (
+              <div key={d.id} className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-gray-400 font-medium">#{(page - 1) * PER_PAGE + i + 1}</p>
+                    <p className="font-semibold text-gray-900 text-sm truncate">{d.driver_name}</p>
                     <p className="text-xs text-gray-400">{d.phone}</p>
-                  </td>
-                  <td className="px-5 py-3 text-xs text-gray-600">{d.vehicle_number || '—'}</td>
-                  <td className="px-5 py-3 text-xs text-gray-600">
-                    <p>{d.transporter_name || '—'}</p>
-                    {d.transporter_phone && <p className="text-gray-400">{d.transporter_phone}</p>}
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${d.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
-                      {d.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => openEdit(d)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500 transition-colors"><Pencil size={14} /></button>
-                      {d.is_active && (
-                        <button onClick={() => setDeleteId(d.id)} className="p-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-colors"><Trash2 size={14} /></button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </ScrollBody>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-semibold whitespace-nowrap flex-shrink-0 ${d.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                    {d.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-600">
+                  <p>Vehicle: {d.vehicle_number || '—'}</p>
+                  <p>{d.transporter_name || '—'}{d.transporter_phone ? ` · ${d.transporter_phone}` : ''}</p>
+                </div>
+                <div className="flex items-center gap-4 pt-1">
+                  <button onClick={() => openEdit(d)} className="flex items-center gap-1.5 text-xs font-semibold text-blue-600"><Pencil size={13} />Edit</button>
+                  {d.is_active && (
+                    <button onClick={() => setDeleteId(d.id)} className="flex items-center gap-1.5 text-xs font-semibold text-red-600"><Trash2 size={13} />Deactivate</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          </>
         )}
         <div className="px-5 py-3 border-t border-gray-100">
           <Pagination page={page} total={filtered.length} perPage={PER_PAGE} onChange={setPage} />
@@ -223,14 +256,14 @@ export default function DriversPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 sm:p-4">
+          <div className="bg-white w-full h-full sm:h-auto sm:rounded-2xl sm:max-w-lg max-h-full sm:max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
               <h2 className="text-lg font-bold text-gray-900">{editing ? 'Edit Driver' : 'Add New Driver'}</h2>
               <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><X size={18} /></button>
             </div>
-            <div className="p-6 grid grid-cols-2 gap-4">
-              <div className="col-span-2">
+            <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-semibold text-gray-500 mb-1.5">Driver Name *</label>
                 <input value={form.driver_name} onChange={e => setForm(f => ({ ...f, driver_name: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400" />
               </div>
@@ -263,8 +296,8 @@ export default function DriversPage() {
 
       {/* Deactivate confirm */}
       {deleteId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 w-96 text-center">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-sm text-center">
             <p className="text-4xl mb-3">🚫</p>
             <p className="font-bold text-gray-900 mb-2">Deactivate this driver?</p>
             <p className="text-sm text-gray-500 mb-6">They won&apos;t appear when creating new orders. Existing orders keep their driver details.</p>
