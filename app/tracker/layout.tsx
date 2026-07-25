@@ -6,7 +6,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
   Home, Package, Users, BookUser, CreditCard, Settings, LogOut, CarFront, MapPin,
-  ChevronDown, ChevronRight, HelpCircle,
+  ChevronDown, ChevronRight, HelpCircle, Menu, X,
 } from 'lucide-react';
 import { clearSession } from '@/lib/api';
 import InstallButton from '@/components/InstallButton';
@@ -83,7 +83,7 @@ const NAV: NavEntry[] = [
   { href: '/tracker/help', icon: HelpCircle, label: 'How to Use' },
 ];
 
-function SidebarNavInner() {
+function SidebarNavInner({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -140,6 +140,7 @@ function SidebarNavInner() {
             <Link
               key={entry.href}
               href={entry.href}
+              onClick={onNavigate}
               aria-label={entry.iconOnly ? entry.label : undefined}
               title={entry.iconOnly ? entry.label : undefined}
               className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
@@ -177,6 +178,7 @@ function SidebarNavInner() {
                   <Link
                     key={child.href + child.label}
                     href={child.href}
+                    onClick={onNavigate}
                     className={`block px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all ${
                       isLeafActive(child.href)
                         ? 'bg-orange-50 text-orange-500 font-semibold'
@@ -197,6 +199,7 @@ function SidebarNavInner() {
 
 export default function TrackerLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   // Only checks that a token exists — not the stored status. A stored
   // status is just a UI hint from the last login/response and can go stale
@@ -216,8 +219,21 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Toaster position="top-right" />
-      {/* White sidebar */}
-      <aside className="w-56 h-screen flex flex-col fixed left-0 top-0 z-30 bg-white border-r border-gray-100">
+
+      {/* Mobile drawer backdrop */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+        />
+      )}
+
+      {/* White sidebar — fixed always-visible on lg:+, slide-in drawer below lg: */}
+      <aside
+        className={`w-56 h-screen flex flex-col fixed left-0 top-0 z-40 lg:z-30 bg-white border-r border-gray-100 transition-transform duration-200 ease-in-out lg:translate-x-0 ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
 
         {/* Logo */}
         <div className="px-5 py-5 border-b border-gray-100">
@@ -230,7 +246,7 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
 
         {/* Nav */}
         <Suspense fallback={<div className="flex-1 p-3" />}>
-          <SidebarNavInner />
+          <SidebarNavInner onNavigate={() => setMobileOpen(false)} />
         </Suspense>
 
         {/* Bottom */}
@@ -246,9 +262,17 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
       </aside>
 
       {/* Main */}
-      <div className="ml-56 flex-1 flex flex-col min-h-screen">
-        <header className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
+      <div className="flex-1 flex flex-col min-h-screen lg:ml-56">
+        <header className="bg-white border-b border-gray-100 px-4 lg:px-8 py-4 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(o => !o)}
+              aria-label="Toggle menu"
+              className="lg:hidden p-2 -ml-2 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              {mobileOpen ? <X size={20} className="text-gray-600" /> : <Menu size={20} className="text-gray-600" />}
+            </button>
             <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
             <span className="text-sm text-gray-500 font-medium">Bogie Tracker Panel</span>
           </div>
