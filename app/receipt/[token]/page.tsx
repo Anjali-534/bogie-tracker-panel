@@ -111,7 +111,7 @@ export default function ReceiptPage() {
             <RouteRows from={order.dispatch_from} to={order.dispatch_to} />
           </div>
 
-          <div className="grid grid-cols-2 gap-4 pb-5 border-b border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-5 border-b border-gray-100">
             <Field label="Vehicle Number" value={order.vehicle_number} bold />
             {order.material && <Field label="Material" value={order.material} />}
             {order.quantity && <Field label="Quantity" value={order.quantity} />}

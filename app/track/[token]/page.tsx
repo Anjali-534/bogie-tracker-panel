@@ -116,7 +116,7 @@ export default function PublicTrackingPage() {
             <RouteRows from={order.dispatch_from} to={order.dispatch_to} />
           </div>
 
-          <div className="grid grid-cols-2 gap-4 pb-5 mb-5 border-b border-gray-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-5 mb-5 border-b border-gray-100">
             <Field label="Driver" value={order.driver_name || '—'} />
             <Field label="Vehicle Number" value={order.vehicle_number} bold />
             <Field label="Transporter" value={order.transporter_name || '—'} />
