@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize2, X } from 'lucide-react';
-import OlaMap, { decodePolyline, type OlaMarker } from './OlaMap';
+import OlaMap, { decodePolyline, distanceMeters, type OlaMarker } from './OlaMap';
 import { formatAgo, formatRouteSummary } from '@/lib/format';
 import type { TrackerLocationPing } from '@/lib/types';
 
@@ -83,6 +83,21 @@ export default function TrackingMap({
   const route = pings.map(p => [p.lng, p.lat] as [number, number]);
   const routeSummary = formatRouteSummary(routeDistanceKm ?? null, routeDurationMins ?? null);
 
+  // Live ETA: re-derives remaining time from the driver's *current* distance
+  // to the dropoff every poll, using the planned route's average speed
+  // (distance/duration) — not just a client-side countdown timer, so it
+  // actually reflects whether the driver has fallen behind or caught up.
+  // Straight-line distance, same approximation already used for the
+  // driver page's "reached" auto-detection.
+  const etaMins = useMemo(() => {
+    if (!hasDriver || toLat == null || toLng == null) return null;
+    if (!routeDistanceKm || !routeDurationMins || routeDistanceKm <= 0 || routeDurationMins <= 0) return null;
+    const avgSpeedKmh = routeDistanceKm / (routeDurationMins / 60);
+    if (!Number.isFinite(avgSpeedKmh) || avgSpeedKmh <= 0) return null;
+    const remainingKm = distanceMeters(lastLat as number, lastLng as number, toLat, toLng) / 1000;
+    return Math.max(0, Math.round((remainingKm / avgSpeedKmh) * 60));
+  }, [hasDriver, lastLat, lastLng, toLat, toLng, routeDistanceKm, routeDurationMins]);
+
   return (
     <div
       className={mapExpanded
@@ -133,6 +148,12 @@ export default function TrackingMap({
           >
             <Maximize2 size={16} className="text-gray-700" />
           </button>
+        )}
+        {etaMins != null && (
+          <div className="absolute bottom-2 left-2 z-10 bg-white/95 backdrop-blur rounded-xl px-3 py-2 shadow-md border border-gray-200">
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">ETA</p>
+            <p className="text-sm font-bold text-gray-900">{etaMins <= 0 ? 'Arriving' : `${etaMins} min`}</p>
+          </div>
         )}
       </div>
     </div>

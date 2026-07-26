@@ -1,7 +1,15 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Moon, Sun } from "lucide-react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+
+const DARK_MODE_STORAGE_KEY = "gogoo-map-dark";
+// Classic "poor-man's dark mode" for raster/vector web maps that don't ship
+// their own dark style (confirmed in Phase 0: Ola Maps only offers
+// default-light-standard) — invert then hue-rotate back so land/water read
+// as dark instead of the garish inverted-color look invert() alone gives.
+const DARK_MODE_FILTER = "invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9)";
 
 const OLA_KEY = process.env.NEXT_PUBLIC_OLA_MAPS_KEY || "";
 const STYLE_URL = `https://api.olamaps.io/tiles/vector/v1/styles/default-light-standard/style.json?api_key=${OLA_KEY}`;
@@ -36,7 +44,7 @@ function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
 function toRad(d: number) { return (d * Math.PI) / 180; }
 function toDeg(r: number) { return (r * 180) / Math.PI; }
 
-function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
+export function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
   const R = 6371000;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
@@ -187,7 +195,27 @@ export default function OlaMap({
   // our load handler has added the sources, or transiently false after it),
   // so track readiness ourselves and queue updates that arrive too early.
   const loadedRef = useRef(false);
-  const pendingRef = useRef<{ markers?: () => void; route?: () => void; planned?: () => void; paint?: () => void; fit?: () => void }>({});
+  const pendingRef = useRef<{ markers?: () => void; route?: () => void; planned?: () => void; paint?: () => void; fit?: () => void; dark?: () => void }>({});
+  // Drives the branded skeleton overlay until the first 'load' fires.
+  const [loaded, setLoaded] = useState(false);
+  // CSS-filter dark mode (Ola only ships a light vector style — see Phase 0
+  // investigation). Persisted per-browser so toggling on one map instance
+  // carries across the panel's other maps.
+  const [darkMode, setDarkMode] = useState(false);
+  useEffect(() => {
+    try {
+      setDarkMode(localStorage.getItem(DARK_MODE_STORAGE_KEY) === "1");
+    } catch {
+      // Private browsing / storage disabled — default to light, not fatal.
+    }
+  }, []);
+  function toggleDarkMode() {
+    setDarkMode(prev => {
+      const next = !prev;
+      try { localStorage.setItem(DARK_MODE_STORAGE_KEY, next ? "1" : "0"); } catch {}
+      return next;
+    });
+  }
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
@@ -239,11 +267,13 @@ export default function OlaMap({
         paint: { "line-color": "#FF6B2B", "line-width": 2.5, "line-opacity": 0.6 },
       });
       loadedRef.current = true;
+      setLoaded(true);
       pendingRef.current.markers?.();
       pendingRef.current.route?.();
       pendingRef.current.planned?.();
       pendingRef.current.paint?.();
       pendingRef.current.fit?.();
+      pendingRef.current.dark?.();
       pendingRef.current = {};
       onMapReady?.(map);
     });
@@ -259,6 +289,15 @@ export default function OlaMap({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      map.getCanvas().style.filter = darkMode ? DARK_MODE_FILTER : "";
+    };
+    if (loadedRef.current) apply(); else pendingRef.current.dark = apply;
+  }, [darkMode]);
 
   useEffect(() => {
     latestMarkersRef.current = markers;
@@ -448,6 +487,22 @@ export default function OlaMap({
   return (
     <div className="relative">
       <div ref={ref} className={className} />
+      {!loaded && (
+        <div className={`${className} absolute inset-0 z-[5] bg-gray-100 flex items-center justify-center`}>
+          <div className="flex flex-col items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
+            <span className="text-xs font-semibold text-gray-400">Loading map…</span>
+          </div>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={toggleDarkMode}
+        aria-label={darkMode ? "Switch to light map" : "Switch to dark map"}
+        className="absolute right-2 top-12 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white/95 shadow-sm backdrop-blur"
+      >
+        {darkMode ? <Sun size={16} className="text-gray-700" /> : <Moon size={16} className="text-gray-700" />}
+      </button>
       <button
         type="button"
         onClick={() => {

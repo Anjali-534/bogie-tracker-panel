@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw, Maximize2, X } from 'lucide-react';
+import { RefreshCw, Maximize2, X, Search } from 'lucide-react';
 import OlaMap, { type OlaMarker } from '@/components/OlaMap';
 import { api } from '@/lib/api';
 import { formatAgo, formatRouteSummary } from '@/lib/format';
@@ -21,7 +21,19 @@ export default function LiveMapPage() {
   const [fitTrigger, setFitTrigger] = useState(0);
   const hasLoadedOnce = useRef(false);
   const [mapExpanded, setMapExpanded] = useState(false);
-  const mapObjRef = useRef<{ resize: () => void } | null>(null);
+  const mapObjRef = useRef<{ resize: () => void; flyTo: (opts: { center: [number, number]; zoom?: number }) => void } | null>(null);
+  const [search, setSearch] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
   useEffect(() => {
     document.body.style.overflow = mapExpanded ? 'hidden' : '';
     const t1 = setTimeout(() => mapObjRef.current?.resize(), 50);
@@ -93,6 +105,21 @@ export default function LiveMapPage() {
       };
     });
 
+  const searchMatches = search.trim().length === 0 ? [] : orders.filter(o => {
+    if (o.last_lat == null || o.last_lng == null) return false;
+    const q = search.trim().toLowerCase();
+    return (o.driver_name || '').toLowerCase().includes(q)
+      || (o.vehicle_number || '').toLowerCase().includes(q)
+      || (o.booked_for_company_name || '').toLowerCase().includes(q);
+  });
+
+  function jumpToOrder(o: TrackerLiveMapOrder) {
+    if (o.last_lat == null || o.last_lng == null) return;
+    mapObjRef.current?.flyTo({ center: [o.last_lng, o.last_lat], zoom: 15 });
+    setSearch('');
+    setShowDropdown(false);
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -119,6 +146,36 @@ export default function LiveMapPage() {
           <p className="text-gray-500 font-medium">No shipments currently in transit</p>
         </div>
       ) : (
+        <>
+        <div ref={searchBoxRef} className="relative">
+          <div className="relative">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              value={search}
+              onChange={e => { setSearch(e.target.value); setShowDropdown(true); }}
+              onFocus={() => search.trim().length > 0 && setShowDropdown(true)}
+              placeholder="Find a driver, vehicle number or company…"
+              className="w-full border border-gray-200 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-orange-400"
+            />
+          </div>
+          {showDropdown && search.trim().length > 0 && (
+            <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+              {searchMatches.length === 0 ? (
+                <p className="px-4 py-3 text-sm text-gray-400">No matching driver in transit</p>
+              ) : searchMatches.map(o => (
+                <button
+                  key={o.id}
+                  type="button"
+                  onClick={() => jumpToOrder(o)}
+                  className="flex flex-col w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0"
+                >
+                  <span className="text-sm font-semibold text-gray-800">{o.driver_name || 'Unassigned driver'} · {o.vehicle_number || '—'}</span>
+                  <span className="text-xs text-gray-400 truncate">{o.booked_for_company_name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div
           className={mapExpanded
             ? 'fixed inset-0 z-50 bg-white flex flex-col sheet-expand'
@@ -157,6 +214,7 @@ export default function LiveMapPage() {
             )}
           </div>
         </div>
+        </>
       )}
     </div>
   );
