@@ -11,7 +11,7 @@ import { formatRouteSummary } from '@/lib/format';
 import { DRIVER_EVENT_KIND_LABELS, STATUS_LABELS, STATUS_STYLES, type OrderStatus } from '@/lib/types';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://gogobackend-production.up.railway.app';
-const POST_INTERVAL_MS = 15000;
+const POST_INTERVAL_MS = 10000;
 const MESSAGE_POLL_MS = 20000;
 const REACHED_RADIUS_METERS = 100;
 
