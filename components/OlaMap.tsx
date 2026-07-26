@@ -66,26 +66,49 @@ function lerpAngle(a: number, b: number, t: number) {
   return (a + diff * t + 360) % 360;
 }
 
-const VEHICLE_GLYPHS: Record<"truck" | "car" | "ambulance", string> = {
-  truck: '<path d="M3 6a1 1 0 00-1 1v9a1 1 0 001 1h1a2.5 2.5 0 004.9 0h6.2a2.5 2.5 0 004.9 0H21a1 1 0 001-1v-4.5a1 1 0 00-.2-.6l-2.7-3.6A1 1 0 0018.3 7H15V7a1 1 0 00-1-1H3zm12 2h3.3l2.4 3.2H15V8zM6 17.75a1 1 0 110-2 1 1 0 010 2zm12 0a1 1 0 110-2 1 1 0 010 2z"/>',
-  car: '<path d="M7.1 11h9.8l-1.35-3.5a1 1 0 00-.93-.65H9.38a1 1 0 00-.93.65L7.1 11zM5 11l1.62-4.2A3 3 0 019.38 5h5.24a3 3 0 012.76 1.8L18.9 11H19a2 2 0 012 2v4.5a1 1 0 01-1 1h-1.05a2.5 2.5 0 01-4.9 0H9.95a2.5 2.5 0 01-4.9 0H4a1 1 0 01-1-1V13a2 2 0 012-2z"/>',
-  // Simple medical-cross glyph — more recognizable at marker scale than a
-  // vehicle silhouette, matches the "ambulance cross" convention.
-  ambulance: '<path d="M11 4h2v6h6v2h-6v6h-2v-6H5v-2h6V4z"/>',
+// Top-down vehicle silhouettes, all drawn pointing "up" (north) so a plain
+// CSS rotate() on the wrapping <svg> lines the nose up with the computed
+// heading — same rotor mechanism as before, just a real vehicle body instead
+// of a circle badge. Each takes the marker color for the body fill; window/
+// light details are fixed tones so they read at marker scale on any color.
+const VEHICLE_SHAPES: Record<"truck" | "car" | "ambulance", (color: string) => string> = {
+  car: (color) => `
+    <path d="M20 3c6.5 0 11 5 11 12v42c0 8-5 13-11 13S9 65 9 57V15C9 8 13.5 3 20 3z" fill="${color}"/>
+    <rect x="13" y="14" width="14" height="12" rx="4" fill="rgba(255,255,255,0.6)"/>
+    <rect x="13" y="46" width="14" height="10" rx="4" fill="rgba(255,255,255,0.4)"/>
+    <circle cx="12.5" cy="17" r="2.3" fill="#FFD54A"/>
+    <circle cx="27.5" cy="17" r="2.3" fill="#FFD54A"/>
+    <circle cx="12.5" cy="55" r="2" fill="#E53935"/>
+    <circle cx="27.5" cy="55" r="2" fill="#E53935"/>`,
+  truck: (color) => `
+    <rect x="9" y="2" width="22" height="19" rx="6" fill="${color}"/>
+    <rect x="13" y="6" width="14" height="9" rx="3" fill="rgba(255,255,255,0.6)"/>
+    <circle cx="12.5" cy="16" r="2.2" fill="#FFD54A"/>
+    <circle cx="27.5" cy="16" r="2.2" fill="#FFD54A"/>
+    <rect x="6" y="22" width="28" height="50" rx="5" fill="${color}"/>
+    <line x1="6" y1="37" x2="34" y2="37" stroke="rgba(0,0,0,0.18)" stroke-width="2"/>
+    <line x1="6" y1="55" x2="34" y2="55" stroke="rgba(0,0,0,0.18)" stroke-width="2"/>
+    <circle cx="12.5" cy="66" r="2" fill="#E53935"/>
+    <circle cx="27.5" cy="66" r="2" fill="#E53935"/>`,
+  ambulance: (color) => `
+    <path d="M12 3h16a6 6 0 016 6v56a6 6 0 01-6 6H12a6 6 0 01-6-6V9a6 6 0 016-6z" fill="${color}"/>
+    <rect x="7" y="5" width="26" height="5" rx="2.5" fill="#3B82F6"/>
+    <rect x="12" y="15" width="16" height="12" rx="4" fill="rgba(255,255,255,0.6)"/>
+    <circle cx="12" cy="18" r="2.2" fill="#FFD54A"/>
+    <circle cx="28" cy="18" r="2.2" fill="#FFD54A"/>
+    <rect x="14" y="40" width="12" height="4.5" rx="1.2" fill="#fff"/>
+    <rect x="17.75" y="36.25" width="4.5" height="12" rx="1.2" fill="#fff"/>`,
 };
 
-// Circular badge + a small triangular "beak" pointing outward from the top —
-// the whole element is what gets CSS-rotated to face the vehicle's direction
-// of travel, so the beak reads as a heading indicator. Sized larger than the
-// old 34px badge (spec: "clearly visible, not tiny").
+// Wrapping <svg> (not a <div>) is the rotor — CSS transform:rotate() applied
+// directly to it, with drop-shadow as an SVG filter so the shadow follows
+// the silhouette's actual outline rather than a bounding-box rectangle,
+// matching the "lifted off the map" look of real navigation apps.
 function vehicleIconHtml(kind: "truck" | "car" | "ambulance", color: string) {
-  const size = 44;
-  return `<div style="position:relative;width:${size}px;height:${size}px">
-    <div style="position:absolute;top:-7px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-bottom:10px solid ${color};filter:drop-shadow(0 1px 1px rgba(0,0,0,0.25))"></div>
-    <div style="width:100%;height:100%;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center">
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="white">${VEHICLE_GLYPHS[kind]}</svg>
-    </div>
-  </div>`;
+  const width = 34, height = 58;
+  return `<svg width="${width}" height="${height}" viewBox="0 0 40 76" style="display:block;filter:drop-shadow(0 3px 4px rgba(0,0,0,0.4))">
+    ${VEHICLE_SHAPES[kind](color)}
+  </svg>`;
 }
 
 // Teardrop location pin, matching user-app's PickupMarker/DropMarker proportions
