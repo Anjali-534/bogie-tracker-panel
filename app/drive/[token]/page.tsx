@@ -63,7 +63,7 @@ export default function DriverSharePage() {
   const [gpsIssue, setGpsIssue] = useState(false);
   const [sendError, setSendError] = useState(false);
   const [lastSentAt, setLastSentAt] = useState<Date | null>(null);
-  const [myPos, setMyPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [myPos, setMyPos] = useState<{ lat: number; lng: number; heading?: number } | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [, setTick] = useState(0); // forces re-render so "updated Xs ago" stays live
 
@@ -209,7 +209,10 @@ export default function DriverSharePage() {
       (pos) => {
         const isFirstFix = latestPosRef.current === null;
         latestPosRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        setMyPos(latestPosRef.current);
+        // coords.heading is device-dependent (often null on stationary/older
+        // devices) — passed through as a bonus; OlaMap falls back to its own
+        // GPS-history bearing calculation when it's absent.
+        setMyPos({ lat: pos.coords.latitude, lng: pos.coords.longitude, heading: pos.coords.heading ?? undefined });
         setGpsIssue(false);
         if (isFirstFix) sendLocation();
         maybeAutoConfirmReached(pos.coords.latitude, pos.coords.longitude);
@@ -298,7 +301,7 @@ export default function DriverSharePage() {
     mapMarkers.push({ lng: order.dispatch_to_lng, lat: order.dispatch_to_lat, color: '#EF4444', icon: 'pin' });
   }
   if (myPos) {
-    mapMarkers.push({ lng: myPos.lng, lat: myPos.lat, color: '#FF6B2B', id: 'driver', icon: 'truck' });
+    mapMarkers.push({ lng: myPos.lng, lat: myPos.lat, color: '#FF6B2B', id: 'driver', icon: 'truck', heading: myPos.heading });
   }
 
   return (

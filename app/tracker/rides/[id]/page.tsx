@@ -29,10 +29,22 @@ interface RideDetail {
   final_fare: number | null;
   distance_km: number;
   service_name: string;
+  // 'cab' | 'truck' | 'ambulance' — already returned by writeBookingDetail
+  // (backend/internal/api/handlers/tracking.go), joined from service_types.
+  vehicle_category: string;
   ride_otp?: string;
   driver?: Driver;
   cancel_reason?: string;
   cancelled_by?: string;
+}
+
+// Maps the booking's vehicle_category to OlaMap's icon prop; anything
+// unrecognized (or missing on older bookings) falls back to the car icon
+// rather than the truck one, since cab rides are the overwhelming majority.
+function categoryToIcon(category: string): 'car' | 'truck' | 'ambulance' {
+  if (category === 'truck') return 'truck';
+  if (category === 'ambulance') return 'ambulance';
+  return 'car';
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -207,7 +219,7 @@ function RideMap({ ride }: { ride: RideDetail }) {
     { lng: ride.drop.lng, lat: ride.drop.lat, color: '#EF4444', icon: 'pin', popup: 'Drop' },
   ];
   if (hasDriver) {
-    markers.push({ lng: ride.driver!.lng!, lat: ride.driver!.lat!, color: '#FF6B2B', id: 'driver', icon: 'truck', popup: 'Driver' });
+    markers.push({ lng: ride.driver!.lng!, lat: ride.driver!.lat!, color: '#FF6B2B', id: 'driver', icon: categoryToIcon(ride.vehicle_category), popup: 'Driver' });
   }
 
   return (
