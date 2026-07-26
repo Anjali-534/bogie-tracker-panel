@@ -8,17 +8,23 @@ import OlaMap, { decodePolyline, type OlaMarker } from '@/components/OlaMap';
 import SignaturePad from '@/components/SignaturePad';
 import RouteRows from '@/components/RouteRows';
 import { formatRouteSummary } from '@/lib/format';
-import { DRIVER_EVENT_KIND_LABELS, STATUS_LABELS, STATUS_STYLES, type DriverEventKind, type OrderStatus } from '@/lib/types';
+import { DRIVER_EVENT_KIND_LABELS, STATUS_LABELS, STATUS_STYLES, type OrderStatus } from '@/lib/types';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://gogobackend-production.up.railway.app';
 const POST_INTERVAL_MS = 15000;
 const MESSAGE_POLL_MS = 20000;
+const REACHED_RADIUS_METERS = 100;
 
-// Quick-status row — 'delivery_claimed' (Delivered) is handled separately
-// below since it opens the signature pad instead of posting directly.
-const QUICK_STATUS_BUTTONS: Exclude<DriverEventKind, 'delivery_claimed'>[] = [
-  'on_break', 'about_to_reach', 'reached', 'unloading',
-];
+// Haversine great-circle distance, in meters — used to auto-detect when the
+// driver is close enough to the dropoff to reveal Sign + Delivered.
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 interface DriverMessage {
   id: string;
@@ -61,10 +67,9 @@ export default function DriverSharePage() {
   const [mapExpanded, setMapExpanded] = useState(false);
   const [, setTick] = useState(0); // forces re-render so "updated Xs ago" stays live
 
-  // Quick-status buttons (Phase 2)
-  const [postingKind, setPostingKind] = useState<DriverEventKind | null>(null);
-  const [lastPostedKind, setLastPostedKind] = useState<DriverEventKind | null>(null);
-  const [quickStatusError, setQuickStatusError] = useState<string | null>(null);
+  // GPS auto-detect "Reached" (Phase 2) — gates Sign + Delivered below.
+  const [reachedConfirmed, setReachedConfirmed] = useState(false);
+  const reachedFiredRef = useRef(false);
 
   // Delivered → signature pad flow (Phase 3)
   const [showSignaturePad, setShowSignaturePad] = useState(false);
@@ -147,17 +152,17 @@ export default function DriverSharePage() {
     return () => { cancelled = true; clearInterval(t); };
   }, [token]);
 
-  async function postQuickStatus(kind: Exclude<DriverEventKind, 'delivery_claimed'>) {
-    setPostingKind(kind);
-    setQuickStatusError(null);
-    try {
-      await axios.post(`${API}/gogoo/public/tracker/driver/${token}/event`, { kind });
-      setLastPostedKind(kind);
-    } catch {
-      setQuickStatusError("Couldn't send that update — please try again.");
-    } finally {
-      setPostingKind(null);
-    }
+  // Fires at most once per session (reachedFiredRef guards re-entry while a
+  // request is in flight); on failure the guard resets so the next GPS fix
+  // (every ~15s while stationary in range) can retry.
+  function maybeAutoConfirmReached(lat: number, lng: number) {
+    if (reachedFiredRef.current) return;
+    if (!order || order.dispatch_to_lat == null || order.dispatch_to_lng == null) return;
+    if (haversineMeters(lat, lng, order.dispatch_to_lat, order.dispatch_to_lng) > REACHED_RADIUS_METERS) return;
+    reachedFiredRef.current = true;
+    axios.post(`${API}/gogoo/public/tracker/driver/${token}/event`, { kind: 'reached' })
+      .then(() => setReachedConfirmed(true))
+      .catch(() => { reachedFiredRef.current = false; });
   }
 
   async function confirmDeliverySignature(blob: Blob) {
@@ -207,6 +212,7 @@ export default function DriverSharePage() {
         setMyPos(latestPosRef.current);
         setGpsIssue(false);
         if (isFirstFix) sendLocation();
+        maybeAutoConfirmReached(pos.coords.latitude, pos.coords.longitude);
       },
       (err) => {
         if (err.code === err.PERMISSION_DENIED) {
@@ -279,6 +285,10 @@ export default function DriverSharePage() {
   const navigateHref = order.dispatch_to_lat != null && order.dispatch_to_lng != null
     ? `https://www.google.com/maps/dir/?api=1&destination=${order.dispatch_to_lat},${order.dispatch_to_lng}`
     : null;
+  // No coordinates on the order (pre-autocomplete orders) means GPS
+  // proximity can never be computed — fall back to always showing Delivered
+  // rather than stranding the driver with no way to reach the signature pad.
+  const canShowDelivered = reachedConfirmed || order.dispatch_to_lat == null || order.dispatch_to_lng == null;
 
   const mapMarkers: OlaMarker[] = [];
   if (order.dispatch_from_lat != null && order.dispatch_from_lng != null) {
@@ -323,7 +333,12 @@ export default function DriverSharePage() {
               {STATUS_LABELS[order.status]}
             </span>
           </div>
-          <RouteRows from={order.dispatch_from} to={order.dispatch_to} />
+          <RouteRows
+            from={order.dispatch_from}
+            to={order.dispatch_to}
+            fromName={order.company_name}
+            toName={order.booked_for_company_name}
+          />
           <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-gray-100">
             Vehicle: <span className="font-bold text-gray-600">{order.vehicle_number}</span>
             {routeSummary && <span> · {routeSummary}</span>}
@@ -546,33 +561,16 @@ export default function DriverSharePage() {
                 <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
                 <p className="text-xs font-semibold text-green-700">Delivery claimed — waiting for the company to confirm.</p>
               </div>
+            ) : canShowDelivered ? (
+              <button
+                onClick={() => { setSignatureError(null); setShowSignaturePad(true); }}
+                className="w-full px-3 py-3 rounded-xl bg-orange-500 text-white text-sm font-bold hover:bg-orange-600 transition-colors"
+              >
+                {DRIVER_EVENT_KIND_LABELS.delivery_claimed}
+              </button>
             ) : (
-              <div className="grid grid-cols-2 gap-2.5">
-                {QUICK_STATUS_BUTTONS.map(kind => (
-                  <button
-                    key={kind}
-                    onClick={() => postQuickStatus(kind)}
-                    disabled={postingKind !== null}
-                    className={`px-3 py-3 rounded-xl border text-sm font-semibold transition-colors disabled:opacity-50 ${
-                      lastPostedKind === kind
-                        ? 'border-orange-400 bg-orange-50 text-orange-700'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    {postingKind === kind ? 'Sending…' : DRIVER_EVENT_KIND_LABELS[kind]}
-                  </button>
-                ))}
-                <button
-                  onClick={() => { setSignatureError(null); setShowSignaturePad(true); }}
-                  disabled={postingKind !== null}
-                  className="col-span-2 px-3 py-3 rounded-xl bg-orange-500 text-white text-sm font-bold hover:bg-orange-600 transition-colors disabled:opacity-50"
-                >
-                  {DRIVER_EVENT_KIND_LABELS.delivery_claimed}
-                </button>
-              </div>
+              <p className="text-xs text-gray-400 text-center py-2">You&apos;ll be able to confirm delivery once you&apos;re near the destination.</p>
             )}
-
-            {quickStatusError && <p className="text-xs text-red-500">{quickStatusError}</p>}
           </div>
         )}
 
