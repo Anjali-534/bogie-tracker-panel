@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Maximize2, X } from 'lucide-react';
 import OlaMap, { type OlaMarker } from '@/components/OlaMap';
 import { api } from '@/lib/api';
 import { formatAgo, formatRouteSummary } from '@/lib/format';
@@ -20,6 +20,18 @@ export default function LiveMapPage() {
   const [orders, setOrders] = useState<TrackerLiveMapOrder[] | null>(null);
   const [fitTrigger, setFitTrigger] = useState(0);
   const hasLoadedOnce = useRef(false);
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const mapObjRef = useRef<{ resize: () => void } | null>(null);
+  useEffect(() => {
+    document.body.style.overflow = mapExpanded ? 'hidden' : '';
+    const t1 = setTimeout(() => mapObjRef.current?.resize(), 50);
+    const t2 = setTimeout(() => mapObjRef.current?.resize(), 300);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      document.body.style.overflow = '';
+    };
+  }, [mapExpanded]);
 
   const load = useCallback(async () => {
     try {
@@ -107,12 +119,44 @@ export default function LiveMapPage() {
           <p className="text-gray-500 font-medium">No shipments currently in transit</p>
         </div>
       ) : (
-        <OlaMap
-          markers={markers}
-          fitToMarkers
-          fitTrigger={fitTrigger}
-          className="w-full h-[60vh] lg:h-[calc(100vh-320px)] min-h-[350px] lg:min-h-[500px] rounded-2xl overflow-hidden border border-gray-100"
-        />
+        <div
+          className={mapExpanded
+            ? 'fixed inset-0 z-50 bg-white flex flex-col sheet-expand'
+            : 'relative'}
+        >
+          {mapExpanded && (
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <h1 className="text-sm font-bold text-gray-900">Live Map</h1>
+              <button
+                onClick={() => setMapExpanded(false)}
+                aria-label="Collapse map"
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <X size={18} className="text-gray-600" />
+              </button>
+            </div>
+          )}
+          <div className={mapExpanded ? 'relative flex-1 min-h-0' : 'relative'}>
+            <OlaMap
+              markers={markers}
+              fitToMarkers
+              fitTrigger={fitTrigger}
+              onMapReady={(m) => { mapObjRef.current = m; }}
+              className={mapExpanded
+                ? 'w-full h-full'
+                : 'w-full h-[60vh] lg:h-[calc(100vh-320px)] min-h-[350px] lg:min-h-[500px] rounded-2xl overflow-hidden border border-gray-100'}
+            />
+            {!mapExpanded && (
+              <button
+                onClick={() => { setMapExpanded(true); setFitTrigger(t => t + 1); }}
+                aria-label="Expand map"
+                className="absolute top-2 left-2 w-9 h-9 flex items-center justify-center bg-white rounded-lg border border-gray-200 shadow-md"
+              >
+                <Maximize2 size={16} className="text-gray-700" />
+              </button>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { LocateFixed, MapPin } from 'lucide-react';
+import { LocateFixed, MapPin, Maximize2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api';
 import { olaAutocomplete, olaPlaceDetails, type OlaSuggestion } from '@/lib/olaPlaces';
@@ -42,8 +42,21 @@ export default function LocationInput({ label, value, lat, lng, onChange, placeh
   const [showDropdown, setShowDropdown] = useState(false);
   const [locating, setLocating] = useState(false);
   const [fitTrigger, setFitTrigger] = useState(0);
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const mapObjRef = useRef<{ resize: () => void } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    document.body.style.overflow = mapExpanded ? 'hidden' : '';
+    const t1 = setTimeout(() => mapObjRef.current?.resize(), 50);
+    const t2 = setTimeout(() => mapObjRef.current?.resize(), 300);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      document.body.style.overflow = '';
+    };
+  }, [mapExpanded]);
   // Biases autocomplete toward the user's rough location; falls back to
   // Delhi NCR if geolocation is unavailable or denied.
   const biasRef = useRef(DEFAULT_BIAS);
@@ -192,17 +205,49 @@ export default function LocationInput({ label, value, lat, lng, onChange, placeh
         </div>
       )}
       {lat != null && lng != null && (
-        <div className="mt-2 space-y-1">
-          <OlaMap
-            center={[lng, lat]}
-            zoom={15}
-            markers={[{ lng, lat, icon: 'pin', color: '#FF6B2B', draggable: true }]}
-            fitToMarkers
-            fitTrigger={fitTrigger}
-            onMarkerDragEnd={ll => onChange(value, ll.lat, ll.lng)}
-            className="w-full h-40 rounded-xl overflow-hidden border border-gray-200"
-          />
-          <p className="text-[11px] text-gray-400">Drag the pin to your exact location if needed</p>
+        <div
+          className={mapExpanded
+            ? 'fixed inset-0 z-50 bg-white flex flex-col sheet-expand'
+            : 'mt-2 space-y-1'}
+        >
+          {mapExpanded && (
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <span className="text-sm font-bold text-gray-900">{label}</span>
+              <button
+                type="button"
+                onClick={() => setMapExpanded(false)}
+                aria-label="Collapse map"
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <X size={18} className="text-gray-600" />
+              </button>
+            </div>
+          )}
+          <div className={mapExpanded ? 'relative flex-1 min-h-0' : 'relative'}>
+            <OlaMap
+              center={[lng, lat]}
+              zoom={15}
+              markers={[{ lng, lat, icon: 'pin', color: '#FF6B2B', draggable: true }]}
+              fitToMarkers
+              fitTrigger={fitTrigger}
+              onMarkerDragEnd={ll => onChange(value, ll.lat, ll.lng)}
+              onMapReady={(m) => { mapObjRef.current = m; }}
+              className={mapExpanded ? 'w-full h-full' : 'w-full h-40 rounded-xl overflow-hidden border border-gray-200'}
+            />
+            {!mapExpanded && (
+              <button
+                type="button"
+                onClick={() => setMapExpanded(true)}
+                aria-label="Expand map"
+                className="absolute top-2 left-2 w-9 h-9 flex items-center justify-center bg-white rounded-lg border border-gray-200 shadow-md"
+              >
+                <Maximize2 size={16} className="text-gray-700" />
+              </button>
+            )}
+          </div>
+          {!mapExpanded && (
+            <p className="text-[11px] text-gray-400">Drag the pin to your exact location if needed</p>
+          )}
         </div>
       )}
     </div>

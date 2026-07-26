@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Maximize2, X } from 'lucide-react';
 import OlaMap, { decodePolyline, type OlaMarker } from './OlaMap';
 import { formatAgo, formatRouteSummary } from '@/lib/format';
 import type { TrackerLocationPing } from '@/lib/types';
@@ -33,6 +34,21 @@ export default function TrackingMap({
     const t = setInterval(() => setTick(x => x + 1), 15000);
     return () => clearInterval(t);
   }, []);
+
+  // Fullscreen toggle — same pattern as the driver share page's map (single
+  // OlaMap instance persists across states, only wrapper classes change).
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const mapObjRef = useRef<{ resize: () => void } | null>(null);
+  useEffect(() => {
+    document.body.style.overflow = mapExpanded ? 'hidden' : '';
+    const t1 = setTimeout(() => mapObjRef.current?.resize(), 50);
+    const t2 = setTimeout(() => mapObjRef.current?.resize(), 300);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      document.body.style.overflow = '';
+    };
+  }, [mapExpanded]);
 
   // Decoded once per polyline value — the stored route never changes for an
   // order, so the 15s poll re-render never re-decodes it.
@@ -68,29 +84,57 @@ export default function TrackingMap({
   const routeSummary = formatRouteSummary(routeDistanceKm ?? null, routeDurationMins ?? null);
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-      <div className="flex items-center justify-between px-1">
+    <div
+      className={mapExpanded
+        ? 'fixed inset-0 z-50 bg-white flex flex-col sheet-expand'
+        : 'bg-white rounded-2xl border border-gray-100 p-4 space-y-3'}
+    >
+      <div className={mapExpanded ? 'flex items-center justify-between px-4 py-3 border-b border-gray-100' : 'flex items-center justify-between px-1'}>
         <div className="flex items-baseline gap-2">
           <p className="text-sm font-bold text-gray-900">Live Location</p>
           {routeSummary && <p className="text-xs text-gray-400">{routeSummary}</p>}
         </div>
-        {hasDriver && (
-          <span className={`text-xs px-2.5 py-1 rounded-full font-semibold whitespace-nowrap ${
-            stale ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'
-          }`}>
-            {stale ? 'Stale' : 'Live'} · updated {formatAgo(lastLocationAt)}
-          </span>
+        <div className="flex items-center gap-2">
+          {hasDriver && (
+            <span className={`text-xs px-2.5 py-1 rounded-full font-semibold whitespace-nowrap ${
+              stale ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'
+            }`}>
+              {stale ? 'Stale' : 'Live'} · updated {formatAgo(lastLocationAt)}
+            </span>
+          )}
+          {mapExpanded && (
+            <button
+              onClick={() => setMapExpanded(false)}
+              aria-label="Collapse map"
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors flex-shrink-0"
+            >
+              <X size={18} className="text-gray-600" />
+            </button>
+          )}
+        </div>
+      </div>
+      <div className={mapExpanded ? 'relative flex-1 min-h-0' : 'relative'}>
+        <OlaMap
+          center={[markers[0].lng, markers[0].lat]}
+          zoom={12}
+          markers={markers}
+          route={route}
+          plannedRoute={plannedRoute}
+          fitToMarkers
+          fitTrigger={mapExpanded ? 1 : 0}
+          onMapReady={(m) => { mapObjRef.current = m; }}
+          className={mapExpanded ? 'w-full h-full' : 'w-full h-72 rounded-xl overflow-hidden'}
+        />
+        {!mapExpanded && (
+          <button
+            onClick={() => setMapExpanded(true)}
+            aria-label="Expand map"
+            className="absolute top-2 left-2 w-9 h-9 flex items-center justify-center bg-white rounded-lg border border-gray-200 shadow-md"
+          >
+            <Maximize2 size={16} className="text-gray-700" />
+          </button>
         )}
       </div>
-      <OlaMap
-        center={[markers[0].lng, markers[0].lat]}
-        zoom={12}
-        markers={markers}
-        route={route}
-        plannedRoute={plannedRoute}
-        fitToMarkers
-        className="w-full h-72 rounded-xl overflow-hidden"
-      />
     </div>
   );
 }
