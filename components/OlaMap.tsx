@@ -14,6 +14,49 @@ const DARK_MODE_FILTER = "invert(1) hue-rotate(180deg) brightness(0.9) contrast(
 const OLA_KEY = process.env.NEXT_PUBLIC_OLA_MAPS_KEY || "";
 const STYLE_URL = `https://api.olamaps.io/tiles/vector/v1/styles/default-light-standard/style.json?api_key=${OLA_KEY}`;
 
+function withApiKey(url: string): string {
+  return url.includes("api_key") ? url : url + (url.includes("?") ? "&" : "?") + `api_key=${OLA_KEY}`;
+}
+
+// Ola's hosted default-light-standard style has shipped layers referencing
+// source-layers that don't actually exist in the source's own TileJSON (seen
+// live: "3d_model_data" -> source-layer "3d_model" on "vectordata", which
+// only declares "hyperchargers"). MapLibre GL JS validates layers against
+// the source schema at style-load time and treats a mismatch as fatal — the
+// whole style fails to load, so ANY invalid layer here blanks the entire
+// map, not just the broken feature. Fetching the style ourselves and
+// dropping unresolvable layers keeps everything else rendering even if Ola
+// ships another bad layer in the future.
+async function fetchSanitizedStyle(): Promise<maplibregl.StyleSpecification> {
+  const style = await fetch(STYLE_URL).then(r => r.json());
+  const vectorSourceIds = Object.entries(style.sources || {})
+    .filter(([, s]: [string, any]) => s?.type === "vector" && typeof s.url === "string")
+    .map(([id]) => id);
+
+  const validSourceLayers = new Map<string, Set<string>>();
+  await Promise.all(vectorSourceIds.map(async (id) => {
+    try {
+      const tilejson = await fetch(withApiKey(style.sources[id].url)).then(r => r.json());
+      validSourceLayers.set(id, new Set((tilejson.vector_layers || []).map((l: { id: string }) => l.id)));
+    } catch (err) {
+      // If we can't fetch a source's TileJSON, don't drop its layers on that
+      // basis alone — only filter what we can actually disprove.
+      console.error(`[OlaMap] couldn't validate source "${id}"`, err);
+    }
+  }));
+
+  style.layers = (style.layers || []).filter((layer: any) => {
+    if (!layer.source || !layer["source-layer"]) return true; // background/raster layers etc.
+    const known = validSourceLayers.get(layer.source);
+    if (!known) return true; // source wasn't checked — leave it alone
+    if (known.has(layer["source-layer"])) return true;
+    console.error(`[OlaMap] dropping style layer "${layer.id}" — source-layer "${layer["source-layer"]}" not in source "${layer.source}"`);
+    return false;
+  });
+
+  return style;
+}
+
 export type OlaMarker = {
   lng: number; lat: number; color?: string; label?: string; popup?: string;
   // id marks this marker for smooth lerp/RAF animation between updates
@@ -246,84 +289,102 @@ export default function OlaMap({
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
-    let map: maplibregl.Map;
-    try {
-      map = new maplibregl.Map({
-        container: ref.current,
-        style: STYLE_URL,
-        center, zoom,
-        attributionControl: false,
-        transformRequest: (url: string) => {
-          if (url.includes("api.olamaps.io") && !url.includes("api_key")) {
-            return { url: url + (url.includes("?") ? "&" : "?") + `api_key=${OLA_KEY}` };
-          }
-          return { url };
-        },
+    let cancelled = false;
+
+    (async () => {
+      let style: maplibregl.StyleSpecification;
+      try {
+        style = await fetchSanitizedStyle();
+      } catch (err) {
+        console.error("[OlaMap] failed to fetch/sanitize style", err);
+        if (!cancelled) setMapError(err instanceof Error ? err.message : "Map style failed to load");
+        return;
+      }
+      // Container may have unmounted (or another instance already claimed
+      // it) while the style fetch above was in flight.
+      if (cancelled || !ref.current || mapRef.current) return;
+
+      let map: maplibregl.Map;
+      try {
+        map = new maplibregl.Map({
+          container: ref.current,
+          style,
+          center, zoom,
+          attributionControl: false,
+          transformRequest: (url: string) => {
+            if (url.includes("api.olamaps.io") && !url.includes("api_key")) {
+              return { url: withApiKey(url) };
+            }
+            return { url };
+          },
+        });
+      } catch (err) {
+        // Most commonly a WebGL context failure (unsupported device/browser,
+        // e.g. some in-app webviews) — MapLibre throws synchronously from the
+        // constructor rather than emitting an 'error' event for this case.
+        console.error("[OlaMap] failed to construct map (likely no WebGL support)", err);
+        setMapError(err instanceof Error ? err.message : "Map failed to initialize");
+        return;
+      }
+      // Fatal style/tile errors (bad key, 401/403, network) emit here instead
+      // of throwing — without a listener MapLibre just throws async in a
+      // timeout, which is easy to miss in production. Surface it explicitly.
+      map.on("error", (e) => {
+        console.error("[OlaMap] map error", e.error);
+        setMapError(e.error?.message || "Map tiles failed to load");
       });
-    } catch (err) {
-      // Most commonly a WebGL context failure (unsupported device/browser,
-      // e.g. some in-app webviews) — MapLibre throws synchronously from the
-      // constructor rather than emitting an 'error' event for this case.
-      console.error("[OlaMap] failed to construct map (likely no WebGL support)", err);
-      setMapError(err instanceof Error ? err.message : "Map failed to initialize");
-      return;
-    }
-    // Fatal style/tile errors (bad key, 401/403, network) emit here instead
-    // of throwing — without a listener MapLibre just throws async in a
-    // timeout, which is easy to miss in production. Surface it explicitly.
-    map.on("error", (e) => {
-      console.error("[OlaMap] map error", e.error);
-      setMapError(e.error?.message || "Map tiles failed to load");
-    });
-    map.addControl(new maplibregl.NavigationControl(), "top-right");
-    // Ola's own tile responses ship an empty attribution string, so without this
-    // MapLibre GL JS falls back to its library-default placeholder ("MapLibre"
-    // linking to maplibre.org) instead of real, ToS-required credit. Ola Maps'
-    // Platform Terms (Section 16) require attribution to "Ola Maps" linking to
-    // openstreetmap.org/copyright (data is ODbL/OpenStreetMap-derived).
-    map.addControl(new maplibregl.AttributionControl({
-      compact: true,
-      customAttribution: '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">Ola Maps</a>',
-    }));
-    map.on("load", () => {
-      // Planned route goes in first so the actual trail draws on top of it.
-      // Solid orange, matching cab-panel's route-line paint values exactly —
-      // this is the primary line the user sees.
-      map.addSource("planned-route", {
-        type: "geojson",
-        data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } },
+      map.addControl(new maplibregl.NavigationControl(), "top-right");
+      // Ola's own tile responses ship an empty attribution string, so without this
+      // MapLibre GL JS falls back to its library-default placeholder ("MapLibre"
+      // linking to maplibre.org) instead of real, ToS-required credit. Ola Maps'
+      // Platform Terms (Section 16) require attribution to "Ola Maps" linking to
+      // openstreetmap.org/copyright (data is ODbL/OpenStreetMap-derived).
+      map.addControl(new maplibregl.AttributionControl({
+        compact: true,
+        customAttribution: '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">Ola Maps</a>',
+      }));
+      map.on("load", () => {
+        // Planned route goes in first so the actual trail draws on top of it.
+        // Solid orange, matching cab-panel's route-line paint values exactly —
+        // this is the primary line the user sees.
+        map.addSource("planned-route", {
+          type: "geojson",
+          data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } },
+        });
+        map.addLayer({
+          id: "planned-route-line", type: "line", source: "planned-route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#FF6B2B", "line-width": 4, "line-opacity": 0.85 },
+        });
+        // Actual trail — same orange, thinner and at 60% opacity so it reads as
+        // a distinct layer when it diverges from the planned route (and simply
+        // blends into it when the driver is on-route, which is fine).
+        map.addSource("route", {
+          type: "geojson",
+          data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } },
+        });
+        map.addLayer({
+          id: "route-line", type: "line", source: "route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#FF6B2B", "line-width": 2.5, "line-opacity": 0.6 },
+        });
+        loadedRef.current = true;
+        setLoaded(true);
+        pendingRef.current.markers?.();
+        pendingRef.current.route?.();
+        pendingRef.current.planned?.();
+        pendingRef.current.paint?.();
+        pendingRef.current.fit?.();
+        pendingRef.current.dark?.();
+        pendingRef.current = {};
+        onMapReady?.(map);
       });
-      map.addLayer({
-        id: "planned-route-line", type: "line", source: "planned-route",
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#FF6B2B", "line-width": 4, "line-opacity": 0.85 },
-      });
-      // Actual trail — same orange, thinner and at 60% opacity so it reads as
-      // a distinct layer when it diverges from the planned route (and simply
-      // blends into it when the driver is on-route, which is fine).
-      map.addSource("route", {
-        type: "geojson",
-        data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } },
-      });
-      map.addLayer({
-        id: "route-line", type: "line", source: "route",
-        layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": "#FF6B2B", "line-width": 2.5, "line-opacity": 0.6 },
-      });
-      loadedRef.current = true;
-      setLoaded(true);
-      pendingRef.current.markers?.();
-      pendingRef.current.route?.();
-      pendingRef.current.planned?.();
-      pendingRef.current.paint?.();
-      pendingRef.current.fit?.();
-      pendingRef.current.dark?.();
-      pendingRef.current = {};
-      onMapReady?.(map);
-    });
-    mapRef.current = map;
+      mapRef.current = map;
+    })();
+
     return () => {
-      map.remove();
+      cancelled = true;
+      mapRef.current?.remove();
       mapRef.current = null;
       loadedRef.current = false;
       pendingRef.current = {};
