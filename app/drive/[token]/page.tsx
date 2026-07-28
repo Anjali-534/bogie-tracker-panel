@@ -64,7 +64,6 @@ export default function DriverSharePage() {
   const [sendError, setSendError] = useState(false);
   const [lastSentAt, setLastSentAt] = useState<Date | null>(null);
   const [myPos, setMyPos] = useState<{ lat: number; lng: number; heading?: number } | null>(null);
-  const [mapExpanded, setMapExpanded] = useState(false);
   const [, setTick] = useState(0); // forces re-render so "updated Xs ago" stays live
 
   // GPS auto-detect "Reached" (Phase 2) — gates Sign + Delivered below.
@@ -85,8 +84,6 @@ export default function DriverSharePage() {
   const watchIdRef = useRef<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const latestPosRef = useRef<{ lat: number; lng: number } | null>(null);
-  const mapObjRef = useRef<{ resize: () => void } | null>(null);
-  const dragStartYRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,20 +108,6 @@ export default function DriverSharePage() {
 
   // Always clean up geolocation watchers/timers on unmount.
   useEffect(() => stopSharing, []);
-
-  // The map canvas needs an explicit resize after its container jumps between
-  // compact and fullscreen — once right away, once after the animation settles.
-  // Lock body scroll behind the fullscreen sheet while it's open.
-  useEffect(() => {
-    document.body.style.overflow = mapExpanded ? 'hidden' : '';
-    const t1 = setTimeout(() => mapObjRef.current?.resize(), 50);
-    const t2 = setTimeout(() => mapObjRef.current?.resize(), 300);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      document.body.style.overflow = '';
-    };
-  }, [mapExpanded]);
 
   // Decoded once — the stored route never changes for an order.
   const plannedRoute = useMemo(
@@ -305,303 +288,217 @@ export default function DriverSharePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-md mx-auto space-y-5">
-        <div className="text-center">
-          {order.company_logo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={order.company_logo_url} alt={order.company_name || 'Company logo'} className="h-16 w-auto max-w-[160px] sm:max-w-none object-contain mx-auto mb-2" />
-          ) : (
-            <Image src="/logo.png" alt="bogie" width={1058} height={330} priority className="w-24 h-auto mx-auto mb-2" />
-          )}
-          {order.company_name ? (
-            <>
-              <h1 className="text-xl font-extrabold text-gray-900 leading-tight">{order.company_name}</h1>
-              {order.booked_for_company_name && (
-                <p className="text-sm text-gray-400 mt-0.5">
-                  For: <span className="font-bold text-gray-700">{order.booked_for_company_name}</span>
-                </p>
-              )}
-              <p className="text-[11px] font-semibold text-orange-500 uppercase tracking-wider mt-1">Location Sharing</p>
-            </>
-          ) : (
-            <p className="text-xs font-semibold text-orange-500 uppercase tracking-wider">Location Sharing</p>
-          )}
-        </div>
-
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Route</p>
-            <span className={`text-xs px-3 py-1 rounded-full font-semibold whitespace-nowrap ${STATUS_STYLES[order.status]}`}>
-              {STATUS_LABELS[order.status]}
-            </span>
-          </div>
-          <RouteRows
-            from={order.dispatch_from}
-            to={order.dispatch_to}
-            fromName={order.company_name}
-            toName={order.booked_for_company_name}
-          />
-          <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-gray-100">
-            Vehicle: <span className="font-bold text-gray-600">{order.vehicle_number}</span>
-            {routeSummary && <span> · {routeSummary}</span>}
-          </p>
-        </div>
-
-        {mapMarkers.length === 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 text-center">
-            <p className="text-xs text-gray-400">Route details not available for this order.</p>
-          </div>
-        )}
-
-        {mapMarkers.length > 0 && (
-          /* The same element hosts both states so the OlaMap instance (and the
-             geolocation stream feeding it) survives expand/collapse — only the
-             wrapper classes change. */
-          <div
-            className={mapExpanded
-              ? 'fixed inset-0 z-50 bg-white flex flex-col sheet-expand'
-              : 'bg-white rounded-2xl border border-gray-100 p-3 space-y-3'}
-          >
-            {mapExpanded && (
-              <div
-                className="flex items-center justify-between px-3 py-2 border-b border-gray-100 touch-none select-none"
-                onTouchStart={(e) => { dragStartYRef.current = e.touches[0].clientY; }}
-                onTouchMove={(e) => {
-                  if (dragStartYRef.current != null && e.touches[0].clientY - dragStartYRef.current > 70) {
-                    dragStartYRef.current = null;
-                    setMapExpanded(false);
-                  }
-                }}
-                onTouchEnd={() => { dragStartYRef.current = null; }}
-              >
-                <span className="w-9" />
-                <span className="w-10 h-1.5 bg-gray-300 rounded-full" />
-                <button
-                  onClick={() => setMapExpanded(false)}
-                  aria-label="Collapse map"
-                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
-                >
-                  <X size={18} className="text-gray-600" />
-                </button>
-              </div>
-            )}
-
-            <div className={mapExpanded ? 'relative flex-1 min-h-0' : 'relative'}>
-              <OlaMap
-                center={[mapMarkers[0].lng, mapMarkers[0].lat]}
-                zoom={11}
-                markers={mapMarkers}
-                plannedRoute={plannedRoute}
-                fitToMarkers
-                fitTrigger={mapExpanded ? 1 : 0}
-                onMapReady={(m) => { mapObjRef.current = m; }}
-                className={mapExpanded ? 'w-full h-full' : 'w-full h-52 rounded-xl overflow-hidden'}
-              />
-              {!mapExpanded && (
-                <button
-                  onClick={() => setMapExpanded(true)}
-                  aria-label="Expand map"
-                  className="absolute top-2 left-2 w-9 h-9 flex items-center justify-center bg-white rounded-lg border border-gray-200 shadow-md"
-                >
-                  <Maximize2 size={16} className="text-gray-700" />
-                </button>
+    <div className="min-h-dvh bg-gray-50">
+      <div className="mx-auto flex min-h-dvh max-w-5xl flex-col px-0 py-0 sm:px-3 sm:py-3 lg:px-4 lg:py-4">
+        <div className="flex min-h-dvh flex-col overflow-hidden rounded-none border-0 bg-white shadow-sm sm:rounded-[28px] sm:border sm:border-gray-200 lg:min-h-[calc(100dvh-2rem)]">
+          <header className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 sm:px-5">
+            <div className="min-w-0">
+              {order.company_logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={order.company_logo_url} alt={order.company_name || 'Company logo'} className="h-10 w-auto max-w-[120px] object-contain" />
+              ) : (
+                <Image src="/logo.png" alt="bogie" width={1058} height={330} priority className="h-10 w-auto" />
               )}
             </div>
-
-            {mapExpanded ? (
-              /* Bottom bar — sharing stays controllable without leaving the map. */
-              <div className="border-t border-gray-100 bg-white px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-                {order.is_terminal ? (
-                  <p className="text-center text-sm font-semibold text-gray-500 py-2">This trip has ended.</p>
-                ) : sharing ? (
-                  <div className="flex items-center gap-3">
-                    <span className={`w-2.5 h-2.5 rounded-full animate-pulse flex-shrink-0 ${gpsWaiting ? 'bg-amber-500' : 'bg-green-500'}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-semibold ${gpsWaiting ? 'text-amber-600' : 'text-green-600'}`}>{sharingHeadline}</p>
-                      <p className="text-[11px] text-gray-400 truncate">{sharingSubtext}</p>
-                    </div>
-                    {navigateHref && (
-                      <a
-                        href={navigateHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="Navigate with Google Maps"
-                        className="w-11 h-11 flex items-center justify-center border border-gray-200 rounded-xl"
-                      >
-                        <Navigation size={16} className="text-blue-600" />
-                      </a>
-                    )}
-                    <button
-                      onClick={stopSharing}
-                      className="px-4 py-2.5 border-2 border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors"
-                    >
-                      Stop
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={startSharing}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 transition-colors"
-                    >
-                      <Navigation size={16} />
-                      Start Sharing Location
-                    </button>
-                    {navigateHref && (
-                      <a
-                        href={navigateHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label="Navigate with Google Maps"
-                        className="w-11 h-11 flex items-center justify-center border border-gray-200 rounded-xl"
-                      >
-                        <Navigation size={16} className="text-blue-600" />
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              navigateHref && (
-                <a
-                  href={navigateHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 w-full py-3 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <Navigation size={15} className="text-blue-600" />
-                  Navigate with Google Maps
-                </a>
-              )
-            )}
-          </div>
-        )}
-
-        {order.is_terminal ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
-            <p className="text-sm font-semibold text-gray-600">This trip has ended.</p>
-            <p className="text-xs text-gray-400 mt-1">Location sharing is closed for this order.</p>
-          </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-            {permissionDenied && (
-              <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl p-3">
-                <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-red-600">
-                  Location permission was denied. Please enable location access for this site in your browser settings, then tap Start again.
-                </p>
-              </div>
-            )}
-            {unsupported && (
-              <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl p-3">
-                <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-red-600">Location sharing isn&apos;t supported on this device/browser.</p>
-              </div>
-            )}
-            {sendError && sharing && (
-              <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl p-3">
-                <AlertTriangle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-700">Couldn&apos;t send your last update — will retry automatically.</p>
-              </div>
-            )}
-
-            {sharing ? (
-              <>
-                <div className={`flex items-center justify-center gap-2 rounded-xl py-3 font-semibold text-sm ${gpsWaiting ? 'text-amber-600 bg-amber-50' : 'text-green-600 bg-green-50'}`}>
-                  <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${gpsWaiting ? 'bg-amber-500' : 'bg-green-500'}`} />
-                  {sharingHeadline}
-                </div>
-                <p className="text-center text-xs text-gray-400">{sharingSubtext}</p>
-                <button
-                  onClick={stopSharing}
-                  className="w-full py-4 bg-white border-2 border-red-200 text-red-600 rounded-2xl text-base font-bold hover:bg-red-50 transition-colors"
-                >
-                  Stop Sharing
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={startSharing}
-                className="w-full flex items-center justify-center gap-2 py-4 bg-orange-500 text-white rounded-2xl text-base font-bold hover:bg-orange-600 transition-colors"
-              >
-                <Navigation size={18} />
-                Start Sharing Location
-              </button>
-            )}
-
-            <div className="flex items-start gap-2 text-gray-400">
-              <MapPin size={14} className="flex-shrink-0 mt-0.5" />
-              <p className="text-xs">
-                Keep this page open and your screen on while sharing — closing the app or locking your screen will stop location updates.
+            <div className="text-right">
+              {order.company_name ? (
+                <p className="text-sm font-extrabold text-gray-900 leading-tight">{order.company_name}</p>
+              ) : (
+                <p className="text-sm font-extrabold text-gray-900 leading-tight">Location Sharing</p>
+              )}
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-orange-500">
+                {order.booked_for_company_name ? `For ${order.booked_for_company_name}` : 'Location Sharing'}
               </p>
             </div>
-          </div>
-        )}
+          </header>
 
-        {messageBanner && (
-          <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl p-3">
-            <MessageCircle size={16} className="text-blue-500 flex-shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wide">Message from {order.company_name || 'Company'}</p>
-              <p className="text-sm text-blue-900 mt-0.5">{messageBanner.body}</p>
-            </div>
-            <button onClick={() => setMessageBanner(null)} aria-label="Dismiss" className="flex-shrink-0 text-blue-400 hover:text-blue-600">
-              <X size={16} />
-            </button>
-          </div>
-        )}
+          <div className="relative flex-1 min-h-0">
+            {mapMarkers.length > 0 ? (
+              <>
+                <OlaMap
+                  center={[mapMarkers[0].lng, mapMarkers[0].lat]}
+                  zoom={11}
+                  markers={mapMarkers}
+                  plannedRoute={plannedRoute}
+                  fitToMarkers
+                  fitTrigger={1}
+                  className="h-full w-full"
+                />
 
-        {!order.is_terminal && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-            <div>
-              <h2 className="text-sm font-bold text-gray-900 mb-1">Quick Status</h2>
-              <p className="text-xs text-gray-400">Let the company know where things stand.</p>
-            </div>
-
-            {deliveryClaimed ? (
-              <div className="flex items-center gap-2 bg-green-50 border border-green-100 rounded-xl p-3">
-                <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-                <p className="text-xs font-semibold text-green-700">Delivery claimed — waiting for the company to confirm.</p>
-              </div>
-            ) : canShowDelivered ? (
-              <button
-                onClick={() => { setSignatureError(null); setShowSignaturePad(true); }}
-                className="w-full px-3 py-3 rounded-xl bg-orange-500 text-white text-sm font-bold hover:bg-orange-600 transition-colors"
-              >
-                {DRIVER_EVENT_KIND_LABELS.delivery_claimed}
-              </button>
-            ) : (
-              <p className="text-xs text-gray-400 text-center py-2">You&apos;ll be able to confirm delivery once you&apos;re near the destination.</p>
-            )}
-          </div>
-        )}
-
-        {messages.length > 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5">
-            <button
-              onClick={() => setShowMessageFeed(s => !s)}
-              className="w-full flex items-center justify-between text-sm font-bold text-gray-900"
-            >
-              <span className="flex items-center gap-1.5"><MessageCircle size={14} />Messages ({messages.length})</span>
-              <span className="text-xs text-gray-400">{showMessageFeed ? 'Hide' : 'Show'}</span>
-            </button>
-            {showMessageFeed && (
-              <div className="mt-3 space-y-2.5">
-                {messages.slice().reverse().map(m => (
-                  <div key={m.id} className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-sm text-gray-800">{m.body}</p>
-                    <p className="text-[11px] text-gray-400 mt-1">{new Date(m.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3 sm:p-4">
+                  <div className="rounded-full bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-orange-500">Live route</p>
                   </div>
-                ))}
+                  {navigateHref && (
+                    <a
+                      href={navigateHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="Navigate with Google Maps"
+                      className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white/90 shadow-sm backdrop-blur"
+                    >
+                      <Navigation size={18} className="text-blue-600" />
+                    </a>
+                  )}
+                </div>
+
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-white via-white/95 to-white/20 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-10 sm:px-4">
+                  <div className="pointer-events-auto mx-auto max-w-xl rounded-[24px] border border-gray-200 bg-white/95 p-4 shadow-[0_-12px_32px_rgba(15,23,42,0.13)] backdrop-blur sm:p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-400">Route</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Vehicle <span className="font-semibold text-gray-700">{order.vehicle_number}</span>
+                          {routeSummary && <span> · {routeSummary}</span>}
+                        </p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold whitespace-nowrap ${STATUS_STYLES[order.status]}`}>
+                        {STATUS_LABELS[order.status]}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50/80 p-3">
+                      <RouteRows
+                        from={order.dispatch_from}
+                        to={order.dispatch_to}
+                        fromName={order.company_name}
+                        toName={order.booked_for_company_name}
+                      />
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {messageBanner && (
+                        <div className="flex items-start gap-2 rounded-2xl border border-blue-100 bg-blue-50 p-3">
+                          <MessageCircle size={16} className="mt-0.5 flex-shrink-0 text-blue-500" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-bold uppercase tracking-wide text-blue-700">Message from {order.company_name || 'Company'}</p>
+                            <p className="mt-1 text-sm text-blue-900">{messageBanner.body}</p>
+                          </div>
+                          <button onClick={() => setMessageBanner(null)} aria-label="Dismiss" className="flex-shrink-0 text-blue-400 hover:text-blue-600">
+                            <X size={16} />
+                          </button>
+                        </div>
+                      )}
+
+                      {order.is_terminal ? (
+                        <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3 text-center">
+                          <p className="text-sm font-semibold text-gray-600">This trip has ended.</p>
+                          <p className="mt-1 text-xs text-gray-400">Location sharing is closed for this order.</p>
+                        </div>
+                      ) : (
+                        <>
+                          {permissionDenied && (
+                            <div className="flex items-start gap-2 rounded-2xl border border-red-100 bg-red-50 p-3">
+                              <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-red-500" />
+                              <p className="text-xs text-red-600">
+                                Location permission was denied. Please enable location access for this site in your browser settings, then tap Start again.
+                              </p>
+                            </div>
+                          )}
+                          {unsupported && (
+                            <div className="flex items-start gap-2 rounded-2xl border border-red-100 bg-red-50 p-3">
+                              <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-red-500" />
+                              <p className="text-xs text-red-600">Location sharing isn&apos;t supported on this device/browser.</p>
+                            </div>
+                          )}
+                          {sendError && sharing && (
+                            <div className="flex items-start gap-2 rounded-2xl border border-amber-100 bg-amber-50 p-3">
+                              <AlertTriangle size={16} className="mt-0.5 flex-shrink-0 text-amber-500" />
+                              <p className="text-xs text-amber-700">Couldn&apos;t send your last update — will retry automatically.</p>
+                            </div>
+                          )}
+
+                          {sharing ? (
+                            <div className="rounded-2xl border border-green-100 bg-green-50 p-3">
+                              <div className={`flex items-center gap-2 font-semibold text-sm ${gpsWaiting ? 'text-amber-600' : 'text-green-600'}`}>
+                                <span className={`h-2.5 w-2.5 rounded-full animate-pulse ${gpsWaiting ? 'bg-amber-500' : 'bg-green-500'}`} />
+                                {sharingHeadline}
+                              </div>
+                              <p className="mt-1 text-xs text-gray-500">{sharingSubtext}</p>
+                              <button
+                                onClick={stopSharing}
+                                className="mt-3 w-full rounded-2xl border-2 border-red-200 bg-white px-3 py-3 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"
+                              >
+                                Stop Sharing
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={startSharing}
+                              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-orange-600"
+                            >
+                              <Navigation size={18} />
+                              Start Sharing Location
+                            </button>
+                          )}
+
+                          <div className="flex items-start gap-2 rounded-2xl border border-gray-100 bg-gray-50 p-3 text-gray-400">
+                            <MapPin size={14} className="mt-0.5 flex-shrink-0" />
+                            <p className="text-xs">
+                              Keep this page open and your screen on while sharing — closing the app or locking your screen will stop location updates.
+                            </p>
+                          </div>
+
+                          {!order.is_terminal && (
+                            <div className="rounded-2xl border border-orange-100 bg-orange-50/80 p-3">
+                              <div>
+                                <h2 className="text-sm font-bold text-gray-900">Quick Status</h2>
+                                <p className="mt-1 text-xs text-gray-500">Let the company know where things stand.</p>
+                              </div>
+                              {deliveryClaimed ? (
+                                <div className="mt-3 flex items-center gap-2 rounded-xl border border-green-100 bg-green-50 p-3">
+                                  <span className="h-2 w-2 rounded-full bg-green-500 flex-shrink-0" />
+                                  <p className="text-xs font-semibold text-green-700">Delivery claimed — waiting for the company to confirm.</p>
+                                </div>
+                              ) : canShowDelivered ? (
+                                <button
+                                  onClick={() => { setSignatureError(null); setShowSignaturePad(true); }}
+                                  className="mt-3 w-full rounded-xl bg-orange-500 px-3 py-3 text-sm font-bold text-white transition-colors hover:bg-orange-600"
+                                >
+                                  {DRIVER_EVENT_KIND_LABELS.delivery_claimed}
+                                </button>
+                              ) : (
+                                <p className="mt-3 text-center text-xs text-gray-400">You&apos;ll be able to confirm delivery once you&apos;re near the destination.</p>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {messages.length > 0 && (
+                        <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3">
+                          <button
+                            onClick={() => setShowMessageFeed(s => !s)}
+                            className="flex w-full items-center justify-between text-sm font-bold text-gray-900"
+                          >
+                            <span className="flex items-center gap-1.5"><MessageCircle size={14} />Messages ({messages.length})</span>
+                            <span className="text-xs text-gray-400">{showMessageFeed ? 'Hide' : 'Show'}</span>
+                          </button>
+                          {showMessageFeed && (
+                            <div className="mt-3 space-y-2.5">
+                              {messages.slice().reverse().map(m => (
+                                <div key={m.id} className="rounded-xl bg-white p-3">
+                                  <p className="text-sm text-gray-800">{m.body}</p>
+                                  <p className="mt-1 text-[11px] text-gray-400">{new Date(m.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex h-full items-center justify-center bg-gray-50 p-6">
+                <div className="rounded-2xl border border-gray-100 bg-white p-4 text-center shadow-sm">
+                  <p className="text-xs text-gray-400">Route details not available for this order.</p>
+                </div>
               </div>
             )}
           </div>
-        )}
-
-        <p className="text-center text-[11px] text-gray-400">
-          bogie Tracker · Aggarwal Publicity and Marketing Pvt. Ltd.
-        </p>
+        </div>
       </div>
     </div>
   );

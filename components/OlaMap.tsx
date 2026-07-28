@@ -221,6 +221,10 @@ export default function OlaMap({
   const pendingRef = useRef<{ markers?: () => void; route?: () => void; planned?: () => void; paint?: () => void; fit?: () => void; dark?: () => void }>({});
   // Drives the branded skeleton overlay until the first 'load' fires.
   const [loaded, setLoaded] = useState(false);
+  // Set when map init throws (e.g. no WebGL context) or MapLibre emits a
+  // fatal 'error' (e.g. style/tile fetch failing) — surfaces the failure
+  // instead of leaving a silent blank canvas behind the loading skeleton.
+  const [mapError, setMapError] = useState<string | null>(null);
   // CSS-filter dark mode (Ola only ships a light vector style — see Phase 0
   // investigation). Persisted per-browser so toggling on one map instance
   // carries across the panel's other maps.
@@ -242,17 +246,34 @@ export default function OlaMap({
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
-    const map = new maplibregl.Map({
-      container: ref.current,
-      style: STYLE_URL,
-      center, zoom,
-      attributionControl: false,
-      transformRequest: (url: string) => {
-        if (url.includes("api.olamaps.io") && !url.includes("api_key")) {
-          return { url: url + (url.includes("?") ? "&" : "?") + `api_key=${OLA_KEY}` };
-        }
-        return { url };
-      },
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: ref.current,
+        style: STYLE_URL,
+        center, zoom,
+        attributionControl: false,
+        transformRequest: (url: string) => {
+          if (url.includes("api.olamaps.io") && !url.includes("api_key")) {
+            return { url: url + (url.includes("?") ? "&" : "?") + `api_key=${OLA_KEY}` };
+          }
+          return { url };
+        },
+      });
+    } catch (err) {
+      // Most commonly a WebGL context failure (unsupported device/browser,
+      // e.g. some in-app webviews) — MapLibre throws synchronously from the
+      // constructor rather than emitting an 'error' event for this case.
+      console.error("[OlaMap] failed to construct map (likely no WebGL support)", err);
+      setMapError(err instanceof Error ? err.message : "Map failed to initialize");
+      return;
+    }
+    // Fatal style/tile errors (bad key, 401/403, network) emit here instead
+    // of throwing — without a listener MapLibre just throws async in a
+    // timeout, which is easy to miss in production. Surface it explicitly.
+    map.on("error", (e) => {
+      console.error("[OlaMap] map error", e.error);
+      setMapError(e.error?.message || "Map tiles failed to load");
     });
     map.addControl(new maplibregl.NavigationControl(), "top-right");
     // Ola's own tile responses ship an empty attribution string, so without this
@@ -510,12 +531,17 @@ export default function OlaMap({
   return (
     <div className="relative">
       <div ref={ref} className={className} />
-      {!loaded && (
+      {!loaded && !mapError && (
         <div className={`${className} absolute inset-0 z-[5] bg-gray-100 flex items-center justify-center`}>
           <div className="flex flex-col items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
             <span className="text-xs font-semibold text-gray-400">Loading map…</span>
           </div>
+        </div>
+      )}
+      {mapError && (
+        <div className={`${className} absolute inset-0 z-[5] bg-gray-100 flex items-center justify-center p-4`}>
+          <p className="text-xs font-semibold text-gray-400 text-center">Map couldn&apos;t load on this device.</p>
         </div>
       )}
       <button
