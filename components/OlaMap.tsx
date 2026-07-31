@@ -248,6 +248,7 @@ export default function OlaMap({
   // always call the latest callback without needing it in its own deps.
   const onMarkerDragEndRef = useRef(onMarkerDragEnd);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   // Animated (id-tagged) markers, keyed by id — kept alive across updates so
   // position changes can lerp instead of jumping, mirroring cab-panel's
@@ -380,10 +381,28 @@ export default function OlaMap({
         onMapReady?.(map);
       });
       mapRef.current = map;
+      // Container size can change after construction for reasons MapLibre's
+      // own mount-time read can't see — a parent flex/dvh chain still
+      // settling, or a fullscreen toggle swapping wrapper classes — and
+      // without a nudge the WebGL viewport stays sized to whatever the
+      // container measured at construction time (confirmed live: this was
+      // the root cause of a permanently blank map on /drive/[token], the
+      // only OlaMap consumer that had no manual resize() call anywhere).
+      // A ResizeObserver on the container itself is robust to any of these
+      // cases without every call site needing its own setTimeout guess.
+      if (ref.current) {
+        const observer = new ResizeObserver(() => {
+          mapRef.current?.resize();
+        });
+        observer.observe(ref.current);
+        resizeObserverRef.current = observer;
+      }
     })();
 
     return () => {
       cancelled = true;
+      resizeObserverRef.current?.disconnect();
+      resizeObserverRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
       loadedRef.current = false;
@@ -589,11 +608,30 @@ export default function OlaMap({
     if (loadedRef.current) update(); else pendingRef.current.paint = update;
   }, [plannedRouteColor, plannedRouteDashed]);
 
+  // "h-full" callers (every fullscreen/expand state, and /drive/[token]'s
+  // only layout) mean "fill the nearest positioned ancestor" — every one of
+  // them already wraps OlaMap in a position:relative element for exactly
+  // this reason. Resolving that via CSS height:100% requires the immediate
+  // parent to have a *definite* height, which a flex-grow item's used size
+  // doesn't reliably count as here — confirmed live: it left /drive/[token]
+  // with a permanently zero-height container and a blank map. Absolute
+  // inset-0 fills the positioned ancestor directly, sidestepping that
+  // requirement entirely. Fixed (h-72, h-40) and viewport-relative
+  // (h-[60vh]) callers don't have this problem — those sizes resolve on
+  // their own — so they keep normal block flow.
+  const fillParent = className.includes("h-full");
+
   return (
-    <div className="relative">
-      <div ref={ref} className={className} />
+    <div className={fillParent ? "absolute inset-0" : `relative ${className}`}>
+      {/* Inline style, not a Tailwind class: MapLibre's own stylesheet ships
+          ".maplibregl-map { position: relative }" and applies that class to
+          whatever container it's given post-construction — a same-specificity
+          class rule that silently wins the cascade over our "absolute" utility
+          depending on import order, breaking inset-0 sizing. An inline style
+          can't lose to a stylesheet class. */}
+      <div ref={ref} style={{ position: "absolute", inset: 0 }} />
       {!loaded && !mapError && (
-        <div className={`${className} absolute inset-0 z-[5] bg-gray-100 flex items-center justify-center`}>
+        <div className="absolute inset-0 z-[5] bg-gray-100 flex items-center justify-center">
           <div className="flex flex-col items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
             <span className="text-xs font-semibold text-gray-400">Loading map…</span>
@@ -601,7 +639,7 @@ export default function OlaMap({
         </div>
       )}
       {mapError && (
-        <div className={`${className} absolute inset-0 z-[5] bg-gray-100 flex items-center justify-center p-4`}>
+        <div className="absolute inset-0 z-[5] bg-gray-100 flex items-center justify-center p-4">
           <p className="text-xs font-semibold text-gray-400 text-center">Map couldn&apos;t load on this device.</p>
         </div>
       )}
