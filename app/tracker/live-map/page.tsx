@@ -34,13 +34,12 @@ export default function LiveMapPage() {
     document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
+  // OlaMap has its own ResizeObserver on the map container, so no manual
+  // resize() nudge is needed here anymore — it reacts to the fullscreen
+  // class swap on its own.
   useEffect(() => {
     document.body.style.overflow = mapExpanded ? 'hidden' : '';
-    const t1 = setTimeout(() => mapObjRef.current?.resize(), 50);
-    const t2 = setTimeout(() => mapObjRef.current?.resize(), 300);
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
       document.body.style.overflow = '';
     };
   }, [mapExpanded]);

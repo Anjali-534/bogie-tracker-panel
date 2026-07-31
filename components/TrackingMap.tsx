@@ -38,14 +38,12 @@ export default function TrackingMap({
   // Fullscreen toggle — same pattern as the driver share page's map (single
   // OlaMap instance persists across states, only wrapper classes change).
   const [mapExpanded, setMapExpanded] = useState(false);
-  const mapObjRef = useRef<{ resize: () => void } | null>(null);
+  // OlaMap has its own ResizeObserver on the map container, so no manual
+  // resize() nudge is needed here anymore — it reacts to the fullscreen
+  // class swap on its own.
   useEffect(() => {
     document.body.style.overflow = mapExpanded ? 'hidden' : '';
-    const t1 = setTimeout(() => mapObjRef.current?.resize(), 50);
-    const t2 = setTimeout(() => mapObjRef.current?.resize(), 300);
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
       document.body.style.overflow = '';
     };
   }, [mapExpanded]);
@@ -137,7 +135,6 @@ export default function TrackingMap({
           plannedRoute={plannedRoute}
           fitToMarkers
           fitTrigger={mapExpanded ? 1 : 0}
-          onMapReady={(m) => { mapObjRef.current = m; }}
           className={mapExpanded ? 'w-full h-full' : 'w-full h-72 rounded-xl overflow-hidden'}
         />
         {!mapExpanded && (

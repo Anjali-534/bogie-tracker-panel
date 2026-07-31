@@ -43,17 +43,15 @@ export default function LocationInput({ label, value, lat, lng, onChange, placeh
   const [locating, setLocating] = useState(false);
   const [fitTrigger, setFitTrigger] = useState(0);
   const [mapExpanded, setMapExpanded] = useState(false);
-  const mapObjRef = useRef<{ resize: () => void } | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // OlaMap has its own ResizeObserver on the map container, so no manual
+  // resize() nudge is needed here anymore — it reacts to the fullscreen
+  // class swap on its own.
   useEffect(() => {
     document.body.style.overflow = mapExpanded ? 'hidden' : '';
-    const t1 = setTimeout(() => mapObjRef.current?.resize(), 50);
-    const t2 = setTimeout(() => mapObjRef.current?.resize(), 300);
     return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
       document.body.style.overflow = '';
     };
   }, [mapExpanded]);
@@ -231,7 +229,6 @@ export default function LocationInput({ label, value, lat, lng, onChange, placeh
               fitToMarkers
               fitTrigger={fitTrigger}
               onMarkerDragEnd={ll => onChange(value, ll.lat, ll.lng)}
-              onMapReady={(m) => { mapObjRef.current = m; }}
               className={mapExpanded ? 'w-full h-full' : 'w-full h-40 rounded-xl overflow-hidden border border-gray-200'}
             />
             {!mapExpanded && (
