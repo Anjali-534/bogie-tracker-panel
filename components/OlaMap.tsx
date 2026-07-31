@@ -415,9 +415,9 @@ export default function OlaMap({
   }, []);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
     const apply = () => {
+      const map = mapRef.current;
+      if (!map) return;
       map.getCanvas().style.filter = darkMode ? DARK_MODE_FILTER : "";
     };
     if (loadedRef.current) apply(); else pendingRef.current.dark = apply;
@@ -433,9 +433,17 @@ export default function OlaMap({
   }, [onMarkerDragEnd]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
+    // mapRef.current is looked up fresh inside update(), not captured here —
+    // at initial mount the map is still mid-construction (async style
+    // fetch), so a snapshot taken now would always be null. Since markers
+    // that never change again after mount (e.g. static A/B pins with no
+    // live driver) never re-run this effect, bailing here would mean they
+    // never get queued and never appear once the map does load — confirmed
+    // live as the reason /drive/[token]'s dispatch pins and planned route
+    // never rendered even after the map itself started painting tiles.
     const update = () => {
+      const map = mapRef.current;
+      if (!map) return;
       const list = latestMarkersRef.current;
       const seenAnimIds = new Set<string>();
 
@@ -547,8 +555,10 @@ export default function OlaMap({
 
   useEffect(() => {
     if (!fitToMarkers) return;
-    const map = mapRef.current;
+    // Same fresh-lookup rule as the markers effect above — map must be read
+    // inside the callback, not captured at effect-declaration time.
     const fitVisibleMarkers = () => {
+      const map = mapRef.current;
       if (!map) return;
       const bounds = new maplibregl.LngLatBounds();
       let count = 0;
@@ -569,9 +579,9 @@ export default function OlaMap({
   }, [fitToMarkers, fitTrigger]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
     const update = () => {
+      const map = mapRef.current;
+      if (!map) return;
       const source = map.getSource("route") as maplibregl.GeoJSONSource | undefined;
       if (!source) return;
       source.setData({
@@ -583,9 +593,9 @@ export default function OlaMap({
   }, [JSON.stringify(route)]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
     const update = () => {
+      const map = mapRef.current;
+      if (!map) return;
       const source = map.getSource("planned-route") as maplibregl.GeoJSONSource | undefined;
       if (!source) return;
       source.setData({
@@ -597,10 +607,9 @@ export default function OlaMap({
   }, [JSON.stringify(plannedRoute)]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
     const update = () => {
-      if (!map.getLayer("planned-route-line")) return;
+      const map = mapRef.current;
+      if (!map || !map.getLayer("planned-route-line")) return;
       map.setPaintProperty("planned-route-line", "line-color", plannedRouteColor);
       // Passing undefined resets to the style default (no dasharray = solid).
       map.setPaintProperty("planned-route-line", "line-dasharray", plannedRouteDashed ? [2, 1.6] : undefined);
