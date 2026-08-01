@@ -262,7 +262,11 @@ export default function OrderDetailsPage() {
 
     setUpdatingField(field);
     try {
-      // Build the full update payload with all required fields for the order details endpoint
+      // PATCH /details is the dispatch-sheet edit endpoint — it always
+      // round-trips its full field set (not a partial patch), so every
+      // required field must be sent even though only one is changing here.
+      // dispatch_from/dispatch_to are included because they're required by
+      // the endpoint, not because this form edits them.
       const updateData: Record<string, any> = {
         booked_for_company_name: order.booked_for_company_name,
         booked_for_phone: order.booked_for_phone,
@@ -282,12 +286,15 @@ export default function OrderDetailsPage() {
         booked_for_state: order.booked_for_state || '',
         driver_name: order.driver_name || '',
         driver_phone: order.driver_phone || '',
+        booked_for_email: order.booked_for_email || '',
+        consignee_email: order.consignee_email || '',
+        transporter_email: order.transporter_email || '',
       };
 
       // Update the specific field being edited
       updateData[field] = newValue;
 
-      await api.patch(`/gogoo/tracker/orders/${order.id}`, updateData);
+      await api.patch(`/gogoo/tracker/orders/${order.id}/details`, updateData);
       toast.success(`${field} updated`);
       setEditingField(null);
       setEditValues({});
@@ -688,6 +695,19 @@ export default function OrderDetailsPage() {
               </button>
             )}
             <EditableField
+              label="Booked For Email"
+              value={order.booked_for_email || '—'}
+              fieldKey="booked_for_email"
+              isEditing={editingField === 'booked_for_email'}
+              isUpdating={updatingField === 'booked_for_email'}
+              editValue={editValues['booked_for_email'] ?? (order.booked_for_email || '')}
+              onStartEdit={() => startEdit('booked_for_email', order.booked_for_email || '')}
+              onCancelEdit={cancelEdit}
+              onValueChange={val => setEditValues(prev => ({ ...prev, booked_for_email: val }))}
+              onSave={() => saveFieldEdit('booked_for_email')}
+              inputType="email"
+            />
+            <EditableField
               label="Driver"
               value={order.driver_name || '—'}
               fieldKey="driver_name"
@@ -738,6 +758,19 @@ export default function OrderDetailsPage() {
               onSave={() => saveFieldEdit('transporter_phone')}
               inputType="tel"
             />
+            <EditableField
+              label="Transporter Email"
+              value={order.transporter_email || '—'}
+              fieldKey="transporter_email"
+              isEditing={editingField === 'transporter_email'}
+              isUpdating={updatingField === 'transporter_email'}
+              editValue={editValues['transporter_email'] ?? (order.transporter_email || '')}
+              onStartEdit={() => startEdit('transporter_email', order.transporter_email || '')}
+              onCancelEdit={cancelEdit}
+              onValueChange={val => setEditValues(prev => ({ ...prev, transporter_email: val }))}
+              onSave={() => saveFieldEdit('transporter_email')}
+              inputType="email"
+            />
             <Field label="Booked For GSTIN" value={order.booked_for_gstin || '—'} />
             <Field label="Booked For State" value={order.booked_for_state || '—'} />
           </div>
@@ -755,6 +788,19 @@ export default function OrderDetailsPage() {
               onCancelEdit={cancelEdit}
               onValueChange={val => setEditValues(prev => ({ ...prev, consignee_name: val }))}
               onSave={() => saveFieldEdit('consignee_name')}
+            />
+            <EditableField
+              label="Consignee Email"
+              value={order.consignee_email || '—'}
+              fieldKey="consignee_email"
+              isEditing={editingField === 'consignee_email'}
+              isUpdating={updatingField === 'consignee_email'}
+              editValue={editValues['consignee_email'] ?? (order.consignee_email || '')}
+              onStartEdit={() => startEdit('consignee_email', order.consignee_email || '')}
+              onCancelEdit={cancelEdit}
+              onValueChange={val => setEditValues(prev => ({ ...prev, consignee_email: val }))}
+              onSave={() => saveFieldEdit('consignee_email')}
+              inputType="email"
             />
             <Field label="Consignee GSTIN" value={order.consignee_gstin || '—'} />
             <Field label="Consignee State" value={order.consignee_state || '—'} />
