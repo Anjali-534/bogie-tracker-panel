@@ -81,6 +81,37 @@ export default function DriverSharePage() {
   const [messageBanner, setMessageBanner] = useState<DriverMessage | null>(null);
   const [showMessageFeed, setShowMessageFeed] = useState(false);
 
+  // Fullscreen map toggle — same pattern as TrackingMap/LocationInput/live-map
+  // (single OlaMap instance persists across states, only wrapper classes
+  // change; bumping fitTrigger on toggle re-fits bounds to the new aspect
+  // ratio, and OlaMap's own ResizeObserver on its container handles the
+  // actual resize() call, so no manual nudge is needed here).
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const [fitTrigger, setFitTrigger] = useState(1);
+  // Switching the map section to `fixed` pulls its ~45vh out of normal flow,
+  // shrinking the document's scrollable height for as long as it's expanded
+  // — enough, on a short page, to clamp window.scrollY to 0 before this
+  // effect even runs (the class swap and its reflow are already committed
+  // by the time an effect fires). So the read has to happen synchronously
+  // in the click handler, before setMapExpanded, not in here.
+  const scrollYRef = useRef(0);
+  useEffect(() => {
+    if (mapExpanded) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      requestAnimationFrame(() => window.scrollTo(0, scrollYRef.current));
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mapExpanded]);
+  function toggleMapExpanded() {
+    if (!mapExpanded) scrollYRef.current = window.scrollY;
+    setMapExpanded(e => !e);
+    setFitTrigger(t => t + 1);
+  }
+
   const watchIdRef = useRef<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const latestPosRef = useRef<{ lat: number; lng: number } | null>(null);
@@ -288,10 +319,10 @@ export default function DriverSharePage() {
   }
 
   return (
-    <div className="min-h-dvh bg-gray-50">
-      <div className="mx-auto flex min-h-dvh max-w-5xl flex-col px-0 py-0 sm:px-3 sm:py-3 lg:px-4 lg:py-4">
-        <div className="flex min-h-dvh flex-col overflow-hidden rounded-none border-0 bg-white shadow-sm sm:rounded-[28px] sm:border sm:border-gray-200 lg:min-h-[calc(100dvh-2rem)]">
-          <header className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 sm:px-5">
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-0 py-0 sm:px-3 sm:py-3 lg:px-4 lg:py-4">
+        <div className="flex flex-1 flex-col overflow-hidden rounded-none border-0 bg-white shadow-sm sm:rounded-[28px] sm:border sm:border-gray-200">
+          <header className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 sm:px-5">
             <div className="min-w-0">
               {order.company_logo_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -312,16 +343,16 @@ export default function DriverSharePage() {
             </div>
           </header>
 
-          <div className="relative flex-1 min-h-0">
-            {mapMarkers.length > 0 ? (
-              <>
+          {mapMarkers.length > 0 ? (
+            <>
+              <div className={mapExpanded ? 'fixed inset-0 z-50 bg-white sheet-expand' : 'relative h-[45vh] flex-shrink-0'}>
                 <OlaMap
                   center={[mapMarkers[0].lng, mapMarkers[0].lat]}
                   zoom={11}
                   markers={mapMarkers}
                   plannedRoute={plannedRoute}
                   fitToMarkers
-                  fitTrigger={1}
+                  fitTrigger={fitTrigger}
                   className="h-full w-full"
                 />
 
@@ -342,8 +373,23 @@ export default function DriverSharePage() {
                   )}
                 </div>
 
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-white via-white/95 to-white/20 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-10 sm:px-4">
-                  <div className="pointer-events-auto mx-auto max-w-xl rounded-[24px] border border-gray-200 bg-white/95 p-4 shadow-[0_-12px_32px_rgba(15,23,42,0.13)] backdrop-blur sm:p-5">
+                {/* Third floating control, stacked below OlaMap's own
+                    recenter (top-2) + dark-mode (top-12) buttons — toggles
+                    fullscreen; icon/label/action flip with mapExpanded so
+                    it also serves as the "X to collapse" control while
+                    expanded, without a separate header bar. */}
+                <button
+                  type="button"
+                  onClick={toggleMapExpanded}
+                  aria-label={mapExpanded ? 'Collapse map' : 'Expand map'}
+                  className="absolute right-2 top-[88px] z-10 flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white/95 shadow-sm backdrop-blur"
+                >
+                  {mapExpanded ? <X size={16} className="text-gray-700" /> : <Maximize2 size={16} className="text-gray-700" />}
+                </button>
+              </div>
+
+              <div className="px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-4">
+                  <div className="mx-auto max-w-xl rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-gray-400">Route</p>
@@ -488,16 +534,15 @@ export default function DriverSharePage() {
                       )}
                     </div>
                   </div>
-                </div>
-              </>
-            ) : (
-              <div className="flex h-full items-center justify-center bg-gray-50 p-6">
-                <div className="rounded-2xl border border-gray-100 bg-white p-4 text-center shadow-sm">
-                  <p className="text-xs text-gray-400">Route details not available for this order.</p>
-                </div>
               </div>
-            )}
-          </div>
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center bg-gray-50 p-6">
+              <div className="rounded-2xl border border-gray-100 bg-white p-4 text-center shadow-sm">
+                <p className="text-xs text-gray-400">Route details not available for this order.</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
