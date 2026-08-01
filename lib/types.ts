@@ -374,6 +374,8 @@ export interface TrackerLiveMapOrder {
   last_location_at: string | null;
   route_distance_km: number | null;
   route_duration_mins: number | null;
+  // Same value on every entry — the caller's own company logo.
+  company_logo_url: string | null;
 }
 
 export const STATUS_LABELS: Record<OrderStatus, string> = {

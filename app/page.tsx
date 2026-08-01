@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
+import { Eye, EyeOff } from 'lucide-react';
 import { api } from '@/lib/api';
 
 function TrackerLoginPageInner() {
@@ -11,6 +12,7 @@ function TrackerLoginPageInner() {
   const searchParams = useSearchParams();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading]   = useState(false);
 
   useEffect(() => {
@@ -78,14 +80,18 @@ function TrackerLoginPageInner() {
             </div>
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-2">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900
-                  placeholder-gray-400 focus:outline-none focus:border-[#FF6B2B] focus:bg-white text-sm"
-              />
+              <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl focus-within:border-[#FF6B2B] focus-within:bg-white">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="flex-1 bg-transparent px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none text-sm"
+                />
+                <button type="button" onClick={() => setShowPassword(v => !v)} className="px-3 text-gray-400 hover:text-gray-600">
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
             <button
               type="submit"

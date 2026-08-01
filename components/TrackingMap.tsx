@@ -17,6 +17,7 @@ interface Props {
   routePolyline?: string | null;
   routeDistanceKm?: number | null;
   routeDurationMins?: number | null;
+  companyLogoUrl?: string | null;
 }
 
 // Matches the staleness threshold used for live driver GPS elsewhere
@@ -25,7 +26,7 @@ const STALE_MS = 2 * 60 * 1000;
 
 export default function TrackingMap({
   lastLat, lastLng, lastLocationAt, pings, fromLat, fromLng, toLat, toLng,
-  routePolyline, routeDistanceKm, routeDurationMins,
+  routePolyline, routeDistanceKm, routeDurationMins, companyLogoUrl,
 }: Props) {
   // No prop here changes on its own between polls — this just keeps the
   // "updated Xm ago" text counting up between the parent's poll ticks.
@@ -66,7 +67,10 @@ export default function TrackingMap({
     markers.push({ lng: toLng, lat: toLat, color: '#EF4444', icon: 'pin', popup: 'Dispatch To' });
   }
   if (hasDriver) {
-    markers.push({ lng: lastLng as number, lat: lastLat as number, color: stale ? '#9CA3AF' : '#FF6B2B', id: 'driver', icon: 'truck', popup: 'Driver' });
+    markers.push({
+      lng: lastLng as number, lat: lastLat as number, color: stale ? '#9CA3AF' : '#FF6B2B', id: 'driver', icon: 'truck', popup: 'Driver',
+      logoUrl: companyLogoUrl ?? undefined,
+    });
   }
 
   // Nothing to plot at all — no route pins captured and no driver ping yet.

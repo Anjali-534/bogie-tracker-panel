@@ -101,6 +101,7 @@ export default function LiveMapPage() {
         icon: 'truck',
         color: stale ? '#9CA3AF' : '#FF6B2B',
         popup: popupHtml,
+        logoUrl: o.company_logo_url ?? undefined,
       };
     });
 

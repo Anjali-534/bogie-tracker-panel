@@ -315,7 +315,10 @@ export default function DriverSharePage() {
     mapMarkers.push({ lng: order.dispatch_to_lng, lat: order.dispatch_to_lat, color: '#EF4444', icon: 'pin' });
   }
   if (myPos) {
-    mapMarkers.push({ lng: myPos.lng, lat: myPos.lat, color: '#FF6B2B', id: 'driver', icon: 'truck', heading: myPos.heading });
+    mapMarkers.push({
+      lng: myPos.lng, lat: myPos.lat, color: '#FF6B2B', id: 'driver', icon: 'truck', heading: myPos.heading,
+      logoUrl: order.company_logo_url ?? undefined,
+    });
   }
 
   return (

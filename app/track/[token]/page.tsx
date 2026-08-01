@@ -18,6 +18,7 @@ const POLL_MS = 4000;
 interface PublicOrder {
   status: OrderStatus;
   company_name: string;
+  company_logo_url: string | null;
   dispatch_from: string;
   dispatch_to: string;
   vehicle_number: string;
@@ -167,6 +168,7 @@ export default function PublicTrackingPage() {
             routePolyline={order.route_polyline}
             routeDistanceKm={order.route_distance_km}
             routeDurationMins={order.route_duration_mins}
+            companyLogoUrl={order.company_logo_url}
           />
         )}
 

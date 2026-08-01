@@ -74,6 +74,12 @@ export type OlaMarker = {
   // Only wired up on the static (no id) marker path — animated markers are
   // driven by live position updates, dragging one would fight the RAF lerp.
   draggable?: boolean;
+  // Company logo (tracker shipment orders only) — when set on a "truck"
+  // marker, renders a Swiggy-style circular logo bubble with a small
+  // rotating direction arrow instead of the generic truck silhouette.
+  // Ignored for car/ambulance (Book-a-Ride icons never carry a company
+  // logo) and for pin/plain markers.
+  logoUrl?: string;
 };
 
 const ANIM_MS = 900;
@@ -152,6 +158,21 @@ function vehicleIconHtml(kind: "truck" | "car" | "ambulance", color: string) {
   return `<svg width="${width}" height="${height}" viewBox="0 0 40 76" style="display:block;filter:drop-shadow(0 3px 4px rgba(0,0,0,0.4))">
     ${VEHICLE_SHAPES[kind](color)}
   </svg>`;
+}
+
+// Truck icon + small company-logo decal, used when the order's company has
+// uploaded a logo. The truck itself is exactly vehicleIconHtml("truck", ...)
+// — same first child, so the existing rotor mechanism (marker-update code
+// rotates the marker element's *first* top-level child) keeps rotating the
+// truck body exactly as before. The logo is a second, sibling <div>,
+// absolutely positioned over the truck's top-right corner — never touched by
+// the rotation code, so it stays upright/readable regardless of heading,
+// matching how delivery apps decal a badge onto a rotating vehicle icon.
+function truckLogoIconHtml(logoUrl: string, color: string) {
+  return `${vehicleIconHtml("truck", color)}
+  <div style="position:absolute;top:-2px;right:-4px;width:18px;height:18px;border-radius:50%;overflow:hidden;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);background:#fff;">
+    <img src="${logoUrl}" style="width:100%;height:100%;object-fit:cover;display:block;" />
+  </div>`;
 }
 
 // Teardrop location pin, matching user-app's PickupMarker/DropMarker proportions
@@ -453,7 +474,7 @@ export default function OlaMap({
       list.forEach(m => {
         if (!m.id || m.lng == null || m.lat == null) return;
         seenAnimIds.add(m.id);
-        const sig = `${m.color || ""}|${m.icon || ""}|${m.label || ""}`;
+        const sig = `${m.color || ""}|${m.icon || ""}|${m.label || ""}|${m.logoUrl || ""}`;
         const existing = animatedMarkersRef.current[m.id];
 
         const isDirectional = m.icon === "truck" || m.icon === "car" || m.icon === "ambulance";
@@ -497,7 +518,9 @@ export default function OlaMap({
           if (existing) existing.marker.remove();
           if (animFrameRef.current[m.id]) { cancelAnimationFrame(animFrameRef.current[m.id]); delete animFrameRef.current[m.id]; }
           const el = document.createElement("div");
-          if (m.icon === "truck" || m.icon === "car" || m.icon === "ambulance") {
+          if (m.icon === "truck" && m.logoUrl) {
+            el.innerHTML = truckLogoIconHtml(m.logoUrl, m.color || "#FF6B2B");
+          } else if (m.icon === "truck" || m.icon === "car" || m.icon === "ambulance") {
             el.innerHTML = vehicleIconHtml(m.icon, m.color || "#FF6B2B");
           } else if (m.icon === "pin") {
             el.innerHTML = pinIconHtml(m.color || "#FF6B2B");
@@ -530,7 +553,9 @@ export default function OlaMap({
       list.forEach(m => {
         if (m.id || m.lng == null || m.lat == null) return;
         const el = document.createElement("div");
-        if (m.icon === "truck" || m.icon === "car" || m.icon === "ambulance") {
+        if (m.icon === "truck" && m.logoUrl) {
+          el.innerHTML = truckLogoIconHtml(m.logoUrl, m.color || "#FF6B2B");
+        } else if (m.icon === "truck" || m.icon === "car" || m.icon === "ambulance") {
           el.innerHTML = vehicleIconHtml(m.icon, m.color || "#FF6B2B");
         } else if (m.icon === "pin") {
           el.innerHTML = pinIconHtml(m.color || "#FF6B2B");

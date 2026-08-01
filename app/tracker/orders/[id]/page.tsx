@@ -42,6 +42,7 @@ export default function OrderDetailsPage() {
   const [order,     setOrder]     = useState<TrackerOrder | null | undefined>(undefined);
   const [events,    setEvents]    = useState<TrackerOrderEvent[]>([]);
   const [pings,     setPings]     = useState<TrackerLocationPing[]>([]);
+  const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [updating,  setUpdating]  = useState(false);
   const [note,      setNote]      = useState('');
   const [location,  setLocation]  = useState('');
@@ -52,6 +53,11 @@ export default function OrderDetailsPage() {
   const [notifyRecipients, setNotifyRecipients] = useState<NotifyRecipient[]>(['booked_for']);
   const [sendingNotify, setSendingNotify] = useState(false);
   const [notifyResults, setNotifyResults] = useState<NotifyResult[] | null>(null);
+
+  // Editable fields state
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<Record<string, string>>({});
+  const [updatingField, setUpdatingField] = useState<string | null>(null);
 
   // Staff-side "Mark Received" (inbound orders only) — mirrors the public
   // receipt page's good/bad condition capture, POSTing to mark-received
@@ -115,6 +121,7 @@ export default function OrderDetailsPage() {
       setOrder(data.order);
       setEvents(data.events);
       setPings(data.location_pings || []);
+      setCompanyLogoUrl(data.company_logo_url ?? null);
       if (STATUS_RADIO_OPTIONS.includes(data.order.status)) {
         setSelectedStatus(data.order.status);
       }
@@ -236,6 +243,65 @@ export default function OrderDetailsPage() {
 
   function toggleNotifyRecipient(r: NotifyRecipient) {
     setNotifyRecipients(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]);
+  }
+
+  function startEdit(field: string, currentValue: string) {
+    setEditingField(field);
+    setEditValues(prev => ({ ...prev, [field]: currentValue }));
+  }
+
+  function cancelEdit() {
+    setEditingField(null);
+    setEditValues({});
+  }
+
+  async function saveFieldEdit(field: string) {
+    if (!order) return;
+    const newValue = editValues[field];
+    if (newValue === undefined || newValue === '') return;
+
+    setUpdatingField(field);
+    try {
+      // Build the full update payload with all required fields for the order details endpoint
+      const updateData: Record<string, any> = {
+        booked_for_company_name: order.booked_for_company_name,
+        booked_for_phone: order.booked_for_phone,
+        dispatch_from: order.dispatch_from,
+        dispatch_to: order.dispatch_to,
+        transporter_name: order.transporter_name || '',
+        transporter_phone: order.transporter_phone || '',
+        vehicle_number: order.vehicle_number,
+        eway_bill_number: order.eway_bill_number || '',
+        consignee_name: order.consignee_name || '',
+        material: order.material || '',
+        quantity: order.quantity || '',
+        documents_enclosed: order.documents_enclosed || '',
+        consignee_gstin: order.consignee_gstin || '',
+        booked_for_gstin: order.booked_for_gstin || '',
+        consignee_state: order.consignee_state || '',
+        booked_for_state: order.booked_for_state || '',
+        driver_name: order.driver_name || '',
+        driver_phone: order.driver_phone || '',
+      };
+
+      // Update the specific field being edited
+      updateData[field] = newValue;
+
+      await api.patch(`/gogoo/tracker/orders/${order.id}`, updateData);
+      toast.success(`${field} updated`);
+      setEditingField(null);
+      setEditValues({});
+      await load();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        toast.error(body.error || 'Update failed');
+      } else {
+        toast.error('Update failed');
+      }
+    } finally {
+      setUpdatingField(null);
+    }
   }
 
   async function sendDispatchEmails() {
@@ -372,6 +438,7 @@ export default function OrderDetailsPage() {
               routePolyline={order.route_polyline}
               routeDistanceKm={order.route_distance_km}
               routeDurationMins={order.route_duration_mins}
+              companyLogoUrl={companyLogoUrl}
             />
           )}
 
@@ -608,28 +675,119 @@ export default function OrderDetailsPage() {
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
             <h2 className="text-sm font-bold text-gray-900">Shipment Details</h2>
             <Field label="Booked For" value={order.booked_for_company_name} />
-            <Field label="Contact Phone" value={order.booked_for_phone} />
+            <EditableField
+              label="Contact Phone"
+              value={order.booked_for_phone}
+              fieldKey="booked_for_phone"
+              isEditing={editingField === 'booked_for_phone'}
+              isUpdating={updatingField === 'booked_for_phone'}
+              editValue={editValues['booked_for_phone'] ?? order.booked_for_phone}
+              onStartEdit={() => startEdit('booked_for_phone', order.booked_for_phone)}
+              onCancelEdit={cancelEdit}
+              onValueChange={val => setEditValues(prev => ({ ...prev, booked_for_phone: val }))}
+              onSave={() => saveFieldEdit('booked_for_phone')}
+              inputType="tel"
+            />
             {order.booked_for_phone && order.public_tracking_token && (
               <button onClick={whatsAppBookedForLink} className="flex items-center justify-center gap-1.5 px-4 py-2 bg-green-500 text-white rounded-xl text-xs font-bold hover:bg-green-600 transition-colors">
                 <MessageCircle size={13} />Send via WhatsApp
               </button>
             )}
-            <Field label="Driver" value={order.driver_name || '—'} />
-            <Field label="Driver Phone" value={order.driver_phone || '—'} />
+            <EditableField
+              label="Driver"
+              value={order.driver_name || '—'}
+              fieldKey="driver_name"
+              isEditing={editingField === 'driver_name'}
+              isUpdating={updatingField === 'driver_name'}
+              editValue={editValues['driver_name'] ?? (order.driver_name || '')}
+              onStartEdit={() => startEdit('driver_name', order.driver_name || '')}
+              onCancelEdit={cancelEdit}
+              onValueChange={val => setEditValues(prev => ({ ...prev, driver_name: val }))}
+              onSave={() => saveFieldEdit('driver_name')}
+            />
+            <EditableField
+              label="Driver Phone"
+              value={order.driver_phone || '—'}
+              fieldKey="driver_phone"
+              isEditing={editingField === 'driver_phone'}
+              isUpdating={updatingField === 'driver_phone'}
+              editValue={editValues['driver_phone'] ?? (order.driver_phone || '')}
+              onStartEdit={() => startEdit('driver_phone', order.driver_phone || '')}
+              onCancelEdit={cancelEdit}
+              onValueChange={val => setEditValues(prev => ({ ...prev, driver_phone: val }))}
+              onSave={() => saveFieldEdit('driver_phone')}
+              inputType="tel"
+            />
             <Field label="Vehicle Number" value={order.vehicle_number} />
-            <Field label="Transporter" value={order.transporter_name || '—'} />
-            <Field label="Transporter Phone" value={order.transporter_phone || '—'} />
+            <EditableField
+              label="Transporter"
+              value={order.transporter_name || '—'}
+              fieldKey="transporter_name"
+              isEditing={editingField === 'transporter_name'}
+              isUpdating={updatingField === 'transporter_name'}
+              editValue={editValues['transporter_name'] ?? (order.transporter_name || '')}
+              onStartEdit={() => startEdit('transporter_name', order.transporter_name || '')}
+              onCancelEdit={cancelEdit}
+              onValueChange={val => setEditValues(prev => ({ ...prev, transporter_name: val }))}
+              onSave={() => saveFieldEdit('transporter_name')}
+            />
+            <EditableField
+              label="Transporter Phone"
+              value={order.transporter_phone || '—'}
+              fieldKey="transporter_phone"
+              isEditing={editingField === 'transporter_phone'}
+              isUpdating={updatingField === 'transporter_phone'}
+              editValue={editValues['transporter_phone'] ?? (order.transporter_phone || '')}
+              onStartEdit={() => startEdit('transporter_phone', order.transporter_phone || '')}
+              onCancelEdit={cancelEdit}
+              onValueChange={val => setEditValues(prev => ({ ...prev, transporter_phone: val }))}
+              onSave={() => saveFieldEdit('transporter_phone')}
+              inputType="tel"
+            />
             <Field label="Booked For GSTIN" value={order.booked_for_gstin || '—'} />
             <Field label="Booked For State" value={order.booked_for_state || '—'} />
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
             <h2 className="text-sm font-bold text-gray-900">Dispatch Details</h2>
-            <Field label="Consignee" value={order.consignee_name || '—'} />
+            <EditableField
+              label="Consignee"
+              value={order.consignee_name || '—'}
+              fieldKey="consignee_name"
+              isEditing={editingField === 'consignee_name'}
+              isUpdating={updatingField === 'consignee_name'}
+              editValue={editValues['consignee_name'] ?? (order.consignee_name || '')}
+              onStartEdit={() => startEdit('consignee_name', order.consignee_name || '')}
+              onCancelEdit={cancelEdit}
+              onValueChange={val => setEditValues(prev => ({ ...prev, consignee_name: val }))}
+              onSave={() => saveFieldEdit('consignee_name')}
+            />
             <Field label="Consignee GSTIN" value={order.consignee_gstin || '—'} />
             <Field label="Consignee State" value={order.consignee_state || '—'} />
-            <Field label="Material" value={order.material || '—'} />
-            <Field label="Quantity" value={order.quantity || '—'} />
+            <EditableField
+              label="Material"
+              value={order.material || '—'}
+              fieldKey="material"
+              isEditing={editingField === 'material'}
+              isUpdating={updatingField === 'material'}
+              editValue={editValues['material'] ?? (order.material || '')}
+              onStartEdit={() => startEdit('material', order.material || '')}
+              onCancelEdit={cancelEdit}
+              onValueChange={val => setEditValues(prev => ({ ...prev, material: val }))}
+              onSave={() => saveFieldEdit('material')}
+            />
+            <EditableField
+              label="Quantity"
+              value={order.quantity || '—'}
+              fieldKey="quantity"
+              isEditing={editingField === 'quantity'}
+              isUpdating={updatingField === 'quantity'}
+              editValue={editValues['quantity'] ?? (order.quantity || '')}
+              onStartEdit={() => startEdit('quantity', order.quantity || '')}
+              onCancelEdit={cancelEdit}
+              onValueChange={val => setEditValues(prev => ({ ...prev, quantity: val }))}
+              onSave={() => saveFieldEdit('quantity')}
+            />
             <Field label="Dispatch Date & Time" value={order.dispatch_datetime ? new Date(order.dispatch_datetime).toLocaleString() : '—'} />
             <Field label="Documents Enclosed" value={order.documents_enclosed || '—'} />
           </div>
@@ -703,6 +861,80 @@ function Field({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
       <p className="text-sm text-gray-800">{value}</p>
+    </div>
+  );
+}
+
+interface EditableFieldProps {
+  label: string;
+  value: string;
+  fieldKey: string;
+  isEditing: boolean;
+  isUpdating: boolean;
+  editValue: string;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onValueChange: (val: string) => void;
+  onSave: () => void;
+  inputType?: string;
+}
+
+function EditableField({
+  label,
+  value,
+  fieldKey,
+  isEditing,
+  isUpdating,
+  editValue,
+  onStartEdit,
+  onCancelEdit,
+  onValueChange,
+  onSave,
+  inputType = 'text',
+}: EditableFieldProps) {
+  return (
+    <div>
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+      {!isEditing ? (
+        <div className="flex items-center gap-2 group">
+          <p className="text-sm text-gray-800 flex-1">{value || '—'}</p>
+          <button
+            onClick={onStartEdit}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-orange-600 hover:bg-orange-50 opacity-0 group-hover:opacity-100 transition-all"
+            title="Edit"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="stroke-current stroke-2">
+              <path d="M11.333 2L14 4.667M2 14H5.333L13.778 5.556C14.148 5.185 14.148 4.592 13.778 4.222L11.778 2.222C11.407 1.852 10.815 1.852 10.444 2.222L2 10.667V14Z" />
+            </svg>
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2 mt-2">
+          <input
+            type={inputType}
+            value={editValue}
+            onChange={e => onValueChange(e.target.value)}
+            className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-orange-400"
+            autoFocus
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={onSave}
+              disabled={isUpdating || !editValue}
+              className="flex-1 px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs font-bold hover:bg-orange-600 disabled:opacity-50 transition-colors"
+            >
+              {isUpdating ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={onCancelEdit}
+              disabled={isUpdating}
+              className="flex-1 px-3 py-1.5 border border-gray-200 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

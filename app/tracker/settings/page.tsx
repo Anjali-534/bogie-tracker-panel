@@ -339,6 +339,18 @@ export default function SettingsPage() {
                 <p className="font-semibold text-gray-800">{phone || '—'}</p>
               </div>
               <div>
+                <p className="text-[11px] text-gray-400">Helpline</p>
+                <a href="tel:7827194116" className="font-semibold text-gray-800 hover:text-orange-600">
+                  7827194116
+                </a>
+              </div>
+              <div>
+                <p className="text-[11px] text-gray-400">Support Email</p>
+                <a href="mailto:support@bogie.in" className="font-semibold text-gray-800 hover:text-orange-600 break-all">
+                  support@bogie.in
+                </a>
+              </div>
+              <div>
                 <p className="text-[11px] text-gray-400 mb-1">Subscription</p>
                 {subBadge ? (
                   <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${subBadge.className}`}>
