@@ -20,7 +20,6 @@ interface ReceiptOrder {
   quantity: string | null;
   delivered_at: string | null;
   received_confirmed_at: string | null;
-  driver_claimed: boolean;
   delivery_condition: DeliveryCondition | null;
   delivery_condition_reason: string | null;
 }
@@ -139,7 +138,7 @@ export default function ReceiptPage() {
                 </p>
               </div>
             )
-          ) : order.driver_claimed ? (
+          ) : (
             <div className="space-y-3">
               {error && <p className="text-xs text-red-500 text-center">{error}</p>}
 
@@ -189,13 +188,6 @@ export default function ReceiptPage() {
                   </div>
                 </div>
               )}
-            </div>
-          ) : (
-            <div className="text-center py-4">
-              <button disabled className="w-full py-4 bg-gray-100 text-gray-400 rounded-xl text-sm font-bold cursor-not-allowed mb-2">
-                Goods received in perfect condition
-              </button>
-              <p className="text-sm text-gray-400">You can confirm receipt once the driver has marked delivery.</p>
             </div>
           )}
         </div>

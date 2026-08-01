@@ -367,10 +367,6 @@ export default function OrderDetailsPage() {
 
   const isTerminal = TERMINAL_STATUSES.includes(order.status);
   const showMap = STATUS_STEPS.indexOf(order.status) >= STATUS_STEPS.indexOf('dispatched');
-  // Same precondition the backend enforces on mark-received (and on the
-  // consignee's ConfirmTrackerReceipt): the driver must have claimed
-  // delivery — a 'delivery_claimed' event plus an uploaded signature.
-  const driverClaimed = events.some(e => e.reported_by === 'driver' && e.event_kind === 'delivery_claimed') && !!order.signature_url;
 
   return (
     <div className="max-w-4xl space-y-5">
@@ -525,9 +521,7 @@ export default function OrderDetailsPage() {
           {order.order_type === 'inbound' && !order.received_confirmed_at && (
             <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
               <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2"><PackageCheck size={16} className="text-green-500" />Mark Received</h2>
-              {!driverClaimed ? (
-                <p className="text-xs text-gray-400">You can mark this shipment received once the driver has marked delivery.</p>
-              ) : !showMarkReceivedForm ? (
+              {!showMarkReceivedForm ? (
                 <div className="space-y-2">
                   <button
                     onClick={() => markReceived('good')}

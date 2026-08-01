@@ -406,12 +406,11 @@ export const STATUS_STEPS: OrderStatus[] = ['created', 'loading', 'loaded', 'dis
 
 // The status control on the order detail page is a radio group over these —
 // 'created' is the implicit starting state (not a choice) and 'cancelled' is
-// a separate action, not part of the forward sequence. 'delivered' is
-// deliberately absent: it's system-only now, set automatically once the
-// driver's delivery claim and the consignee's receipt response both exist
-// (see tryAutoCompleteDelivery, backend) — the company has no manual say
-// over this transition. Matches validOrderStatuses server-side.
-export const STATUS_RADIO_OPTIONS: OrderStatus[] = ['loading', 'loaded', 'dispatched', 'in_transit'];
+// a separate action, not part of the forward sequence. 'delivered' is a
+// normal manual option here, same as every other status — it's also
+// reachable automatically via tryAutoCompleteDelivery (backend) when the
+// consignee confirms receipt first. Matches validOrderStatuses server-side.
+export const STATUS_RADIO_OPTIONS: OrderStatus[] = ['loading', 'loaded', 'dispatched', 'in_transit', 'delivered'];
 
 // Drive-page quick-status button row. 'delivery_claimed' is special-cased on
 // the drive page (it triggers the signature pad instead of posting directly)
