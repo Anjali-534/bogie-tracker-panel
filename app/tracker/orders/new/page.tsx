@@ -12,6 +12,7 @@ import GSTInput from '@/components/GSTInput';
 
 const inputClass = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400';
 const labelClass = 'block text-xs font-semibold text-gray-500 mb-1.5';
+const sectionClass = 'space-y-4 border-l-[3px] border-orange-200 bg-orange-50/40 rounded-r-2xl pl-5 pr-4 py-5';
 
 export default function NewOrderPage() {
   const router = useRouter();
@@ -130,19 +131,28 @@ export default function NewOrderPage() {
   // from the company's default address the moment the toggle flips to
   // 'inbound', but only if the field is still empty (never clobber
   // something the user already typed, or a value carried over from
-  // "Repeat last shipment"). Fires once per flip (tracked via prevOrderType,
-  // not a dispatchTo dependency) so clearing the field back out afterward
-  // doesn't immediately re-fill it — still fully editable, same as Deliver
-  // To always is.
-  const prevOrderType = useRef<OrderType>('outbound');
+  // "Repeat last shipment"). Outbound orders mirror this for Dispatch From
+  // (they typically originate from the company's own address) — including
+  // on initial mount, since 'outbound' is the default orderType and
+  // prevOrderType starts as null (not 'outbound'), so the mount case reads
+  // as a "flip into outbound" too. Each direction fires once per flip
+  // (tracked via prevOrderType, not a dispatchTo/dispatchFrom dependency)
+  // so clearing the field back out afterward doesn't immediately re-fill it
+  // — still fully editable, same as these fields always are.
+  const prevOrderType = useRef<OrderType | null>(null);
   useEffect(() => {
     if (orderType === 'inbound' && prevOrderType.current === 'outbound' && dispatchTo === '' && companyDefaultAddress !== '') {
       setDispatchTo(companyDefaultAddress);
       setDispatchToLat(companyDefaultAddressLat);
       setDispatchToLng(companyDefaultAddressLng);
     }
+    if (orderType === 'outbound' && prevOrderType.current !== 'outbound' && dispatchFrom === '' && companyDefaultAddress !== '') {
+      setDispatchFrom(companyDefaultAddress);
+      setDispatchFromLat(companyDefaultAddressLat);
+      setDispatchFromLng(companyDefaultAddressLng);
+    }
     prevOrderType.current = orderType;
-  }, [orderType, companyDefaultAddress, companyDefaultAddressLat, companyDefaultAddressLng, dispatchTo]);
+  }, [orderType, companyDefaultAddress, companyDefaultAddressLat, companyDefaultAddressLng, dispatchTo, dispatchFrom]);
 
   function applyRecipient(r: TrackerSavedRecipient) {
     setSelectedRecipientId(r.id);
@@ -398,7 +408,7 @@ export default function NewOrderPage() {
   }
 
   return (
-    <div className="max-w-3xl space-y-5">
+    <div className="max-w-[1600px] w-full space-y-5">
       <Toaster position="top-right" />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex items-center gap-3 flex-1">
@@ -428,11 +438,11 @@ export default function NewOrderPage() {
         </div>
       </div>
 
-      <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-6">
+      <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-100 p-6 lg:p-10 space-y-6">
 
         {orderType === 'outbound' && recipients.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-sm font-bold text-gray-900">Saved Recipient <span className="text-gray-400 font-normal">(optional)</span></h2>
+          <section className={sectionClass}>
+            <h2 className="text-sm font-bold text-gray-900">Saved Clients <span className="text-gray-400 font-normal">(optional)</span></h2>
             <div className="relative">
               <input
                 value={recipientQuery}
@@ -440,7 +450,7 @@ export default function NewOrderPage() {
                 onFocus={() => setRecipientListOpen(true)}
                 onBlur={() => setRecipientListOpen(false)}
                 className={inputClass}
-                placeholder="Search saved recipients to pre-fill Booked For, Consignee & Dispatch To"
+                placeholder="Search saved clients to pre-fill Booked For, Consignee & Dispatch To"
               />
               {recipientListOpen && filteredRecipients.length > 0 && (
                 <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-y-auto">
@@ -461,11 +471,10 @@ export default function NewOrderPage() {
           </section>
         )}
 
-        <section className="space-y-4">
-          <h2 className="text-sm font-bold text-gray-900">{orderType === 'inbound' ? 'Supplier / Vendor' : 'Booked For'}</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <section className={sectionClass}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label className={labelClass}>{orderType === 'inbound' ? 'Supplier / Vendor Name *' : 'Company Name *'}</label>
+              <label className={labelClass}>{orderType === 'inbound' ? 'Supplier / Vendor Name *' : 'Party Name *'}</label>
               <input value={bookedForCompany} onChange={e => setBookedForCompany(e.target.value)} className={inputClass} placeholder={orderType === 'inbound' ? 'Supplier / vendor name' : 'Receiving company name'} />
             </div>
             <div>
@@ -484,40 +493,14 @@ export default function NewOrderPage() {
           </div>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-sm font-bold text-gray-900">Route</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <LocationInput
-              label={orderType === 'inbound' ? 'Pickup From *' : 'Dispatch From *'}
-              value={dispatchFrom}
-              lat={dispatchFromLat}
-              lng={dispatchFromLng}
-              onChange={(address, lat, lng) => { setDispatchFrom(address); setDispatchFromLat(lat); setDispatchFromLng(lng); }}
-              placeholder="Search for an address or city"
-              className={inputClass}
-              labelClassName={labelClass}
-            />
-            <LocationInput
-              label={orderType === 'inbound' ? 'Deliver To *' : 'Dispatch To *'}
-              value={dispatchTo}
-              lat={dispatchToLat}
-              lng={dispatchToLng}
-              onChange={(address, lat, lng) => { setDispatchTo(address); setDispatchToLat(lat); setDispatchToLng(lng); }}
-              placeholder="Search for an address or city"
-              className={inputClass}
-              labelClassName={labelClass}
-            />
-          </div>
-        </section>
-
-        <section className="space-y-4">
+        <section className={sectionClass}>
           <h2 className="text-sm font-bold text-gray-900">Shipment Details <span className="text-gray-400 font-normal">(optional)</span></h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="sm:col-span-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="sm:col-span-2 lg:col-span-3">
               <label className={labelClass}>Registered Address</label>
               <textarea value={registeredAddress} onChange={e => setRegisteredAddress(e.target.value)} className={inputClass} rows={2} placeholder="Company's registered office address" />
             </div>
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-2 lg:col-span-3">
               <label className={labelClass}>Factory / Godown Address</label>
               <textarea value={factoryAddress} onChange={e => setFactoryAddress(e.target.value)} className={inputClass} rows={2} placeholder="If different from registered address" />
             </div>
@@ -549,7 +532,7 @@ export default function NewOrderPage() {
               <label className={labelClass}>Expected Delivery Date</label>
               <input type="date" value={expectedDeliveryDate} onChange={e => setExpectedDeliveryDate(e.target.value)} className={inputClass} />
             </div>
-            <div className="sm:col-span-2 space-y-2">
+            <div className="sm:col-span-2 lg:col-span-3 space-y-2">
               <label className={labelClass}>CC Emails <span className="text-gray-400 font-normal">(dispatch &amp; status-update notifications)</span></label>
               {ccEmails.map((email, i) => (
                 <div key={i} className="flex gap-2">
@@ -563,7 +546,7 @@ export default function NewOrderPage() {
               <button type="button" onClick={() => setCcEmails(prev => [...prev, ''])}
                 className="text-xs font-semibold text-green-600 hover:text-green-700">+ Add CC email</button>
             </div>
-            <div className="sm:col-span-2 space-y-2">
+            <div className="sm:col-span-2 lg:col-span-3 space-y-2">
               <label className={labelClass}>BCC Emails</label>
               {bccEmails.map((email, i) => (
                 <div key={i} className="flex gap-2">
@@ -580,9 +563,9 @@ export default function NewOrderPage() {
           </div>
         </section>
 
-        <section className="space-y-4">
+        <section className={sectionClass}>
           <h2 className="text-sm font-bold text-gray-900">Dispatch Details <span className="text-gray-400 font-normal">(optional)</span></h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className={labelClass}>{orderType === 'inbound' ? 'Received By' : 'Consignee Name'}</label>
               <input value={consigneeName} onChange={e => setConsigneeName(e.target.value)} className={inputClass} placeholder={orderType === 'inbound' ? 'Who received the goods, if different from Supplier' : 'Receiving entity, if different from Booked For'} />
@@ -597,7 +580,7 @@ export default function NewOrderPage() {
               <input value={consigneeState} onChange={e => setConsigneeState(e.target.value)} className={inputClass} placeholder="Auto-filled from GSTIN, or type manually" />
             </div>
             <div>
-              <label className={labelClass}>Dispatch Date &amp; Time</label>
+              <label className={labelClass}>Date &amp; Time</label>
               <input type="datetime-local" value={dispatchDatetime} onChange={e => setDispatchDatetime(e.target.value)} className={inputClass} />
             </div>
             <div>
@@ -608,14 +591,69 @@ export default function NewOrderPage() {
               <label className={labelClass}>Quantity</label>
               <input value={quantity} onChange={e => setQuantity(e.target.value)} className={inputClass} placeholder="e.g. 16.000 MT" />
             </div>
-            <div className="sm:col-span-2">
+            <div className="sm:col-span-2 lg:col-span-3">
               <label className={labelClass}>Documents Enclosed</label>
               <input value={documentsEnclosed} onChange={e => setDocumentsEnclosed(e.target.value)} className={inputClass} placeholder="e.g. Invoice, E-Way Bill, LR & COA to Driver" />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3 space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {(['coa', 'invoice', 'lr', 'eway_bill', 'other'] as TrackerDocType[]).map(dt => (
+                  <label key={dt} className="flex items-center gap-1.5 border border-dashed border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
+                    <Upload size={13} />{DOC_TYPE_LABELS[dt]}
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) addPendingDoc(dt, f); e.target.value = ''; }} />
+                  </label>
+                ))}
+              </div>
+              {pendingDocs.length > 0 && (
+                <div className="space-y-2">
+                  {pendingDocs.map(doc => (
+                    <div key={doc.key} className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2.5">
+                      <FileText size={14} className="text-gray-400 flex-shrink-0" />
+                      <span className="text-xs font-bold text-gray-700 flex-shrink-0">{DOC_TYPE_LABELS[doc.docType]}</span>
+                      <span className="text-xs text-gray-500 truncate flex-1">{doc.file.name}</span>
+                      {doc.docType === 'other' && (
+                        <input value={doc.customLabel} onChange={e => updatePendingDoc(doc.key, { customLabel: e.target.value })}
+                          placeholder="Label" className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
+                      )}
+                      <input type="date" value={doc.expiryDate} onChange={e => updatePendingDoc(doc.key, { expiryDate: e.target.value })}
+                        title="Expiry date (optional)" className="w-36 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
+                      <button type="button" onClick={() => removePendingDoc(doc.key)} className="text-gray-400 hover:text-red-500 flex-shrink-0"><X size={14} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </section>
 
-        <section className="space-y-4">
+        <section className={sectionClass}>
+          <h2 className="text-sm font-bold text-gray-900">Route</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <LocationInput
+              label={orderType === 'inbound' ? 'Pickup From *' : 'Dispatch From *'}
+              value={dispatchFrom}
+              lat={dispatchFromLat}
+              lng={dispatchFromLng}
+              onChange={(address, lat, lng) => { setDispatchFrom(address); setDispatchFromLat(lat); setDispatchFromLng(lng); }}
+              placeholder="Search for an address or city"
+              className={inputClass}
+              labelClassName={labelClass}
+            />
+            <LocationInput
+              label={orderType === 'inbound' ? 'Deliver To *' : 'Dispatch To *'}
+              value={dispatchTo}
+              lat={dispatchToLat}
+              lng={dispatchToLng}
+              onChange={(address, lat, lng) => { setDispatchTo(address); setDispatchToLat(lat); setDispatchToLng(lng); }}
+              placeholder="Search for an address or city"
+              className={inputClass}
+              labelClassName={labelClass}
+            />
+          </div>
+        </section>
+
+        <section className={sectionClass}>
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-bold text-gray-900">Driver</h2>
             <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
@@ -647,13 +685,13 @@ export default function NewOrderPage() {
                 <input value={driverName} onChange={e => setDriverName(e.target.value)} className={inputClass} />
               </div>
               <div>
-                <label className={labelClass}>Driver Phone *</label>
+                <label className={labelClass}>Driver Mobile No. *</label>
                 <input value={driverPhone} onChange={e => setDriverPhone(e.target.value)} className={inputClass} />
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className={labelClass}>Transporter Name</label>
               <input value={transporterName} onChange={e => setTransporterName(e.target.value)} className={inputClass} />
@@ -673,43 +711,12 @@ export default function NewOrderPage() {
           </div>
         </section>
 
-        <section className="space-y-4">
+        <section className={sectionClass}>
           <h2 className="text-sm font-bold text-gray-900">E-way Bill Number <span className="text-gray-400 font-normal">(optional)</span></h2>
           <div>
             <label className={labelClass}>E-way Bill Number</label>
             <input value={ewayBillNumber} onChange={e => setEwayBillNumber(e.target.value)} className={`${inputClass} max-w-sm`} placeholder="EWB2507150001" />
           </div>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-sm font-bold text-gray-900">Documents <span className="text-gray-400 font-normal">(optional — all documents, always)</span></h2>
-          <div className="flex flex-wrap gap-2">
-            {(['coa', 'invoice', 'lr', 'eway_bill', 'other'] as TrackerDocType[]).map(dt => (
-              <label key={dt} className="flex items-center gap-1.5 border border-dashed border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
-                <Upload size={13} />{DOC_TYPE_LABELS[dt]}
-                <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                  onChange={e => { const f = e.target.files?.[0]; if (f) addPendingDoc(dt, f); e.target.value = ''; }} />
-              </label>
-            ))}
-          </div>
-          {pendingDocs.length > 0 && (
-            <div className="space-y-2">
-              {pendingDocs.map(doc => (
-                <div key={doc.key} className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2.5">
-                  <FileText size={14} className="text-gray-400 flex-shrink-0" />
-                  <span className="text-xs font-bold text-gray-700 flex-shrink-0">{DOC_TYPE_LABELS[doc.docType]}</span>
-                  <span className="text-xs text-gray-500 truncate flex-1">{doc.file.name}</span>
-                  {doc.docType === 'other' && (
-                    <input value={doc.customLabel} onChange={e => updatePendingDoc(doc.key, { customLabel: e.target.value })}
-                      placeholder="Label" className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
-                  )}
-                  <input type="date" value={doc.expiryDate} onChange={e => updatePendingDoc(doc.key, { expiryDate: e.target.value })}
-                    title="Expiry date (optional)" className="w-36 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
-                  <button type="button" onClick={() => removePendingDoc(doc.key)} className="text-gray-400 hover:text-red-500 flex-shrink-0"><X size={14} /></button>
-                </div>
-              ))}
-            </div>
-          )}
         </section>
 
         {showSavePrompt && (
