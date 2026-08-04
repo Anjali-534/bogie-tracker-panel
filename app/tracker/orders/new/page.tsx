@@ -640,7 +640,7 @@ export default function NewOrderPage() {
         </section>
 
         <section className={sectionClass}>
-          <h2 className="text-sm font-bold text-gray-900">Dispatch Details <span className="text-gray-400 font-normal">(optional)</span></h2>
+          <h2 className="text-sm font-bold text-gray-900">Consignee <span className="text-gray-400 font-normal">(optional)</span></h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className={labelClass}>{orderType === 'inbound' ? 'Received By' : 'Consignee Name'}</label>
@@ -655,117 +655,128 @@ export default function NewOrderPage() {
               <label className={labelClass}>Consignee State</label>
               <input value={consigneeState} onChange={e => setConsigneeState(e.target.value)} className={inputClass} placeholder="Auto-filled from GSTIN, or type manually" />
             </div>
-            <div>
-              <label className={labelClass}>Date &amp; Time</label>
-              <input type="datetime-local" value={dispatchDatetime} onChange={e => setDispatchDatetime(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Material Description</label>
-              <input value={material} onChange={e => setMaterial(e.target.value)} className={inputClass} placeholder="e.g. PFD 96%" />
-            </div>
-            <div>
-              <label className={labelClass}>Quantity</label>
-              <input value={quantity} onChange={e => setQuantity(e.target.value)} className={inputClass} placeholder="e.g. 16.000 MT" />
-            </div>
-            <div className="sm:col-span-2 lg:col-span-3">
-              <label className={labelClass}>Documents Enclosed</label>
-              <input value={documentsEnclosed} onChange={e => setDocumentsEnclosed(e.target.value)} className={inputClass} placeholder="e.g. Invoice, E-Way Bill, LR & COA to Driver" />
-            </div>
-            <div className="sm:col-span-2 lg:col-span-3 space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {(['coa', 'invoice', 'lr', 'eway_bill', 'other'] as TrackerDocType[]).map(dt => (
-                  <label key={dt} className="flex items-center gap-1.5 border border-dashed border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
-                    <Upload size={13} />{DOC_TYPE_LABELS[dt]}
-                    <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) addPendingDoc(dt, f); e.target.value = ''; }} />
-                  </label>
-                ))}
+          </div>
+        </section>
+
+        <section className={sectionClass}>
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Transportation Details</div>
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold text-gray-900">Driver</h2>
+                <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
+                  <button type="button" onClick={() => setDriverMode('select')}
+                    className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'select' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                    Registered Driver
+                  </button>
+                  <button type="button" onClick={() => { setDriverMode('new'); setDriverId(''); }}
+                    className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'new' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                    Type New Driver
+                  </button>
+                </div>
               </div>
-              {pendingDocs.length > 0 && (
-                <div className="space-y-2">
-                  {pendingDocs.map(doc => (
-                    <div key={doc.key} className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2.5">
-                      <FileText size={14} className="text-gray-400 flex-shrink-0" />
-                      <span className="text-xs font-bold text-gray-700 flex-shrink-0">{DOC_TYPE_LABELS[doc.docType]}</span>
-                      <span className="text-xs text-gray-500 truncate flex-1">{doc.file.name}</span>
-                      {doc.docType === 'other' && (
-                        <input value={doc.customLabel} onChange={e => updatePendingDoc(doc.key, { customLabel: e.target.value })}
-                          placeholder="Label" className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
-                      )}
-                      <input type="date" value={doc.expiryDate} onChange={e => updatePendingDoc(doc.key, { expiryDate: e.target.value })}
-                        title="Expiry date (optional)" className="w-36 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
-                      <button type="button" onClick={() => removePendingDoc(doc.key)} className="text-gray-400 hover:text-red-500 flex-shrink-0"><X size={14} /></button>
-                    </div>
-                  ))}
+
+              {driverMode === 'select' ? (
+                <div>
+                  <label className={labelClass}>Select Driver</label>
+                  <select value={driverId} onChange={e => selectDriver(e.target.value)} className={`${inputClass} bg-white`}>
+                    <option value="">— Choose a registered driver —</option>
+                    {drivers.filter(d => d.is_active).map(d => (
+                      <option key={d.id} value={d.id}>{d.driver_name} · {d.vehicle_number}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelClass}>Driver Name *</label>
+                    <input value={driverName} onChange={e => setDriverName(e.target.value)} className={inputClass} />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Driver Mobile No. *</label>
+                    <input value={driverPhone} onChange={e => setDriverPhone(e.target.value)} className={inputClass} />
+                  </div>
                 </div>
               )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className={labelClass}>Transporter Name</label>
+                  <input value={transporterName} onChange={e => setTransporterName(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Transporter Phone</label>
+                  <input value={transporterPhone} onChange={e => setTransporterPhone(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Transporter Email</label>
+                  <input type="email" value={transporterEmail} onChange={e => setTransporterEmail(e.target.value)} className={inputClass} placeholder="for dispatch notification email" />
+                </div>
+                <div>
+                  <label className={labelClass}>Vehicle Number *</label>
+                  <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} className={inputClass} placeholder="DL 1AB 1234" />
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
         <section className={sectionClass}>
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-gray-900">Driver</h2>
-            <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
-              <button type="button" onClick={() => setDriverMode('select')}
-                className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'select' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
-                Registered Driver
-              </button>
-              <button type="button" onClick={() => { setDriverMode('new'); setDriverId(''); }}
-                className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'new' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
-                Type New Driver
-              </button>
-            </div>
-          </div>
-
-          {driverMode === 'select' ? (
-            <div>
-              <label className={labelClass}>Select Driver</label>
-              <select value={driverId} onChange={e => selectDriver(e.target.value)} className={`${inputClass} bg-white`}>
-                <option value="">— Choose a registered driver —</option>
-                {drivers.filter(d => d.is_active).map(d => (
-                  <option key={d.id} value={d.id}>{d.driver_name} · {d.vehicle_number}</option>
-                ))}
-              </select>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass}>Driver Name *</label>
-                <input value={driverName} onChange={e => setDriverName(e.target.value)} className={inputClass} />
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Item Details</div>
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className={labelClass}>Date &amp; Time</label>
+                  <input type="datetime-local" value={dispatchDatetime} onChange={e => setDispatchDatetime(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Material Description</label>
+                  <input value={material} onChange={e => setMaterial(e.target.value)} className={inputClass} placeholder="e.g. PFD 96%" />
+                </div>
+                <div>
+                  <label className={labelClass}>Quantity</label>
+                  <input value={quantity} onChange={e => setQuantity(e.target.value)} className={inputClass} placeholder="e.g. 16.000 MT" />
+                </div>
+                <div>
+                  <label className={labelClass}>E-way Bill Number</label>
+                  <input value={ewayBillNumber} onChange={e => setEwayBillNumber(e.target.value)} className={inputClass} placeholder="EWB2507150001" />
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className={labelClass}>Documents Enclosed</label>
+                  <input value={documentsEnclosed} onChange={e => setDocumentsEnclosed(e.target.value)} className={inputClass} placeholder="e.g. Invoice, E-Way Bill, LR & COA to Driver" />
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    {(['coa', 'invoice', 'lr', 'eway_bill', 'other'] as TrackerDocType[]).map(dt => (
+                      <label key={dt} className="flex items-center gap-1.5 border border-dashed border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
+                        <Upload size={13} />{DOC_TYPE_LABELS[dt]}
+                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) addPendingDoc(dt, f); e.target.value = ''; }} />
+                      </label>
+                    ))}
+                  </div>
+                  {pendingDocs.length > 0 && (
+                    <div className="space-y-2">
+                      {pendingDocs.map(doc => (
+                        <div key={doc.key} className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2.5">
+                          <FileText size={14} className="text-gray-400 flex-shrink-0" />
+                          <span className="text-xs font-bold text-gray-700 flex-shrink-0">{DOC_TYPE_LABELS[doc.docType]}</span>
+                          <span className="text-xs text-gray-500 truncate flex-1">{doc.file.name}</span>
+                          {doc.docType === 'other' && (
+                            <input value={doc.customLabel} onChange={e => updatePendingDoc(doc.key, { customLabel: e.target.value })}
+                              placeholder="Label" className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
+                          )}
+                          <input type="date" value={doc.expiryDate} onChange={e => updatePendingDoc(doc.key, { expiryDate: e.target.value })}
+                            title="Expiry date (optional)" className="w-36 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
+                          <button type="button" onClick={() => removePendingDoc(doc.key)} className="text-gray-400 hover:text-red-500 flex-shrink-0"><X size={14} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div>
-                <label className={labelClass}>Driver Mobile No. *</label>
-                <input value={driverPhone} onChange={e => setDriverPhone(e.target.value)} className={inputClass} />
-              </div>
             </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className={labelClass}>Transporter Name</label>
-              <input value={transporterName} onChange={e => setTransporterName(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Transporter Phone</label>
-              <input value={transporterPhone} onChange={e => setTransporterPhone(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Transporter Email</label>
-              <input type="email" value={transporterEmail} onChange={e => setTransporterEmail(e.target.value)} className={inputClass} placeholder="for dispatch notification email" />
-            </div>
-            <div>
-              <label className={labelClass}>Vehicle Number *</label>
-              <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} className={inputClass} placeholder="DL 1AB 1234" />
-            </div>
-          </div>
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className="text-sm font-bold text-gray-900">E-way Bill Number <span className="text-gray-400 font-normal">(optional)</span></h2>
-          <div>
-            <label className={labelClass}>E-way Bill Number</label>
-            <input value={ewayBillNumber} onChange={e => setEwayBillNumber(e.target.value)} className={`${inputClass} max-w-sm`} placeholder="EWB2507150001" />
           </div>
         </section>
 
