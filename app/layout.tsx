@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   description: 'B2B Dispatch Tracking Panel',
   manifest: '/manifest.json',
   icons: {
+    icon: '/bogie%20logo.jpeg',
     apple: '/apple-touch-icon.png',
   },
   appleWebApp: {
