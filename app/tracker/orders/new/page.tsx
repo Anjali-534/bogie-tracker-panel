@@ -6,7 +6,7 @@ import { ArrowLeft, BookmarkPlus, RotateCcw, Upload, X, FileText } from 'lucide-
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import { api } from '@/lib/api';
-import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient, type OrderPriority, type TrackerDocType, type OrderType, PRIORITY_LABELS, DOC_TYPE_LABELS, ORDER_TYPE_LABELS } from '@/lib/types';
+import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient, type OrderPriority, type TrackerDocType, type OrderType, PRIORITY_LABELS, ORDER_TYPE_LABELS } from '@/lib/types';
 import LocationInput from '@/components/LocationInput';
 import GSTInput from '@/components/GSTInput';
 import { lookupGSTIN } from '@/lib/gstin';
@@ -87,8 +87,10 @@ export default function NewOrderPage() {
   interface PendingDoc { key: string; docType: TrackerDocType; customLabel: string; expiryDate: string; file: File }
   const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
 
-  function addPendingDoc(docType: TrackerDocType, file: File) {
-    setPendingDocs(prev => [...prev, { key: `${Date.now()}-${Math.random()}`, docType, customLabel: '', expiryDate: '', file }]);
+  function addPendingDoc(file: File) {
+    const dotIndex = file.name.lastIndexOf('.');
+    const defaultLabel = dotIndex > 0 ? file.name.slice(0, dotIndex) : file.name;
+    setPendingDocs(prev => [...prev, { key: `${Date.now()}-${Math.random()}`, docType: 'other', customLabel: defaultLabel, expiryDate: '', file }]);
   }
   function updatePendingDoc(key: string, patch: Partial<PendingDoc>) {
     setPendingDocs(prev => prev.map(d => d.key === key ? { ...d, ...patch } : d));
@@ -756,25 +758,20 @@ export default function NewOrderPage() {
                 </div>
                 <div className="sm:col-span-2 lg:col-span-3 space-y-3">
                   <div className="flex flex-wrap gap-2">
-                    {(['coa', 'invoice', 'lr', 'eway_bill', 'other'] as TrackerDocType[]).map(dt => (
-                      <label key={dt} className="flex items-center gap-1.5 border border-dashed border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
-                        <Upload size={13} />{DOC_TYPE_LABELS[dt]}
-                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden"
-                          onChange={e => { const f = e.target.files?.[0]; if (f) addPendingDoc(dt, f); e.target.value = ''; }} />
-                      </label>
-                    ))}
+                    <label className="flex items-center gap-1.5 border border-dashed border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
+                      <Upload size={13} />Upload Documents
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple className="hidden"
+                        onChange={e => { Array.from(e.target.files ?? []).forEach(addPendingDoc); e.target.value = ''; }} />
+                    </label>
                   </div>
                   {pendingDocs.length > 0 && (
                     <div className="space-y-2">
                       {pendingDocs.map(doc => (
                         <div key={doc.key} className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2.5">
                           <FileText size={14} className="text-gray-400 flex-shrink-0" />
-                          <span className="text-xs font-bold text-gray-700 flex-shrink-0">{DOC_TYPE_LABELS[doc.docType]}</span>
                           <span className="text-xs text-gray-500 truncate flex-1">{doc.file.name}</span>
-                          {doc.docType === 'other' && (
-                            <input value={doc.customLabel} onChange={e => updatePendingDoc(doc.key, { customLabel: e.target.value })}
-                              placeholder="Label" className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
-                          )}
+                          <input value={doc.customLabel} onChange={e => updatePendingDoc(doc.key, { customLabel: e.target.value })}
+                            placeholder="Label" className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
                           <input type="date" value={doc.expiryDate} onChange={e => updatePendingDoc(doc.key, { expiryDate: e.target.value })}
                             title="Expiry date (optional)" className="w-36 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
                           <button type="button" onClick={() => removePendingDoc(doc.key)} className="text-gray-400 hover:text-red-500 flex-shrink-0"><X size={14} /></button>
