@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Link2, FileText, MessageCircle, Send, CheckCircle2, AlertTriangle, XCircle, Mail, Upload, X, Trash2, PackageCheck } from 'lucide-react';
+import { ArrowLeft, Link2, FileText, MessageCircle, Send, CheckCircle2, AlertTriangle, XCircle, Mail, Upload, X, Trash2, PackageCheck, Plus, Truck } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
@@ -156,16 +156,29 @@ export default function OrderDetailsPage() {
     toast.success('Tracking link copied');
   }
 
+  // A multi-stop trip (trip_stop_count > 1) shares ONE driver link across
+  // every stop — the trip's own token, not any individual stop's order
+  // token — so the driver never has to re-share a new link mid-run. A
+  // single-stop "trip" (the common case) keeps using the order's own token,
+  // exactly as before this feature existed.
+  function driverLinkToken(): string | null {
+    if (!order) return null;
+    if (order.trip_stop_count > 1 && order.trip_driver_tracking_token) return order.trip_driver_tracking_token;
+    return order.driver_tracking_token;
+  }
+
   function copyDriverLink() {
-    if (!order?.driver_tracking_token) return;
-    const url = `${window.location.origin}/drive/${order.driver_tracking_token}`;
+    const token = driverLinkToken();
+    if (!token) return;
+    const url = `${window.location.origin}/drive/${token}`;
     navigator.clipboard.writeText(url);
     toast.success('Driver link copied');
   }
 
   function whatsAppDriverLink() {
-    if (!order?.driver_tracking_token || !order.driver_phone) return;
-    const url = `${window.location.origin}/drive/${order.driver_tracking_token}`;
+    const token = driverLinkToken();
+    if (!token || !order?.driver_phone) return;
+    const url = `${window.location.origin}/drive/${token}`;
     const digits = order.driver_phone.replace(/\D/g, '');
     const waNumber = digits.length === 10 ? `91${digits}` : digits;
     const message =
@@ -388,6 +401,12 @@ export default function OrderDetailsPage() {
             <div className="mt-1">
               <RouteRows from={order.dispatch_from} to={order.dispatch_to} compact />
             </div>
+            {order.trip_id && order.trip_stop_count > 1 && order.trip_public_tracking_token && (
+              <Link href={`/track-trip/${order.trip_public_tracking_token}`} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold text-orange-600 hover:text-orange-700">
+                <Truck size={12} />Part of a {order.trip_stop_count}-stop trip · Stop {order.stop_sequence} · View trip
+              </Link>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -418,6 +437,12 @@ export default function OrderDetailsPage() {
           <button onClick={copyTrackingLink} className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
             <Link2 size={14} />Copy Tracking Link
           </button>
+          {order.trip_id && (
+            <Link href={`/tracker/orders/new?trip_id=${order.trip_id}`}
+              className="flex items-center gap-1.5 px-4 py-2.5 border border-orange-200 text-orange-600 rounded-xl text-sm font-semibold hover:bg-orange-50 transition-colors">
+              <Plus size={14} />Add Another Stop
+            </Link>
+          )}
           {!isTerminal && (
             <button onClick={() => setStatus('cancelled')} disabled={updating} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors">
               Cancel Shipment
@@ -656,10 +681,14 @@ export default function OrderDetailsPage() {
             </div>
           )}
 
-          {order.driver_tracking_token && (
+          {driverLinkToken() && (
             <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
               <h2 className="text-sm font-bold text-gray-900">Driver Tracking Link</h2>
-              <p className="text-xs text-gray-400">Share this link with the driver so they can send their live location.</p>
+              <p className="text-xs text-gray-400">
+                {order.trip_stop_count > 1
+                  ? 'One shared link for this whole trip — the driver only needs to open it once.'
+                  : 'Share this link with the driver so they can send their live location.'}
+              </p>
               <div className="flex flex-col gap-2">
                 <button onClick={copyDriverLink} className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
                   <Link2 size={14} />Copy Driver Link

@@ -20,6 +20,16 @@ export default function NewOrderPage() {
   const [saving, setSaving] = useState(false);
   const [drivers, setDrivers] = useState<TrackerDriver[]>([]);
 
+  // "Add another stop" (backend migration 055) — present when this page was
+  // opened as /tracker/orders/new?trip_id=<id> from the order detail page's
+  // "+ Add another stop" button. Read via window.location.search rather
+  // than useSearchParams so this page doesn't need a Suspense boundary
+  // wrapper just for one query param. tripLocked mirrors "was a trip_id
+  // present at all" — vehicle/driver stay locked to the trip for every stop
+  // added this way, not just the second one.
+  const [tripId, setTripId] = useState<string | null>(null);
+  const tripLocked = tripId !== null;
+
   const [orderType, setOrderType] = useState<OrderType>('outbound');
   // The company's own address (Settings → Default Company Address), used to
   // prefill Deliver To once orderType flips to 'inbound' — see the effect
@@ -140,6 +150,29 @@ export default function NewOrderPage() {
         if (gstin) setCompanyState(lookupGSTIN(gstin).state ?? '');
       })
       .catch(() => {});
+
+    const tid = new URLSearchParams(window.location.search).get('trip_id');
+    if (tid) {
+      setTripId(tid);
+      api.get(`/gogoo/tracker/trips/${tid}`)
+        .then(({ data }) => {
+          setVehicleNumber(data.vehicle_number ?? '');
+          // Always 'select' mode when locked — this never re-registers a
+          // driver via "Type New Driver" on submit (see submit()), and the
+          // server ignores whatever driver_id this sends anyway once
+          // trip_id is present (copied from the trip row instead — see
+          // CreateTrackerCompanyOrder). driver_id may be null (driver was
+          // left blank on an earlier stop); that's fine, nothing to lock to.
+          setDriverMode('select');
+          setDriverId(data.driver_id ?? '');
+          setDriverName(data.driver_name ?? '');
+          setDriverPhone(data.driver_phone ?? '');
+          const stops = data.stops ?? [];
+          const lastStop = stops[stops.length - 1];
+          if (lastStop) setDispatchFrom(lastStop.dispatch_to);
+        })
+        .catch(() => toast.error('Failed to load trip details'));
+    }
   }, []);
 
   // Inbound orders deliver back to the company itself — prefill Deliver To
@@ -333,7 +366,7 @@ export default function NewOrderPage() {
       // links the order to that new driver_id. The backend only accepts an
       // existing driver_id on order creation, not free-text driver details.
       let linkedDriverId: string | undefined = driverMode === 'select' ? (driverId || undefined) : undefined;
-      if (driverMode === 'new') {
+      if (driverMode === 'new' && !tripLocked) {
         const { data } = await api.post('/gogoo/tracker/drivers', {
           driver_name: driverName,
           phone: driverPhone,
@@ -382,6 +415,7 @@ export default function NewOrderPage() {
         expected_delivery_date: expectedDeliveryDate ? new Date(expectedDeliveryDate).toISOString() : undefined,
         cc_emails: ccEmails.filter(e => e.trim() !== ''),
         bcc_emails: bccEmails.filter(e => e.trim() !== ''),
+        trip_id: tripId || undefined,
       });
 
       if (pendingDocs.length > 0) {
@@ -408,7 +442,7 @@ export default function NewOrderPage() {
       // navigation and its result is never surfaced to the user.
       api.post(`/gogoo/tracker/orders/${order.id}/creation-email`).catch(() => {});
 
-      toast.success('Shipment created');
+      toast.success(tripLocked ? 'Stop added to trip' : 'Shipment created');
       router.push(`/tracker/orders/${order.id}`);
     } catch (err) {
       if (axios.isAxiosError(err) && err.response) {
@@ -473,8 +507,8 @@ export default function NewOrderPage() {
             <ArrowLeft size={18} className="text-gray-600" />
           </Link>
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-gray-900">New Shipment</h1>
-            <p className="text-xs text-gray-400">Create a new shipment</p>
+            <h1 className="text-xl font-bold text-gray-900">{tripLocked ? 'Add Another Stop' : 'New Shipment'}</h1>
+            <p className="text-xs text-gray-400">{tripLocked ? 'Same truck, next drop on this trip' : 'Create a new shipment'}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
@@ -674,19 +708,27 @@ export default function NewOrderPage() {
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold text-gray-900">Driver</h2>
-                <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
-                  <button type="button" onClick={() => setDriverMode('select')}
-                    className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'select' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
-                    Registered Driver
-                  </button>
-                  <button type="button" onClick={() => { setDriverMode('new'); setDriverId(''); }}
-                    className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'new' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
-                    Type New Driver
-                  </button>
-                </div>
+                {!tripLocked && (
+                  <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
+                    <button type="button" onClick={() => setDriverMode('select')}
+                      className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'select' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                      Registered Driver
+                    </button>
+                    <button type="button" onClick={() => { setDriverMode('new'); setDriverId(''); }}
+                      className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'new' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
+                      Type New Driver
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {driverMode === 'select' ? (
+              {tripLocked ? (
+                <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-gray-700">{driverName || '— No driver assigned —'}</p>
+                  {driverPhone && <p className="text-xs text-gray-500">{driverPhone}</p>}
+                  <p className="text-[11px] text-gray-400 mt-1">Same vehicle as previous stop</p>
+                </div>
+              ) : driverMode === 'select' ? (
                 <div>
                   <label className={labelClass}>Select Driver</label>
                   <select value={driverId} onChange={e => selectDriver(e.target.value)} className={`${inputClass} bg-white`}>
@@ -724,7 +766,9 @@ export default function NewOrderPage() {
                 </div>
                 <div>
                   <label className={labelClass}>Vehicle Number *</label>
-                  <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} className={inputClass} placeholder="DL 1AB 1234" />
+                  <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)} readOnly={tripLocked}
+                    className={`${inputClass} ${tripLocked ? 'bg-gray-50 text-gray-500' : ''}`} placeholder="DL 1AB 1234" />
+                  {tripLocked && <p className="text-[11px] text-gray-400 mt-1">Same vehicle as previous stop</p>}
                 </div>
               </div>
             </div>

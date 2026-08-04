@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Truck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Pagination from '@/components/Pagination';
 import { ScrollBody } from '@/components/TableControls';
@@ -10,6 +10,23 @@ import { api } from '@/lib/api';
 import { STATUS_LABELS, STATUS_STYLES, type TrackerOrder, type OrderStatus } from '@/lib/types';
 
 const PER_PAGE = 12;
+
+// Lightest-touch way to surface trip membership on the list without a table
+// redesign — a small badge, no color-coding/indentation between same-trip
+// rows. trip_stop_count > 1 (not just trip_id) is the actual "genuinely
+// multi-drop" signal — every order has a trip_id now (see backend
+// CreateTrackerCompanyOrder), including ones that will only ever have one
+// stop.
+function TripBadge({ o }: { o: TrackerOrder }) {
+  if (!o.trip_id || o.trip_stop_count <= 1 || !o.trip_public_tracking_token) return null;
+  return (
+    <a href={`/track-trip/${o.trip_public_tracking_token}`} target="_blank" rel="noopener noreferrer"
+      onClick={e => e.stopPropagation()}
+      className="inline-flex items-center gap-1 mt-0.5 text-[11px] font-semibold text-orange-600 hover:text-orange-700">
+      <Truck size={10} />Stop {o.stop_sequence} of {o.trip_stop_count}
+    </a>
+  );
+}
 const STATUS_FILTERS: (OrderStatus | '')[] = ['', 'created', 'dispatched', 'in_transit', 'delivered', 'cancelled'];
 const VALID_STATUSES = new Set(STATUS_FILTERS.filter(Boolean));
 
@@ -126,6 +143,7 @@ function OrdersPageInner() {
                     <td className="px-5 py-3">
                       <Link href={`/tracker/orders/${o.id}`} className="font-semibold text-gray-900 text-sm hover:text-orange-600">{o.booked_for_company_name}</Link>
                       <p className="text-xs text-gray-400">{o.booked_for_phone}</p>
+                      <TripBadge o={o} />
                     </td>
                     <td className="px-5 py-3 text-xs text-gray-600">
                       <p>{o.dispatch_from}</p>
@@ -166,6 +184,7 @@ function OrdersPageInner() {
                     <p className="text-[11px] text-gray-400 font-medium">#{(page - 1) * PER_PAGE + i + 1}</p>
                     <Link href={`/tracker/orders/${o.id}`} className="font-semibold text-gray-900 text-sm hover:text-orange-600 block truncate">{o.booked_for_company_name}</Link>
                     <p className="text-xs text-gray-400">{o.booked_for_phone}</p>
+                    <TripBadge o={o} />
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-semibold whitespace-nowrap flex-shrink-0 ${STATUS_STYLES[o.status]}`}>
                     {STATUS_LABELS[o.status]}

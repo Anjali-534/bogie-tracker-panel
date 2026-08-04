@@ -49,6 +49,13 @@ interface DriverOrder {
   route_polyline: string | null;
   route_distance_km: number | null;
   route_duration_mins: number | null;
+  // Present only when this driver_token belongs to a multi-stop trip
+  // (backend migration 055) rather than a single order — dispatch_to/
+  // booked_for_company_name above already reflect the trip's CURRENT
+  // active stop in that case, this is just the "Stop X of Y" context.
+  is_trip?: boolean;
+  current_stop_sequence?: number;
+  total_stops?: number;
 }
 
 export default function DriverSharePage() {
@@ -343,6 +350,9 @@ export default function DriverSharePage() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-orange-500">
                 {order.booked_for_company_name ? `For ${order.booked_for_company_name}` : 'Location Sharing'}
               </p>
+              {order.is_trip && order.total_stops && order.total_stops > 1 && (
+                <p className="text-[11px] text-gray-400 mt-0.5">Stop {order.current_stop_sequence} of {order.total_stops}</p>
+              )}
             </div>
           </header>
 

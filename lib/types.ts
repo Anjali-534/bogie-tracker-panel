@@ -91,6 +91,16 @@ export interface TrackerOrder {
   // server-side default.
   order_type: OrderType;
 
+  // Trip linkage (backend migration 055) — trip_id is set on every order
+  // now (the backend auto-creates a trip even for a standalone shipment),
+  // but trip_stop_count is only ever >1 for a genuine multi-drop trip —
+  // that's the signal to actually surface trip UI, not trip_id alone.
+  trip_id: string | null;
+  stop_sequence: number;
+  trip_stop_count: number;
+  trip_public_tracking_token: string | null;
+  trip_driver_tracking_token: string | null;
+
   // Dispatch details — from the real dispatch sheet, all optional. Orders
   // created before this feature shipped return null for all five.
   consignee_name: string | null;
