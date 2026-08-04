@@ -553,7 +553,15 @@ export default function NewOrderPage() {
             </div>
             <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
               <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Ship To</div>
-              <div className="p-4">
+              <div className="p-4 space-y-4">
+                <div>
+                  <label className={labelClass}>Registered Address</label>
+                  <textarea value={registeredAddress} onChange={e => setRegisteredAddress(e.target.value)} className={inputClass} rows={2} placeholder="Company's registered office address" />
+                </div>
+                <div>
+                  <label className={labelClass}>Factory / Godown Address</label>
+                  <textarea value={factoryAddress} onChange={e => setFactoryAddress(e.target.value)} className={inputClass} rows={2} placeholder="If different from registered address" />
+                </div>
                 <LocationInput
                   label="Ship To *"
                   value={dispatchTo}
@@ -572,14 +580,6 @@ export default function NewOrderPage() {
         <section className={sectionClass}>
           <h2 className="text-sm font-bold text-gray-900">Shipment Details <span className="text-gray-400 font-normal">(optional)</span></h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="sm:col-span-2 lg:col-span-3">
-              <label className={labelClass}>Registered Address</label>
-              <textarea value={registeredAddress} onChange={e => setRegisteredAddress(e.target.value)} className={inputClass} rows={2} placeholder="Company's registered office address" />
-            </div>
-            <div className="sm:col-span-2 lg:col-span-3">
-              <label className={labelClass}>Factory / Godown Address</label>
-              <textarea value={factoryAddress} onChange={e => setFactoryAddress(e.target.value)} className={inputClass} rows={2} placeholder="If different from registered address" />
-            </div>
             <div>
               <label className={labelClass}>Contact Person Name</label>
               <input value={contactPersonName} onChange={e => setContactPersonName(e.target.value)} className={inputClass} />
