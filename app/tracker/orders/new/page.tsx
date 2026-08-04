@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient, type OrderPriority, type TrackerDocType, type OrderType, PRIORITY_LABELS, DOC_TYPE_LABELS, ORDER_TYPE_LABELS } from '@/lib/types';
 import LocationInput from '@/components/LocationInput';
 import GSTInput from '@/components/GSTInput';
+import { lookupGSTIN } from '@/lib/gstin';
 
 const inputClass = 'w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-green-400';
 const labelClass = 'block text-xs font-semibold text-gray-500 mb-1.5';
@@ -26,6 +27,14 @@ export default function NewOrderPage() {
   const [companyDefaultAddress,    setCompanyDefaultAddress]    = useState('');
   const [companyDefaultAddressLat, setCompanyDefaultAddressLat] = useState<number | null>(null);
   const [companyDefaultAddressLng, setCompanyDefaultAddressLng] = useState<number | null>(null);
+  // Read-only "Bill From"/"Bill To" identity for whichever side is the
+  // company's own — not submitted anywhere on order creation (the order is
+  // already scoped to company_id), purely informational. State is derived
+  // client-side from the company's own GSTIN (same lookupGSTIN used by
+  // GSTInput) since the profile endpoint doesn't store state separately.
+  const [companyName,  setCompanyName]  = useState('');
+  const [companyGstin, setCompanyGstin] = useState('');
+  const [companyState, setCompanyState] = useState('');
 
   const [bookedForCompany, setBookedForCompany] = useState('');
   const [bookedForPhone,   setBookedForPhone]   = useState('');
@@ -123,6 +132,10 @@ export default function NewOrderPage() {
         setCompanyDefaultAddress(data.default_address ?? '');
         setCompanyDefaultAddressLat(data.default_address_lat ?? null);
         setCompanyDefaultAddressLng(data.default_address_lng ?? null);
+        setCompanyName(data.company_name ?? '');
+        const gstin = data.gstin ?? '';
+        setCompanyGstin(gstin);
+        if (gstin) setCompanyState(lookupGSTIN(gstin).state ?? '');
       })
       .catch(() => {});
   }, []);
@@ -407,6 +420,48 @@ export default function NewOrderPage() {
     }
   }
 
+  // The Bill From / Bill To quadrants swap content by orderType (see Route
+  // section below) but never both appear at once, so these are safe to
+  // define once and place in whichever slot applies.
+  const companyBillBlock = (
+    <div className="space-y-3">
+      <div>
+        <span className={labelClass}>Name</span>
+        <p className="text-sm font-semibold text-gray-800">{companyName || '—'}</p>
+      </div>
+      <div>
+        <span className={labelClass}>GSTIN</span>
+        <p className="text-sm font-semibold text-gray-800">{companyGstin || '—'}</p>
+      </div>
+      <div>
+        <span className={labelClass}>State</span>
+        <p className="text-sm font-semibold text-gray-800">{companyState || '—'}</p>
+      </div>
+    </div>
+  );
+
+  const otherPartyBlock = (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label className={labelClass}>{orderType === 'inbound' ? 'Supplier / Vendor Name *' : 'Party Name *'}</label>
+        <input value={bookedForCompany} onChange={e => setBookedForCompany(e.target.value)} className={inputClass} placeholder={orderType === 'inbound' ? 'Supplier / vendor name' : 'Receiving company name'} />
+      </div>
+      <div>
+        <label className={labelClass}>Phone Number *</label>
+        <input value={bookedForPhone} onChange={e => setBookedForPhone(e.target.value)} className={inputClass} placeholder="+91 98765 43210" />
+      </div>
+      <div>
+        <label className={labelClass}>Email <span className="text-gray-400 font-normal">(optional)</span></label>
+        <input type="email" value={bookedForEmail} onChange={e => setBookedForEmail(e.target.value)} className={inputClass} placeholder="for dispatch notification email" />
+      </div>
+      <GSTInput label="GSTIN" value={bookedForGstin} onChange={setBookedForGstin} onStateResolved={setBookedForState} />
+      <div>
+        <label className={labelClass}>State</label>
+        <input value={bookedForState} onChange={e => setBookedForState(e.target.value)} className={inputClass} placeholder="Auto-filled from GSTIN, or type manually" />
+      </div>
+    </div>
+  );
+
   return (
     <div className="max-w-[1600px] w-full space-y-5">
       <Toaster position="top-right" />
@@ -472,23 +527,44 @@ export default function NewOrderPage() {
         )}
 
         <section className={sectionClass}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className={labelClass}>{orderType === 'inbound' ? 'Supplier / Vendor Name *' : 'Party Name *'}</label>
-              <input value={bookedForCompany} onChange={e => setBookedForCompany(e.target.value)} className={inputClass} placeholder={orderType === 'inbound' ? 'Supplier / vendor name' : 'Receiving company name'} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Bill From</div>
+              <div className="p-4">{orderType === 'outbound' ? companyBillBlock : otherPartyBlock}</div>
             </div>
-            <div>
-              <label className={labelClass}>Phone Number *</label>
-              <input value={bookedForPhone} onChange={e => setBookedForPhone(e.target.value)} className={inputClass} placeholder="+91 98765 43210" />
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Dispatch From</div>
+              <div className="p-4">
+                <LocationInput
+                  label="Dispatch From *"
+                  value={dispatchFrom}
+                  lat={dispatchFromLat}
+                  lng={dispatchFromLng}
+                  onChange={(address, lat, lng) => { setDispatchFrom(address); setDispatchFromLat(lat); setDispatchFromLng(lng); }}
+                  placeholder="Search for an address or city"
+                  className={inputClass}
+                  labelClassName={labelClass}
+                />
+              </div>
             </div>
-            <div>
-              <label className={labelClass}>Email <span className="text-gray-400 font-normal">(optional)</span></label>
-              <input type="email" value={bookedForEmail} onChange={e => setBookedForEmail(e.target.value)} className={inputClass} placeholder="for dispatch notification email" />
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Bill To</div>
+              <div className="p-4">{orderType === 'outbound' ? otherPartyBlock : companyBillBlock}</div>
             </div>
-            <GSTInput label="GSTIN" value={bookedForGstin} onChange={setBookedForGstin} onStateResolved={setBookedForState} />
-            <div>
-              <label className={labelClass}>State</label>
-              <input value={bookedForState} onChange={e => setBookedForState(e.target.value)} className={inputClass} placeholder="Auto-filled from GSTIN, or type manually" />
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Ship To</div>
+              <div className="p-4">
+                <LocationInput
+                  label="Ship To *"
+                  value={dispatchTo}
+                  lat={dispatchToLat}
+                  lng={dispatchToLng}
+                  onChange={(address, lat, lng) => { setDispatchTo(address); setDispatchToLat(lat); setDispatchToLng(lng); }}
+                  placeholder="Search for an address or city"
+                  className={inputClass}
+                  labelClassName={labelClass}
+                />
+              </div>
             </div>
           </div>
         </section>
@@ -624,32 +700,6 @@ export default function NewOrderPage() {
                 </div>
               )}
             </div>
-          </div>
-        </section>
-
-        <section className={sectionClass}>
-          <h2 className="text-sm font-bold text-gray-900">Route</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <LocationInput
-              label={orderType === 'inbound' ? 'Pickup From *' : 'Dispatch From *'}
-              value={dispatchFrom}
-              lat={dispatchFromLat}
-              lng={dispatchFromLng}
-              onChange={(address, lat, lng) => { setDispatchFrom(address); setDispatchFromLat(lat); setDispatchFromLng(lng); }}
-              placeholder="Search for an address or city"
-              className={inputClass}
-              labelClassName={labelClass}
-            />
-            <LocationInput
-              label={orderType === 'inbound' ? 'Deliver To *' : 'Dispatch To *'}
-              value={dispatchTo}
-              lat={dispatchToLat}
-              lng={dispatchToLng}
-              onChange={(address, lat, lng) => { setDispatchTo(address); setDispatchToLat(lat); setDispatchToLng(lng); }}
-              placeholder="Search for an address or city"
-              className={inputClass}
-              labelClassName={labelClass}
-            />
           </div>
         </section>
 
