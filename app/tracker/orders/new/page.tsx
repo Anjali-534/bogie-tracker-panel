@@ -578,82 +578,90 @@ export default function NewOrderPage() {
         </section>
 
         <section className={sectionClass}>
-          <h2 className="text-sm font-bold text-gray-900">Shipment Details <span className="text-gray-400 font-normal">(optional)</span></h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className={labelClass}>Contact Person Name</label>
-              <input value={contactPersonName} onChange={e => setContactPersonName(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Contact Person Designation</label>
-              <input value={contactPersonDesignation} onChange={e => setContactPersonDesignation(e.target.value)} className={inputClass} placeholder="e.g. Purchase Manager" />
-            </div>
-            <div>
-              <label className={labelClass}>Contact Person Phone</label>
-              <input value={contactPersonPhone} onChange={e => setContactPersonPhone(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Contact Person Email</label>
-              <input type="email" value={contactPersonEmail} onChange={e => setContactPersonEmail(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Priority</label>
-              <select value={priority} onChange={e => setPriority(e.target.value as OrderPriority)} className={`${inputClass} bg-white`}>
-                {(Object.keys(PRIORITY_LABELS) as OrderPriority[]).map(p => (
-                  <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Expected Delivery Date</label>
-              <input type="date" value={expectedDeliveryDate} onChange={e => setExpectedDeliveryDate(e.target.value)} className={inputClass} />
-            </div>
-            <div className="sm:col-span-2 lg:col-span-3 space-y-2">
-              <label className={labelClass}>CC Emails <span className="text-gray-400 font-normal">(dispatch &amp; status-update notifications)</span></label>
-              {ccEmails.map((email, i) => (
-                <div key={i} className="flex gap-2">
-                  <input type="email" value={email}
-                    onChange={e => setCcEmails(prev => prev.map((v, j) => j === i ? e.target.value : v))}
-                    className={inputClass} placeholder="name@example.com" />
-                  <button type="button" onClick={() => setCcEmails(prev => prev.filter((_, j) => j !== i))}
-                    className="flex-shrink-0 px-3 border border-gray-200 rounded-xl text-gray-400 hover:bg-gray-50"><X size={14} /></button>
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Contact Person Details</div>
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className={labelClass}>Contact Person Name</label>
+                  <input value={contactPersonName} onChange={e => setContactPersonName(e.target.value)} className={inputClass} />
                 </div>
-              ))}
-              <button type="button" onClick={() => setCcEmails(prev => [...prev, ''])}
-                className="text-xs font-semibold text-green-600 hover:text-green-700">+ Add CC email</button>
-            </div>
-            <div className="sm:col-span-2 lg:col-span-3 space-y-2">
-              <label className={labelClass}>BCC Emails</label>
-              {bccEmails.map((email, i) => (
-                <div key={i} className="flex gap-2">
-                  <input type="email" value={email}
-                    onChange={e => setBccEmails(prev => prev.map((v, j) => j === i ? e.target.value : v))}
-                    className={inputClass} placeholder="name@example.com" />
-                  <button type="button" onClick={() => setBccEmails(prev => prev.filter((_, j) => j !== i))}
-                    className="flex-shrink-0 px-3 border border-gray-200 rounded-xl text-gray-400 hover:bg-gray-50"><X size={14} /></button>
+                <div>
+                  <label className={labelClass}>Contact Person Designation</label>
+                  <input value={contactPersonDesignation} onChange={e => setContactPersonDesignation(e.target.value)} className={inputClass} placeholder="e.g. Purchase Manager" />
                 </div>
-              ))}
-              <button type="button" onClick={() => setBccEmails(prev => [...prev, ''])}
-                className="text-xs font-semibold text-green-600 hover:text-green-700">+ Add BCC email</button>
+                <div>
+                  <label className={labelClass}>Contact Person Phone</label>
+                  <input value={contactPersonPhone} onChange={e => setContactPersonPhone(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Contact Person Email</label>
+                  <input type="email" value={contactPersonEmail} onChange={e => setContactPersonEmail(e.target.value)} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Priority</label>
+                  <select value={priority} onChange={e => setPriority(e.target.value as OrderPriority)} className={`${inputClass} bg-white`}>
+                    {(Object.keys(PRIORITY_LABELS) as OrderPriority[]).map(p => (
+                      <option key={p} value={p}>{PRIORITY_LABELS[p]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Expected Delivery Date</label>
+                  <input type="date" value={expectedDeliveryDate} onChange={e => setExpectedDeliveryDate(e.target.value)} className={inputClass} />
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3 space-y-2">
+                  <label className={labelClass}>CC Emails <span className="text-gray-400 font-normal">(dispatch &amp; status-update notifications)</span></label>
+                  {ccEmails.map((email, i) => (
+                    <div key={i} className="flex gap-2">
+                      <input type="email" value={email}
+                        onChange={e => setCcEmails(prev => prev.map((v, j) => j === i ? e.target.value : v))}
+                        className={inputClass} placeholder="name@example.com" />
+                      <button type="button" onClick={() => setCcEmails(prev => prev.filter((_, j) => j !== i))}
+                        className="flex-shrink-0 px-3 border border-gray-200 rounded-xl text-gray-400 hover:bg-gray-50"><X size={14} /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setCcEmails(prev => [...prev, ''])}
+                    className="text-xs font-semibold text-green-600 hover:text-green-700">+ Add CC email</button>
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3 space-y-2">
+                  <label className={labelClass}>BCC Emails</label>
+                  {bccEmails.map((email, i) => (
+                    <div key={i} className="flex gap-2">
+                      <input type="email" value={email}
+                        onChange={e => setBccEmails(prev => prev.map((v, j) => j === i ? e.target.value : v))}
+                        className={inputClass} placeholder="name@example.com" />
+                      <button type="button" onClick={() => setBccEmails(prev => prev.filter((_, j) => j !== i))}
+                        className="flex-shrink-0 px-3 border border-gray-200 rounded-xl text-gray-400 hover:bg-gray-50"><X size={14} /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setBccEmails(prev => [...prev, ''])}
+                    className="text-xs font-semibold text-green-600 hover:text-green-700">+ Add BCC email</button>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
         <section className={sectionClass}>
-          <h2 className="text-sm font-bold text-gray-900">Consignee <span className="text-gray-400 font-normal">(optional)</span></h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className={labelClass}>{orderType === 'inbound' ? 'Received By' : 'Consignee Name'}</label>
-              <input value={consigneeName} onChange={e => setConsigneeName(e.target.value)} className={inputClass} placeholder={orderType === 'inbound' ? 'Who received the goods, if different from Supplier' : 'Receiving entity, if different from Booked For'} />
-            </div>
-            <div>
-              <label className={labelClass}>{orderType === 'inbound' ? 'Received By Email' : 'Consignee Email'}</label>
-              <input type="email" value={consigneeEmail} onChange={e => setConsigneeEmail(e.target.value)} className={inputClass} placeholder="for dispatch notification email" />
-            </div>
-            <GSTInput label="Consignee GSTIN" value={consigneeGstin} onChange={setConsigneeGstin} onStateResolved={setConsigneeState} />
-            <div>
-              <label className={labelClass}>Consignee State</label>
-              <input value={consigneeState} onChange={e => setConsigneeState(e.target.value)} className={inputClass} placeholder="Auto-filled from GSTIN, or type manually" />
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Consignee Details</div>
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className={labelClass}>{orderType === 'inbound' ? 'Received By' : 'Consignee Name'}</label>
+                  <input value={consigneeName} onChange={e => setConsigneeName(e.target.value)} className={inputClass} placeholder={orderType === 'inbound' ? 'Who received the goods, if different from Supplier' : 'Receiving entity, if different from Booked For'} />
+                </div>
+                <div>
+                  <label className={labelClass}>{orderType === 'inbound' ? 'Received By Email' : 'Consignee Email'}</label>
+                  <input type="email" value={consigneeEmail} onChange={e => setConsigneeEmail(e.target.value)} className={inputClass} placeholder="for dispatch notification email" />
+                </div>
+                <GSTInput label="Consignee GSTIN" value={consigneeGstin} onChange={setConsigneeGstin} onStateResolved={setConsigneeState} />
+                <div>
+                  <label className={labelClass}>Consignee State</label>
+                  <input value={consigneeState} onChange={e => setConsigneeState(e.target.value)} className={inputClass} placeholder="Auto-filled from GSTIN, or type manually" />
+                </div>
+              </div>
             </div>
           </div>
         </section>
