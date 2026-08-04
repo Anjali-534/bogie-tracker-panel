@@ -327,9 +327,9 @@ export default function SettingsPage() {
             <p className="text-[11px] text-gray-400">Shown on your dashboard and, if approved, in Bogie&apos;s partner list.</p>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-            <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Quick Info</h2>
-            <div className="space-y-2 text-sm">
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Quick Info</div>
+            <div className="p-5 space-y-2 text-sm">
               <div>
                 <p className="text-[11px] text-gray-400">Company Name</p>
                 <p className="font-semibold text-gray-800 truncate">{companyName || '—'}</p>
@@ -367,8 +367,9 @@ export default function SettingsPage() {
         {/* MIDDLE COLUMN — form cards */}
         <div className="lg:col-span-6 space-y-6">
           <form onSubmit={saveProfile} className="space-y-6">
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-              <h2 className="text-sm font-bold text-gray-900">Company Profile</h2>
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Company Profile</div>
+              <div className="p-6 space-y-4">
               <div>
                 <label className={labelClass}>Company Name</label>
                 <input value={companyName} onChange={e => setCompanyName(e.target.value)} className={inputClass} />
@@ -388,10 +389,12 @@ export default function SettingsPage() {
                 <input value={email} disabled className={`${inputClass} bg-gray-50 text-gray-400 cursor-not-allowed`} />
                 <p className="text-[11px] text-gray-400 mt-1">Login email can&apos;t be changed here — contact support to update it.</p>
               </div>
+              </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-              <h2 className="text-sm font-bold text-gray-900">Default Company Address</h2>
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Default Company Address</div>
+              <div className="p-6 space-y-4">
               <div>
                 <LocationInput
                   label="Default Company Address (optional)"
@@ -405,14 +408,17 @@ export default function SettingsPage() {
                 />
                 <p className="text-[11px] text-gray-400 mt-1">Used to prefill Deliver To on inbound shipments — the goods coming back to you.</p>
               </div>
+              </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-              <h2 className="text-sm font-bold text-gray-900">Notifications</h2>
+            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Notifications</div>
+              <div className="p-6 space-y-4">
               <div>
                 <label className={labelClass}>Notification Email <span className="text-gray-400 font-normal">(optional)</span></label>
                 <input type="email" value={notificationEmail} onChange={e => setNotificationEmail(e.target.value)} className={inputClass} placeholder={email || 'you@company.com'} />
                 <p className="text-[11px] text-gray-400 mt-1">Replies to dispatch emails go here; defaults to your signup email.</p>
+              </div>
               </div>
             </div>
 
@@ -426,8 +432,9 @@ export default function SettingsPage() {
             </div>
           </form>
 
-          <form id="password" onSubmit={savePassword} className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-            <h2 className="text-sm font-bold text-gray-900">Change Password</h2>
+          <form id="password" onSubmit={savePassword} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Change Password</div>
+            <div className="p-6 space-y-4">
             <div>
               <label className={labelClass}>Current Password</label>
               <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} className={inputClass} />
@@ -447,13 +454,14 @@ export default function SettingsPage() {
                 {savingPassword ? 'Updating…' : 'Change Password'}
               </button>
             </div>
+            </div>
           </form>
 
           {isOwner && (
-            <div id="staff" className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-gray-900">Team</h2>
-                <span className="text-xs text-gray-400">
+            <div id="staff" className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 flex items-center justify-between">
+                <span>Team</span>
+                <span className="normal-case font-medium text-orange-100">
                   {(() => {
                     const activeCount = staff.filter(s => !s.disabled_at).length;
                     return staffUnlimited
@@ -462,6 +470,7 @@ export default function SettingsPage() {
                   })()}
                 </span>
               </div>
+              <div className="p-6 space-y-4">
 
               {staff.length > 0 && (
                 <ul className="divide-y divide-gray-100">
@@ -504,11 +513,13 @@ export default function SettingsPage() {
                   <p className="text-[11px] text-gray-400 mt-2">Staff have the same full access as you, except managing other staff logins.</p>
                 </div>
               </form>
+              </div>
             </div>
           )}
 
-          <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-3">
-            <h2 className="text-sm font-bold text-gray-900">Legal</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Legal</div>
+            <div className="p-6 space-y-3">
             <ul className="divide-y divide-gray-100">
               {[
                 { href: '/terms', label: 'Terms of Service' },
@@ -527,13 +538,15 @@ export default function SettingsPage() {
                 </li>
               ))}
             </ul>
+            </div>
           </div>
         </div>
 
         {/* FAR RIGHT SIDEBAR — quick tips */}
         <div className="lg:col-span-3">
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3 lg:sticky lg:top-6">
-            <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Quick Tips</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden lg:sticky lg:top-6">
+            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Quick Tips</div>
+            <div className="p-5 space-y-3">
             <ul className="space-y-3">
               <li>
                 <Link href="#staff" className="flex items-start gap-2 text-xs text-gray-600 hover:text-orange-600 transition-colors">
@@ -554,6 +567,7 @@ export default function SettingsPage() {
                 </Link>
               </li>
             </ul>
+            </div>
           </div>
         </div>
       </div>

@@ -131,9 +131,9 @@ function OrdersPageInner() {
           <div className="hidden md:block">
             <ScrollBody>
             <table className="w-full">
-              <thead className="sticky top-0 z-10"><tr className="bg-gray-50">
+              <thead className="sticky top-0 z-10"><tr className="bg-orange-500">
                 {['#','Booked For','Route','Driver / Vehicle','Status','Created','Actions'].map(h => (
-                  <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">{h}</th>
+                  <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold text-white uppercase tracking-wider">{h}</th>
                 ))}
               </tr></thead>
               <tbody>

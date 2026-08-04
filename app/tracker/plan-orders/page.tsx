@@ -79,9 +79,9 @@ export default function PlanOrdersPage() {
           {/* Table — md: and above */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
-              <thead><tr className="bg-gray-50">
+              <thead><tr className="bg-orange-500">
                 {['Plan', 'Duration', 'Amount', 'Status', 'Invoice', 'Created', ''].map(h => (
-                  <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold text-gray-400 uppercase tracking-wider">{h}</th>
+                  <th key={h} className="text-left px-5 py-3.5 text-[11px] font-bold text-white uppercase tracking-wider">{h}</th>
                 ))}
               </tr></thead>
               <tbody>

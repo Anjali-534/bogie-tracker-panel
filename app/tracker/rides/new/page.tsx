@@ -127,9 +127,10 @@ function BookRidePageInner() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-6">
-        <section className="space-y-3">
-          <h2 className="text-sm font-bold text-gray-900">Service Type</h2>
+      <div className="space-y-5">
+        <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Service Type</div>
+          <div className="p-6 space-y-3">
           {servicesLoading ? (
             <p className="text-sm text-gray-400">Loading…</p>
           ) : (
@@ -167,10 +168,12 @@ function BookRidePageInner() {
               </div>
             </>
           )}
+          </div>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-sm font-bold text-gray-900">Route</h2>
+        <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Route</div>
+          <div className="p-6 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <LocationInput
               label="Pickup Location *"
@@ -193,11 +196,16 @@ function BookRidePageInner() {
               labelClassName={labelClass}
             />
           </div>
+          </div>
         </section>
 
         {category === 'truck' && (
-          <section className="space-y-4">
-            <h2 className="text-sm font-bold text-gray-900">Receiver Details <span className="text-gray-400 font-normal">(optional)</span></h2>
+          <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 flex items-center justify-between">
+              <span>Receiver Details</span>
+              <span className="normal-case font-medium text-orange-100">optional</span>
+            </div>
+            <div className="p-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Receiver Name</label>
@@ -208,11 +216,13 @@ function BookRidePageInner() {
                 <input value={receiverPhone} onChange={e => setReceiverPhone(e.target.value)} className={inputClass} />
               </div>
             </div>
+            </div>
           </section>
         )}
 
-        <section className="space-y-3">
-          <h2 className="text-sm font-bold text-gray-900">Payment Method</h2>
+        <section className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Payment Method</div>
+          <div className="p-6 space-y-3">
           <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden w-fit">
             {([
               { key: 'cash' as const, label: 'Cash' },
@@ -232,6 +242,7 @@ function BookRidePageInner() {
               )}
             </p>
           )}
+          </div>
         </section>
 
         {selected && (

@@ -68,7 +68,9 @@ function FaqAccordion() {
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-100">
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Quick FAQ</div>
+      <div className="divide-y divide-gray-100">
       {FAQ.map((item, i) => {
         const isOpen = open.has(i);
         return (
@@ -89,6 +91,7 @@ function FaqAccordion() {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -259,26 +262,25 @@ const SECTIONS: GuideSection[] = [
 
 export default function HelpPage() {
   return (
-    <div className="max-w-3xl space-y-8">
+    <div className="max-w-[1600px] w-full space-y-8">
       <div>
         <h1 className="text-xl font-bold text-gray-900">How to Use</h1>
         <p className="text-xs text-gray-400">A practical guide to every feature in the tracker panel.</p>
       </div>
 
-      <div className="space-y-3">
-        <h2 className="text-sm font-bold text-gray-900">Quick FAQ</h2>
-        <FaqAccordion />
-      </div>
+      <FaqAccordion />
 
-      <div className="space-y-6">
-        <h2 className="text-sm font-bold text-gray-900">Detailed Guide</h2>
-        {SECTIONS.map(section => (
-          <div key={section.title} className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-            <h3 className="text-sm font-bold text-gray-900">{section.title}</h3>
-            <div className="text-sm text-gray-600 leading-relaxed space-y-2">{section.body}</div>
-            <VideoPlaceholder title={section.title} />
-          </div>
-        ))}
+      <div className="space-y-4">
+        <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-xl">Detailed Guide</div>
+        <div className="space-y-6">
+          {SECTIONS.map(section => (
+            <div key={section.title} className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+              <h3 className="text-sm font-bold text-gray-900">{section.title}</h3>
+              <div className="text-sm text-gray-600 leading-relaxed space-y-2">{section.body}</div>
+              <VideoPlaceholder title={section.title} />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
