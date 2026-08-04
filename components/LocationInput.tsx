@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { LocateFixed, MapPin, Maximize2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api';
@@ -45,6 +46,32 @@ export default function LocationInput({ label, value, lat, lng, onChange, placeh
   const [mapExpanded, setMapExpanded] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  // Dropdown is portaled to document.body (see render below) so it always
+  // floats above whatever card/section contains this field, rather than
+  // being confined to that ancestor's box — a card in a CSS grid row
+  // stretches to match its tallest sibling (align-items: stretch, the grid
+  // default), so an in-place absolutely-positioned dropdown would render
+  // inside that stretched white space instead of visibly overhanging past
+  // the card, even once nothing is clipping it. position tracks the input
+  // row's live bounding rect; recomputed on open and kept in sync on
+  // scroll/resize while the dropdown is showing.
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    if (!showDropdown) return;
+    function updatePosition() {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
+    updatePosition();
+    window.addEventListener('scroll', updatePosition, true);
+    window.addEventListener('resize', updatePosition);
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true);
+      window.removeEventListener('resize', updatePosition);
+    };
+  }, [showDropdown]);
 
   // OlaMap has its own ResizeObserver on the map container, so no manual
   // resize() nudge is needed here anymore — it reacts to the fullscreen
@@ -68,9 +95,14 @@ export default function LocationInput({ label, value, lat, lng, onChange, placeh
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setShowDropdown(false);
-      }
+      const target = e.target as Node;
+      // dropdownRef covers the portaled dropdown too (see render below) —
+      // it lives outside containerRef in the actual DOM tree once portaled
+      // to document.body, so containerRef alone would treat every click on
+      // a suggestion as "outside" and close the list out from under it.
+      if (containerRef.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      setShowDropdown(false);
     }
     document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);
@@ -183,8 +215,12 @@ export default function LocationInput({ label, value, lat, lng, onChange, placeh
           <LocateFixed size={16} className={locating ? 'animate-pulse' : ''} />
         </button>
       </div>
-      {showDropdown && (
-        <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+      {showDropdown && dropdownPos && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+          className="z-50 max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg divide-y divide-gray-100"
+        >
           {suggestions.map(s => (
             <button
               key={s.place_id}
@@ -194,13 +230,14 @@ export default function LocationInput({ label, value, lat, lng, onChange, placeh
               // precise place-details lookup and clobber it.
               onMouseDown={e => e.preventDefault()}
               onClick={() => selectSuggestion(s)}
-              className="flex items-start gap-2 w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex items-start gap-2.5 w-full text-left px-4 py-3 text-sm leading-snug text-gray-700 hover:bg-orange-50 transition-colors"
             >
               <MapPin size={14} className="flex-shrink-0 mt-0.5 text-gray-400" />
-              {s.description}
+              <span>{s.description}</span>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
       {lat != null && lng != null && (
         <div
