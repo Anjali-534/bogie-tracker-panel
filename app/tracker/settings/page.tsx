@@ -314,6 +314,7 @@ export default function SettingsPage() {
                 <Building2 size={28} className="text-gray-300" />
               </div>
             )}
+            <p className="font-semibold text-gray-800 text-sm">{companyName || '—'}</p>
             <label className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
               <Upload size={13} />{uploadingLogo ? 'Uploading…' : 'Upload Logo'}
               <input type="file" accept=".jpg,.jpeg,.png,.webp" className="hidden" disabled={uploadingLogo}
@@ -332,7 +333,7 @@ export default function SettingsPage() {
             <div className="p-5 space-y-2 text-sm">
               <div>
                 <p className="text-[11px] text-gray-400">Company Name</p>
-                <p className="font-semibold text-gray-800 truncate">{companyName || '—'}</p>
+                <p className="font-semibold text-gray-800">Bogie AI Technologies Pvt Ltd</p>
               </div>
               <div>
                 <p className="text-[11px] text-gray-400">Contact Phone</p>
@@ -389,12 +390,6 @@ export default function SettingsPage() {
                 <input value={email} disabled className={`${inputClass} bg-gray-50 text-gray-400 cursor-not-allowed`} />
                 <p className="text-[11px] text-gray-400 mt-1">Login email can&apos;t be changed here — contact support to update it.</p>
               </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Default Company Address</div>
-              <div className="p-6 space-y-4">
               <div>
                 <LocationInput
                   label="Default Company Address (optional)"
