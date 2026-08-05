@@ -71,7 +71,6 @@ export default function NewOrderPage() {
   const [consigneeState,      setConsigneeState]      = useState('');
   const [material,            setMaterial]            = useState('');
   const [quantity,             setQuantity]           = useState('');
-  const [dispatchDatetime,     setDispatchDatetime]   = useState('');
   const [documentsEnclosed,    setDocumentsEnclosed]  = useState('');
 
   // Shipment-detail expansion (Phase 1) — registered/factory address and
@@ -94,13 +93,13 @@ export default function NewOrderPage() {
   // POST /tracker/orders/:id/documents right after order creation succeeds
   // (same "create order, then attach files" pattern the old single e-way-
   // bill upload used). Every doc_type is always optional.
-  interface PendingDoc { key: string; docType: TrackerDocType; customLabel: string; expiryDate: string; file: File }
+  interface PendingDoc { key: string; docType: TrackerDocType; customLabel: string; file: File }
   const [pendingDocs, setPendingDocs] = useState<PendingDoc[]>([]);
 
   function addPendingDoc(file: File) {
     const dotIndex = file.name.lastIndexOf('.');
     const defaultLabel = dotIndex > 0 ? file.name.slice(0, dotIndex) : file.name;
-    setPendingDocs(prev => [...prev, { key: `${Date.now()}-${Math.random()}`, docType: 'other', customLabel: defaultLabel, expiryDate: '', file }]);
+    setPendingDocs(prev => [...prev, { key: `${Date.now()}-${Math.random()}`, docType: 'other', customLabel: defaultLabel, file }]);
   }
   function updatePendingDoc(key: string, patch: Partial<PendingDoc>) {
     setPendingDocs(prev => prev.map(d => d.key === key ? { ...d, ...patch } : d));
@@ -287,8 +286,7 @@ export default function NewOrderPage() {
   }
 
   // Prefills everything editable from the company's most recent order EXCEPT
-  // dispatch_datetime (a stale past date silently carried over is a footgun)
-  // and the e-way bill number/file (always unique per dispatch).
+  // the e-way bill number/file (always unique per dispatch).
   async function repeatLastOrder() {
     if (!lastOrderId) return;
     setRepeating(true);
@@ -329,9 +327,9 @@ export default function NewOrderPage() {
       setContactPersonDesignation(o.contact_person_designation ?? '');
       setPriority(o.priority ?? 'normal');
       // Expected delivery date is deliberately NOT carried over — same
-      // footgun as dispatch_datetime and the e-way bill, a stale delivery
-      // date silently reused would be worse than an empty field.
-      toast.success('Prefilled from your last shipment — dispatch date, e-way bill & delivery date start fresh');
+      // footgun as the e-way bill, a stale delivery date silently reused
+      // would be worse than an empty field.
+      toast.success('Prefilled from your last shipment — e-way bill & delivery date start fresh');
     } catch {
       toast.error('Failed to load your last shipment');
     } finally {
@@ -403,7 +401,6 @@ export default function NewOrderPage() {
         saved_recipient_id: selectedRecipientId ?? undefined,
         material: material || undefined,
         quantity: quantity || undefined,
-        dispatch_datetime: dispatchDatetime ? new Date(dispatchDatetime).toISOString() : undefined,
         documents_enclosed: documentsEnclosed || undefined,
         registered_address: registeredAddress || undefined,
         factory_address: factoryAddress || undefined,
@@ -425,7 +422,6 @@ export default function NewOrderPage() {
           form.append('file', doc.file);
           form.append('doc_type', doc.docType);
           if (doc.docType === 'other' && doc.customLabel) form.append('custom_label', doc.customLabel);
-          if (doc.expiryDate) form.append('expiry_date', doc.expiryDate);
           try {
             await api.post(`/gogoo/tracker/orders/${order.id}/documents`, form);
           } catch {
@@ -615,6 +611,29 @@ export default function NewOrderPage() {
 
         <section className={sectionClass}>
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Consignee Details</div>
+            <div className="p-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div>
+                  <label className={labelClass}>{orderType === 'inbound' ? 'Received By' : 'Consignee Name'}</label>
+                  <input value={consigneeName} onChange={e => setConsigneeName(e.target.value)} className={inputClass} placeholder={orderType === 'inbound' ? 'Who received the goods, if different from Supplier' : 'Receiving entity, if different from Booked For'} />
+                </div>
+                <div>
+                  <label className={labelClass}>{orderType === 'inbound' ? 'Received By Email' : 'Consignee Email'}</label>
+                  <input type="email" value={consigneeEmail} onChange={e => setConsigneeEmail(e.target.value)} className={inputClass} placeholder="for dispatch notification email" />
+                </div>
+                <GSTInput label="Consignee GSTIN" value={consigneeGstin} onChange={setConsigneeGstin} onStateResolved={setConsigneeState} />
+                <div>
+                  <label className={labelClass}>Consignee State</label>
+                  <input value={consigneeState} onChange={e => setConsigneeState(e.target.value)} className={inputClass} placeholder="Auto-filled from GSTIN, or type manually" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className={sectionClass}>
+          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Contact Person Details</div>
             <div className="p-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -681,29 +700,6 @@ export default function NewOrderPage() {
 
         <section className={sectionClass}>
           <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Consignee Details</div>
-            <div className="p-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <div>
-                  <label className={labelClass}>{orderType === 'inbound' ? 'Received By' : 'Consignee Name'}</label>
-                  <input value={consigneeName} onChange={e => setConsigneeName(e.target.value)} className={inputClass} placeholder={orderType === 'inbound' ? 'Who received the goods, if different from Supplier' : 'Receiving entity, if different from Booked For'} />
-                </div>
-                <div>
-                  <label className={labelClass}>{orderType === 'inbound' ? 'Received By Email' : 'Consignee Email'}</label>
-                  <input type="email" value={consigneeEmail} onChange={e => setConsigneeEmail(e.target.value)} className={inputClass} placeholder="for dispatch notification email" />
-                </div>
-                <GSTInput label="Consignee GSTIN" value={consigneeGstin} onChange={setConsigneeGstin} onStateResolved={setConsigneeState} />
-                <div>
-                  <label className={labelClass}>Consignee State</label>
-                  <input value={consigneeState} onChange={e => setConsigneeState(e.target.value)} className={inputClass} placeholder="Auto-filled from GSTIN, or type manually" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className={sectionClass}>
-          <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
             <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Transportation Details</div>
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
@@ -716,7 +712,7 @@ export default function NewOrderPage() {
                     </button>
                     <button type="button" onClick={() => { setDriverMode('new'); setDriverId(''); }}
                       className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'new' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
-                      Type New Driver
+                      Add New Driver
                     </button>
                   </div>
                 )}
@@ -781,10 +777,6 @@ export default function NewOrderPage() {
             <div className="p-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
-                  <label className={labelClass}>Date &amp; Time</label>
-                  <input type="datetime-local" value={dispatchDatetime} onChange={e => setDispatchDatetime(e.target.value)} className={inputClass} />
-                </div>
-                <div>
                   <label className={labelClass}>Material Description</label>
                   <input value={material} onChange={e => setMaterial(e.target.value)} className={inputClass} placeholder="e.g. PFD 96%" />
                 </div>
@@ -816,8 +808,6 @@ export default function NewOrderPage() {
                           <span className="text-xs text-gray-500 truncate flex-1">{doc.file.name}</span>
                           <input value={doc.customLabel} onChange={e => updatePendingDoc(doc.key, { customLabel: e.target.value })}
                             placeholder="Label" className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
-                          <input type="date" value={doc.expiryDate} onChange={e => updatePendingDoc(doc.key, { expiryDate: e.target.value })}
-                            title="Expiry date (optional)" className="w-36 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
                           <button type="button" onClick={() => removePendingDoc(doc.key)} className="text-gray-400 hover:text-red-500 flex-shrink-0"><X size={14} /></button>
                         </div>
                       ))}

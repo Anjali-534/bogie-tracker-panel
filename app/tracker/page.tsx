@@ -106,9 +106,9 @@ export default function OverviewPage() {
 
           {/* Recent shipments */}
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-sm font-bold text-gray-900">Recent Shipments</h2>
-              <Link href="/tracker/orders" className="text-xs font-semibold text-orange-600 hover:text-orange-800">View all</Link>
+            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 flex items-center justify-between">
+              <span>Recent Shipments</span>
+              <Link href="/tracker/orders" className="normal-case font-semibold text-orange-100 hover:text-white">View all</Link>
             </div>
             <div>
               {recentOrders.map(o => (
