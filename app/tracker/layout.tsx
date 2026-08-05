@@ -6,19 +6,33 @@ import { Suspense, useEffect, useState } from 'react';
 import { Toaster } from 'react-hot-toast';
 import {
   Home, Package, Users, BookUser, CreditCard, Settings, LogOut, CarFront, MapPin,
-  ChevronDown, ChevronRight, HelpCircle, Menu, X,
+  ChevronDown, ChevronRight, HelpCircle, LifeBuoy, Menu, X,
 } from 'lucide-react';
-import { clearSession } from '@/lib/api';
+import { api, clearSession } from '@/lib/api';
 import InstallButton from '@/components/InstallButton';
 
 interface NavLeaf { href: string; label: string; }
 interface NavFlat { href: string; icon: typeof Home; label: string; iconOnly?: boolean; }
 interface NavSection { label: string; icon: typeof Home; basePaths: string[]; children: NavLeaf[]; }
-type NavEntry = NavFlat | NavSection;
+// An expandable sidebar item whose dropdown shows plain info rows instead of
+// links to another page/route — currently just "Support" (the old Settings
+// page's Quick Info card, moved here so it's reachable from anywhere).
+interface NavInfoSection { label: string; icon: typeof Home; info: true; }
+type NavEntry = NavFlat | NavSection | NavInfoSection;
 
 function isSection(entry: NavEntry): entry is NavSection {
   return 'children' in entry;
 }
+
+function isInfoSection(entry: NavEntry): entry is NavInfoSection {
+  return 'info' in entry;
+}
+
+const SUBSCRIPTION_BADGE: Record<string, { label: string; className: string }> = {
+  active: { label: 'Active', className: 'bg-green-50 text-green-600 border-green-200' },
+  overdue: { label: 'Overdue', className: 'bg-red-50 text-red-600 border-red-200' },
+  paused: { label: 'Paused', className: 'bg-amber-50 text-amber-600 border-amber-200' },
+};
 
 // Splits an href like "/tracker/orders?status=x" or "/tracker/settings#staff"
 // into its path/query/hash parts so active-state matching can compare each
@@ -81,9 +95,14 @@ const NAV: NavEntry[] = [
   },
   { href: '/tracker/plan-orders', icon: CreditCard, label: 'Billing & Subscription' },
   { href: '/tracker/help', icon: HelpCircle, label: 'How to Use' },
+  { label: 'Support', icon: LifeBuoy, info: true },
 ];
 
-function SidebarNavInner({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarNavInner({ onNavigate, supportPhone, subscriptionStatus }: {
+  onNavigate?: () => void;
+  supportPhone: string;
+  subscriptionStatus: string | null;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -135,6 +154,58 @@ function SidebarNavInner({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
       {NAV.map(entry => {
+        if (isInfoSection(entry)) {
+          const open = expanded.has(entry.label);
+          const subBadge = subscriptionStatus ? SUBSCRIPTION_BADGE[subscriptionStatus] : null;
+          return (
+            <div key={entry.label}>
+              <button
+                type="button"
+                onClick={() => toggle(entry.label)}
+                className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  open
+                    ? 'bg-orange-50 text-orange-500 border-l-[3px] border-orange-500 pl-[9px] font-semibold'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <entry.icon size={16} className="flex-shrink-0" />
+                <span className="flex-1 text-left">{entry.label}</span>
+                {open ? <ChevronDown size={14} className="flex-shrink-0" /> : <ChevronRight size={14} className="flex-shrink-0" />}
+              </button>
+              {open && (
+                <div className="mt-0.5 ml-[1.375rem] pl-3 border-l border-gray-100 py-2 space-y-2">
+                  <div>
+                    <p className="text-[10px] text-gray-400">Company Name</p>
+                    <p className="text-[13px] font-medium text-gray-700">Bogie AI Technologies Pvt Ltd</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400">Contact Phone</p>
+                    <p className="text-[13px] font-medium text-gray-700">{supportPhone || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400">Helpline</p>
+                    <p className="text-[13px] font-medium text-gray-700">7827194116</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400">Support Email</p>
+                    <p className="text-[13px] font-medium text-gray-700 break-all">support@bogie.in</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-gray-400 mb-1">Subscription</p>
+                    {subBadge ? (
+                      <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${subBadge.className}`}>
+                        {subBadge.label}
+                      </span>
+                    ) : (
+                      <span className="text-[13px] text-gray-300">—</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }
+
         if (!isSection(entry)) {
           return (
             <Link
@@ -201,6 +272,21 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Backs the sidebar's Support dropdown (moved here from Settings' old
+  // Quick Info card, see SidebarNavInner) — fetched once at the layout level
+  // so it's available no matter which /tracker page is active, not just
+  // Settings.
+  const [supportPhone, setSupportPhone] = useState('');
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  useEffect(() => {
+    api.get('/gogoo/tracker/company/profile')
+      .then(({ data }) => setSupportPhone(data.contact_phone || ''))
+      .catch(() => {});
+    api.get('/gogoo/tracker/wallet/ledger')
+      .then(({ data }) => setSubscriptionStatus(data.subscription_status || null))
+      .catch(() => {});
+  }, []);
+
   // Only checks that a token exists — not the stored status. A stored
   // status is just a UI hint from the last login/response and can go stale
   // (e.g. approved after the last visit); the server's live status check on
@@ -246,7 +332,11 @@ export default function TrackerLayout({ children }: { children: React.ReactNode 
 
         {/* Nav */}
         <Suspense fallback={<div className="flex-1 p-3" />}>
-          <SidebarNavInner onNavigate={() => setMobileOpen(false)} />
+          <SidebarNavInner
+            onNavigate={() => setMobileOpen(false)}
+            supportPhone={supportPhone}
+            subscriptionStatus={subscriptionStatus}
+          />
         </Suspense>
 
         {/* Bottom */}

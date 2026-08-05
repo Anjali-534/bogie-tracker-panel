@@ -58,12 +58,6 @@ interface ProfileFormState {
   defaultAddressLng: number | null;
 }
 
-const SUBSCRIPTION_BADGE: Record<string, { label: string; className: string }> = {
-  active: { label: 'Active', className: 'bg-green-50 text-green-600 border-green-200' },
-  overdue: { label: 'Overdue', className: 'bg-red-50 text-red-600 border-red-200' },
-  paused: { label: 'Paused', className: 'bg-amber-50 text-amber-600 border-amber-200' },
-};
-
 export default function SettingsPage() {
   const [companyName, setCompanyName] = useState('');
   const [email,        setEmail]        = useState('');
@@ -79,8 +73,6 @@ export default function SettingsPage() {
 
   const [logoUrl,        setLogoUrl]        = useState<string | null>(null);
   const [uploadingLogo,  setUploadingLogo]  = useState(false);
-
-  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword,     setNewPassword]     = useState('');
@@ -178,11 +170,6 @@ export default function SettingsPage() {
       })
       .catch(() => toast.error('Failed to load profile'))
       .finally(() => setLoading(false));
-    // Subscription status badge — same wallet ledger endpoint the rides/new
-    // payment toggle already uses, just reading subscription_status off it.
-    api.get('/gogoo/tracker/wallet/ledger')
-      .then(({ data }) => setSubscriptionStatus(data.subscription_status || null))
-      .catch(() => {});
   }, []);
 
   function cancelProfileEdits() {
@@ -292,8 +279,6 @@ export default function SettingsPage() {
     return <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>;
   }
 
-  const subBadge = subscriptionStatus ? SUBSCRIPTION_BADGE[subscriptionStatus] : null;
-
   return (
     <div className="max-w-6xl space-y-5">
       <Toaster position="top-right" toastOptions={{ success: { iconTheme: { primary: '#22c55e', secondary: '#fff' } } }} />
@@ -303,7 +288,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* LEFT COLUMN — logo + quick info */}
+        {/* LEFT COLUMN — logo */}
         <div className="lg:col-span-3 space-y-6">
           <div id="logo" className="bg-white rounded-2xl border border-gray-100 p-6 flex flex-col items-center text-center space-y-3">
             {logoUrl ? (
@@ -326,42 +311,6 @@ export default function SettingsPage() {
               </button>
             )}
             <p className="text-[11px] text-gray-400">Shown on your dashboard and, if approved, in Bogie&apos;s partner list.</p>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Quick Info</div>
-            <div className="p-5 space-y-2 text-sm">
-              <div>
-                <p className="text-[11px] text-gray-400">Company Name</p>
-                <p className="font-semibold text-gray-800">Bogie AI Technologies Pvt Ltd</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-gray-400">Contact Phone</p>
-                <p className="font-semibold text-gray-800">{phone || '—'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-gray-400">Helpline</p>
-                <a href="tel:7827194116" className="font-semibold text-gray-800 hover:text-orange-600">
-                  7827194116
-                </a>
-              </div>
-              <div>
-                <p className="text-[11px] text-gray-400">Support Email</p>
-                <a href="mailto:support@bogie.in" className="font-semibold text-gray-800 hover:text-orange-600 break-all">
-                  support@bogie.in
-                </a>
-              </div>
-              <div>
-                <p className="text-[11px] text-gray-400 mb-1">Subscription</p>
-                {subBadge ? (
-                  <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${subBadge.className}`}>
-                    {subBadge.label}
-                  </span>
-                ) : (
-                  <span className="text-xs text-gray-300">—</span>
-                )}
-              </div>
-            </div>
           </div>
         </div>
 
