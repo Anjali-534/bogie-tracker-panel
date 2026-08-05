@@ -6,6 +6,7 @@ import { Plus, Package, Truck, CheckCircle2, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api';
 import { STATUS_LABELS, STATUS_STYLES, type TrackerOrder, type TrackerDriver } from '@/lib/types';
+import LiveMapPanel from '@/components/LiveMapPanel';
 
 interface CompanyProfile {
   company_name: string;
@@ -102,6 +103,17 @@ export default function OverviewPage() {
                 <p className="text-2xl font-bold text-gray-900">{s.value}</p>
               </Link>
             ))}
+          </div>
+
+          {/* Live map */}
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 flex items-center justify-between">
+              <span>Live Map</span>
+              <Link href="/tracker/live-map" className="normal-case font-semibold text-orange-100 hover:text-white">View full map</Link>
+            </div>
+            <div className="p-4">
+              <LiveMapPanel showHeader={false} mapHeightClass="w-full h-[280px] sm:h-[340px] rounded-xl overflow-hidden border border-gray-100" />
+            </div>
           </div>
 
           {/* Recent shipments */}
