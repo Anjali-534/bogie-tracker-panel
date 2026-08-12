@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Link2, FileText, MessageCircle, Send, CheckCircle2, AlertTriangle, XCircle, Mail, Upload, X, Trash2, PackageCheck, Plus, Truck } from 'lucide-react';
+import { ArrowLeft, Link2, FileText, MessageCircle, Send, CheckCircle2, AlertTriangle, XCircle, Mail, Upload, X, Trash2, PackageCheck, Plus, Truck, Pencil } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import StatusStepper from '@/components/StatusStepper';
@@ -387,6 +387,12 @@ export default function OrderDetailsPage() {
 
   const isTerminal = TERMINAL_STATUSES.includes(order.status);
   const showMap = STATUS_STEPS.indexOf(order.status) >= STATUS_STEPS.indexOf('dispatched');
+  // Matches the backend's PATCH /details status guard exactly (created/
+  // loading only) — used to gate both the header Edit button and every
+  // inline EditableField pencil below, so the UI never invites an edit the
+  // server is guaranteed to reject.
+  const detailsEditable = order.status === 'created' || order.status === 'loading';
+  const editLockedTooltip = 'Editing is locked once a shipment is dispatched.';
 
   return (
     <div className="max-w-4xl space-y-5">
@@ -437,6 +443,17 @@ export default function OrderDetailsPage() {
           <button onClick={copyTrackingLink} className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
             <Link2 size={14} />Copy Tracking Link
           </button>
+          {detailsEditable ? (
+            <Link href={`/tracker/orders/new?edit=${order.id}`}
+              className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+              <Pencil size={14} />Edit
+            </Link>
+          ) : (
+            <button type="button" disabled title={editLockedTooltip}
+              className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-300 cursor-not-allowed">
+              <Pencil size={14} />Edit
+            </button>
+          )}
           {order.trip_id && (
             <Link href={`/tracker/orders/new?trip_id=${order.trip_id}`}
               className="flex items-center gap-1.5 px-4 py-2.5 border border-orange-200 text-orange-600 rounded-xl text-sm font-semibold hover:bg-orange-50 transition-colors">
@@ -709,6 +726,8 @@ export default function OrderDetailsPage() {
               label="Contact Phone"
               value={order.booked_for_phone}
               fieldKey="booked_for_phone"
+              locked={!detailsEditable}
+              lockedTooltip={editLockedTooltip}
               isEditing={editingField === 'booked_for_phone'}
               isUpdating={updatingField === 'booked_for_phone'}
               editValue={editValues['booked_for_phone'] ?? order.booked_for_phone}
@@ -727,6 +746,8 @@ export default function OrderDetailsPage() {
               label="Booked For Email"
               value={order.booked_for_email || '—'}
               fieldKey="booked_for_email"
+              locked={!detailsEditable}
+              lockedTooltip={editLockedTooltip}
               isEditing={editingField === 'booked_for_email'}
               isUpdating={updatingField === 'booked_for_email'}
               editValue={editValues['booked_for_email'] ?? (order.booked_for_email || '')}
@@ -740,6 +761,8 @@ export default function OrderDetailsPage() {
               label="Driver"
               value={order.driver_name || '—'}
               fieldKey="driver_name"
+              locked={!detailsEditable}
+              lockedTooltip={editLockedTooltip}
               isEditing={editingField === 'driver_name'}
               isUpdating={updatingField === 'driver_name'}
               editValue={editValues['driver_name'] ?? (order.driver_name || '')}
@@ -752,6 +775,8 @@ export default function OrderDetailsPage() {
               label="Driver Phone"
               value={order.driver_phone || '—'}
               fieldKey="driver_phone"
+              locked={!detailsEditable}
+              lockedTooltip={editLockedTooltip}
               isEditing={editingField === 'driver_phone'}
               isUpdating={updatingField === 'driver_phone'}
               editValue={editValues['driver_phone'] ?? (order.driver_phone || '')}
@@ -766,6 +791,8 @@ export default function OrderDetailsPage() {
               label="Transporter"
               value={order.transporter_name || '—'}
               fieldKey="transporter_name"
+              locked={!detailsEditable}
+              lockedTooltip={editLockedTooltip}
               isEditing={editingField === 'transporter_name'}
               isUpdating={updatingField === 'transporter_name'}
               editValue={editValues['transporter_name'] ?? (order.transporter_name || '')}
@@ -778,6 +805,8 @@ export default function OrderDetailsPage() {
               label="Transporter Phone"
               value={order.transporter_phone || '—'}
               fieldKey="transporter_phone"
+              locked={!detailsEditable}
+              lockedTooltip={editLockedTooltip}
               isEditing={editingField === 'transporter_phone'}
               isUpdating={updatingField === 'transporter_phone'}
               editValue={editValues['transporter_phone'] ?? (order.transporter_phone || '')}
@@ -791,6 +820,8 @@ export default function OrderDetailsPage() {
               label="Transporter Email"
               value={order.transporter_email || '—'}
               fieldKey="transporter_email"
+              locked={!detailsEditable}
+              lockedTooltip={editLockedTooltip}
               isEditing={editingField === 'transporter_email'}
               isUpdating={updatingField === 'transporter_email'}
               editValue={editValues['transporter_email'] ?? (order.transporter_email || '')}
@@ -810,6 +841,8 @@ export default function OrderDetailsPage() {
               label="Consignee"
               value={order.consignee_name || '—'}
               fieldKey="consignee_name"
+              locked={!detailsEditable}
+              lockedTooltip={editLockedTooltip}
               isEditing={editingField === 'consignee_name'}
               isUpdating={updatingField === 'consignee_name'}
               editValue={editValues['consignee_name'] ?? (order.consignee_name || '')}
@@ -822,6 +855,8 @@ export default function OrderDetailsPage() {
               label="Consignee Email"
               value={order.consignee_email || '—'}
               fieldKey="consignee_email"
+              locked={!detailsEditable}
+              lockedTooltip={editLockedTooltip}
               isEditing={editingField === 'consignee_email'}
               isUpdating={updatingField === 'consignee_email'}
               editValue={editValues['consignee_email'] ?? (order.consignee_email || '')}
@@ -837,6 +872,8 @@ export default function OrderDetailsPage() {
               label="Material"
               value={order.material || '—'}
               fieldKey="material"
+              locked={!detailsEditable}
+              lockedTooltip={editLockedTooltip}
               isEditing={editingField === 'material'}
               isUpdating={updatingField === 'material'}
               editValue={editValues['material'] ?? (order.material || '')}
@@ -849,6 +886,8 @@ export default function OrderDetailsPage() {
               label="Quantity"
               value={order.quantity || '—'}
               fieldKey="quantity"
+              locked={!detailsEditable}
+              lockedTooltip={editLockedTooltip}
               isEditing={editingField === 'quantity'}
               isUpdating={updatingField === 'quantity'}
               editValue={editValues['quantity'] ?? (order.quantity || '')}
@@ -946,6 +985,8 @@ interface EditableFieldProps {
   onValueChange: (val: string) => void;
   onSave: () => void;
   inputType?: string;
+  locked?: boolean;
+  lockedTooltip?: string;
 }
 
 function EditableField({
@@ -960,6 +1001,8 @@ function EditableField({
   onValueChange,
   onSave,
   inputType = 'text',
+  locked = false,
+  lockedTooltip,
 }: EditableFieldProps) {
   return (
     <div>
@@ -969,8 +1012,11 @@ function EditableField({
           <p className="text-sm text-gray-800 flex-1">{value || '—'}</p>
           <button
             onClick={onStartEdit}
-            className="p-1.5 rounded-lg text-gray-400 hover:text-orange-600 hover:bg-orange-50 opacity-0 group-hover:opacity-100 transition-all"
-            title="Edit"
+            disabled={locked}
+            title={locked ? lockedTooltip : 'Edit'}
+            className={locked
+              ? 'p-1.5 rounded-lg text-gray-300 cursor-not-allowed'
+              : 'p-1.5 rounded-lg text-gray-400 hover:text-orange-600 hover:bg-orange-50 opacity-0 group-hover:opacity-100 transition-all'}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="stroke-current stroke-2">
               <path d="M11.333 2L14 4.667M2 14H5.333L13.778 5.556C14.148 5.185 14.148 4.592 13.778 4.222L11.778 2.222C11.407 1.852 10.815 1.852 10.444 2.222L2 10.667V14Z" />
