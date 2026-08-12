@@ -842,6 +842,10 @@ export default function NewOrderPage() {
               <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Bill From</div>
               <div className="p-4">{orderType === 'outbound' ? companyBillBlock : otherPartyBlock}</div>
             </div>
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Bill To</div>
+              <div className="p-4">{orderType === 'outbound' ? otherPartyBlock : companyBillBlock}</div>
+            </div>
             <div className="bg-white rounded-xl border border-gray-100">
               <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-t-xl">Dispatch From</div>
               <div className="p-4">
@@ -856,10 +860,6 @@ export default function NewOrderPage() {
                   labelClassName={labelClass}
                 />
               </div>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-              <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2">Bill To</div>
-              <div className="p-4">{orderType === 'outbound' ? otherPartyBlock : companyBillBlock}</div>
             </div>
             <div className="bg-white rounded-xl border border-gray-100">
               <div className="bg-orange-500 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-t-xl">Ship To</div>
