@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, BookmarkPlus, RotateCcw, Upload, X, FileText } from 'lucide-react';
+import { ArrowLeft, BookmarkPlus, RotateCcw, Upload, X, FileText, Save } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import { api } from '@/lib/api';
@@ -24,11 +24,41 @@ export default function NewOrderPage() {
   // opened as /tracker/orders/new?trip_id=<id> from the order detail page's
   // "+ Add another stop" button. Read via window.location.search rather
   // than useSearchParams so this page doesn't need a Suspense boundary
-  // wrapper just for one query param. tripLocked mirrors "was a trip_id
-  // present at all" — vehicle/driver stay locked to the trip for every stop
-  // added this way, not just the second one.
+  // wrapper just for one query param.
+  //
+  // Both tripId and editId MUST start out null and only get set from a
+  // useEffect (client-only, post-mount) — not from a useState(() => ...)
+  // lazy initializer that reads window.location.search directly. This page
+  // is server-rendered; a lazy initializer would compute null on the server
+  // (no window) but the real id on the client's first render, so editMode/
+  // tripLocked would drive different JSX (whole sections — Saved Clients,
+  // Upload Documents, driver-mode toggle, Save Draft, submit button label —
+  // present on one side and not the other) between the server-rendered HTML
+  // and the client's hydration pass. That's a structural hydration mismatch,
+  // not just a text diff, and was the actual cause of a real bug: opening
+  // ?edit=<id> rendered the blank/default "New Shipment" state because
+  // hydration never reconciled to the client's edit-mode tree. Setting
+  // these from an effect keeps the first client render identical to the
+  // server's (both null/blank), so hydration is clean; the real values land
+  // a moment later via a normal, safe post-hydration state update.
   const [tripId, setTripId] = useState<string | null>(null);
   const tripLocked = tripId !== null;
+
+  // Edit flow — /tracker/orders/new?edit=<order_id>, opened from the order
+  // detail page's Edit button (only shown while status is created/loading;
+  // the backend's status guard on PATCH /details enforces the same window
+  // server-side, including for the race where status changes mid-edit).
+  const [editId, setEditId] = useState<string | null>(null);
+  const editMode = editId !== null;
+
+  // Draft autosave (New Shipment only — not while editing an existing
+  // order, and not while adding a trip stop, both of which already have
+  // their own source of truth). Keyed per company since localStorage is
+  // shared across whichever company is currently logged into this browser.
+  const [companyId, setCompanyId] = useState<string | null>(null);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftKey = (cid: string) => `bogie-tracker-draft-order-${cid}`;
 
   const [orderType, setOrderType] = useState<OrderType>('outbound');
   // The company's own address (Settings → Default Company Address), used to
@@ -128,7 +158,142 @@ export default function NewOrderPage() {
   const [lastOrderId, setLastOrderId] = useState<string | null>(null);
   const [repeating,   setRepeating]   = useState(false);
 
+  // Full prefill for the Edit flow — mirrors repeatLastOrder() but covers
+  // every field the PATCH /details endpoint accepts (eway bill, CC/BCC,
+  // expected delivery date, order type), since this is editing the order
+  // itself rather than seeding a new one. Driver is always treated as free
+  // text here (driverMode 'new'): PATCH /details only accepts driver_name/
+  // driver_phone snapshot fields, never a driver_id reassignment, so there's
+  // no "select a different registered driver" affordance in edit mode.
+  function applyOrderForEdit(o: TrackerOrder) {
+    setOrderType(o.order_type);
+    setBookedForCompany(o.booked_for_company_name);
+    setBookedForPhone(o.booked_for_phone);
+    setBookedForEmail(o.booked_for_email ?? '');
+    setBookedForGstin(o.booked_for_gstin ?? '');
+    setBookedForState(o.booked_for_state ?? '');
+    setDispatchFrom(o.dispatch_from);
+    setDispatchFromLat(o.dispatch_from_lat);
+    setDispatchFromLng(o.dispatch_from_lng);
+    setDispatchTo(o.dispatch_to);
+    setDispatchToLat(o.dispatch_to_lat);
+    setDispatchToLng(o.dispatch_to_lng);
+    setConsigneeName(o.consignee_name ?? '');
+    setConsigneeEmail(o.consignee_email ?? '');
+    setConsigneeGstin(o.consignee_gstin ?? '');
+    setConsigneeState(o.consignee_state ?? '');
+    setMaterial(o.material ?? '');
+    setQuantity(o.quantity ?? '');
+    setDocumentsEnclosed(o.documents_enclosed ?? '');
+    setTransporterName(o.transporter_name);
+    setTransporterPhone(o.transporter_phone);
+    setTransporterEmail(o.transporter_email ?? '');
+    setVehicleNumber(o.vehicle_number);
+    setEwayBillNumber(o.eway_bill_number ?? '');
+    setDriverMode('new');
+    setDriverName(o.driver_name ?? '');
+    setDriverPhone(o.driver_phone ?? '');
+    setRegisteredAddress(o.registered_address ?? '');
+    setFactoryAddress(o.factory_address ?? '');
+    setContactPersonName(o.contact_person_name ?? '');
+    setContactPersonPhone(o.contact_person_phone ?? '');
+    setContactPersonEmail(o.contact_person_email ?? '');
+    setContactPersonDesignation(o.contact_person_designation ?? '');
+    setPriority(o.priority ?? 'normal');
+    setExpectedDeliveryDate(o.expected_delivery_date ? o.expected_delivery_date.slice(0, 10) : '');
+    setCcEmails(o.cc_emails ?? []);
+    setBccEmails(o.bcc_emails ?? []);
+  }
+
+  // Draft snapshot — every field a plain "New Shipment" fills in, minus
+  // pendingDocs (File objects can't survive JSON/localStorage) and anything
+  // tied to a specific trip/edit context.
+  function buildDraft() {
+    return {
+      orderType, bookedForCompany, bookedForPhone, bookedForEmail, bookedForGstin, bookedForState,
+      dispatchFrom, dispatchFromLat, dispatchFromLng, dispatchTo, dispatchToLat, dispatchToLng,
+      transporterName, transporterPhone, transporterEmail, vehicleNumber, ewayBillNumber,
+      consigneeName, consigneeEmail, consigneeGstin, consigneeState, material, quantity, documentsEnclosed,
+      registeredAddress, factoryAddress, contactPersonName, contactPersonPhone, contactPersonEmail, contactPersonDesignation,
+      priority, expectedDeliveryDate, ccEmails, bccEmails,
+      driverMode, driverId, driverName, driverPhone,
+    };
+  }
+  type DraftShape = ReturnType<typeof buildDraft>;
+
+  function applyDraft(d: Partial<DraftShape>) {
+    if (d.orderType !== undefined) setOrderType(d.orderType);
+    if (d.bookedForCompany !== undefined) setBookedForCompany(d.bookedForCompany);
+    if (d.bookedForPhone !== undefined) setBookedForPhone(d.bookedForPhone);
+    if (d.bookedForEmail !== undefined) setBookedForEmail(d.bookedForEmail);
+    if (d.bookedForGstin !== undefined) setBookedForGstin(d.bookedForGstin);
+    if (d.bookedForState !== undefined) setBookedForState(d.bookedForState);
+    if (d.dispatchFrom !== undefined) setDispatchFrom(d.dispatchFrom);
+    if (d.dispatchFromLat !== undefined) setDispatchFromLat(d.dispatchFromLat);
+    if (d.dispatchFromLng !== undefined) setDispatchFromLng(d.dispatchFromLng);
+    if (d.dispatchTo !== undefined) setDispatchTo(d.dispatchTo);
+    if (d.dispatchToLat !== undefined) setDispatchToLat(d.dispatchToLat);
+    if (d.dispatchToLng !== undefined) setDispatchToLng(d.dispatchToLng);
+    if (d.transporterName !== undefined) setTransporterName(d.transporterName);
+    if (d.transporterPhone !== undefined) setTransporterPhone(d.transporterPhone);
+    if (d.transporterEmail !== undefined) setTransporterEmail(d.transporterEmail);
+    if (d.vehicleNumber !== undefined) setVehicleNumber(d.vehicleNumber);
+    if (d.ewayBillNumber !== undefined) setEwayBillNumber(d.ewayBillNumber);
+    if (d.consigneeName !== undefined) setConsigneeName(d.consigneeName);
+    if (d.consigneeEmail !== undefined) setConsigneeEmail(d.consigneeEmail);
+    if (d.consigneeGstin !== undefined) setConsigneeGstin(d.consigneeGstin);
+    if (d.consigneeState !== undefined) setConsigneeState(d.consigneeState);
+    if (d.material !== undefined) setMaterial(d.material);
+    if (d.quantity !== undefined) setQuantity(d.quantity);
+    if (d.documentsEnclosed !== undefined) setDocumentsEnclosed(d.documentsEnclosed);
+    if (d.registeredAddress !== undefined) setRegisteredAddress(d.registeredAddress);
+    if (d.factoryAddress !== undefined) setFactoryAddress(d.factoryAddress);
+    if (d.contactPersonName !== undefined) setContactPersonName(d.contactPersonName);
+    if (d.contactPersonPhone !== undefined) setContactPersonPhone(d.contactPersonPhone);
+    if (d.contactPersonEmail !== undefined) setContactPersonEmail(d.contactPersonEmail);
+    if (d.contactPersonDesignation !== undefined) setContactPersonDesignation(d.contactPersonDesignation);
+    if (d.priority !== undefined) setPriority(d.priority);
+    if (d.expectedDeliveryDate !== undefined) setExpectedDeliveryDate(d.expectedDeliveryDate);
+    if (d.ccEmails !== undefined) setCcEmails(d.ccEmails);
+    if (d.bccEmails !== undefined) setBccEmails(d.bccEmails);
+    if (d.driverMode !== undefined) setDriverMode(d.driverMode);
+    if (d.driverId !== undefined) setDriverId(d.driverId);
+    if (d.driverName !== undefined) setDriverName(d.driverName);
+    if (d.driverPhone !== undefined) setDriverPhone(d.driverPhone);
+  }
+
+  function discardDraft() {
+    if (companyId) localStorage.removeItem(draftKey(companyId));
+    setDraftRestored(false);
+    window.location.href = '/tracker/orders/new';
+  }
+
+  function saveDraftNow() {
+    if (!companyId) return;
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    localStorage.setItem(draftKey(companyId), JSON.stringify(buildDraft()));
+    toast.success('Draft saved');
+  }
+
   useEffect(() => {
+    // Read the URL once, here (client-only, post-hydration) rather than at
+    // initial state — see the tripId/editId declarations above for why.
+    // Local consts, not the (still-null-on-this-first-run) tripId/editId
+    // state, drive everything below; setTripId/setEditId just update state
+    // for rendering (editMode/tripLocked).
+    const params = new URLSearchParams(window.location.search);
+    const tid = params.get('trip_id');
+    const eid = params.get('edit');
+    /* eslint-disable react-hooks/set-state-in-effect --
+       Deliberate: this is the fix for a real hydration-mismatch bug (see
+       comment on the tripId/editId useState calls above), not the
+       anti-pattern this rule normally flags. There is no way to read
+       window.location.search into state without a client-only effect while
+       keeping the server render and the first client render identical. */
+    setTripId(tid);
+    setEditId(eid);
+    /* eslint-enable react-hooks/set-state-in-effect */
+
     api.get<TrackerDriver[]>('/gogoo/tracker/drivers')
       .then(({ data }) => setDrivers(data))
       .catch(() => toast.error('Failed to load drivers'));
@@ -138,6 +303,7 @@ export default function NewOrderPage() {
     api.get<TrackerOrder[]>('/gogoo/tracker/orders')
       .then(({ data }) => setLastOrderId(data[0]?.id ?? null))
       .catch(() => {});
+
     api.get('/gogoo/tracker/company/profile')
       .then(({ data }) => {
         setCompanyDefaultAddress(data.default_address ?? '');
@@ -147,12 +313,30 @@ export default function NewOrderPage() {
         const gstin = data.gstin ?? '';
         setCompanyGstin(gstin);
         if (gstin) setCompanyState(lookupGSTIN(gstin).state ?? '');
+        setCompanyId(data.id ?? null);
+
+        // Draft restore only applies to a genuinely blank New Shipment —
+        // never when opened via ?trip_id= or ?edit=, both of which have
+        // their own prefill source that would otherwise get clobbered.
+        if (!tid && !eid && data.id) {
+          const raw = localStorage.getItem(draftKey(data.id));
+          if (raw) {
+            try {
+              applyDraft(JSON.parse(raw));
+              setDraftRestored(true);
+            } catch {
+              localStorage.removeItem(draftKey(data.id));
+            }
+          }
+        }
       })
       .catch(() => {});
 
-    const tid = new URLSearchParams(window.location.search).get('trip_id');
-    if (tid) {
-      setTripId(tid);
+    if (eid) {
+      api.get<{ order: TrackerOrder }>(`/gogoo/tracker/orders/${eid}`)
+        .then(({ data }) => applyOrderForEdit(data.order))
+        .catch(() => toast.error('Failed to load shipment for editing'));
+    } else if (tid) {
       api.get(`/gogoo/tracker/trips/${tid}`)
         .then(({ data }) => {
           setVehicleNumber(data.vehicle_number ?? '');
@@ -173,6 +357,27 @@ export default function NewOrderPage() {
         .catch(() => toast.error('Failed to load trip details'));
     }
   }, []);
+
+  // Debounced autosave (~1.5s after the last keystroke) — New Shipment
+  // only, see editMode/tripLocked guard. Every dependency below is a field
+  // buildDraft() reads; keep the two lists in sync.
+  useEffect(() => {
+    if (!companyId || editMode || tripLocked) return;
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = setTimeout(() => {
+      localStorage.setItem(draftKey(companyId), JSON.stringify(buildDraft()));
+    }, 1500);
+    return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
+  }, [
+    companyId, editMode, tripLocked,
+    orderType, bookedForCompany, bookedForPhone, bookedForEmail, bookedForGstin, bookedForState,
+    dispatchFrom, dispatchFromLat, dispatchFromLng, dispatchTo, dispatchToLat, dispatchToLng,
+    transporterName, transporterPhone, transporterEmail, vehicleNumber, ewayBillNumber,
+    consigneeName, consigneeEmail, consigneeGstin, consigneeState, material, quantity, documentsEnclosed,
+    registeredAddress, factoryAddress, contactPersonName, contactPersonPhone, contactPersonEmail, contactPersonDesignation,
+    priority, expectedDeliveryDate, ccEmails, bccEmails,
+    driverMode, driverId, driverName, driverPhone,
+  ]);
 
   // Inbound orders deliver back to the company itself — prefill Deliver To
   // from the company's default address the moment the toggle flips to
@@ -358,6 +563,68 @@ export default function NewOrderPage() {
       return;
     }
     setSaving(true);
+
+    if (editMode) {
+      try {
+        // PATCH /details round-trips the whole dispatch-sheet field set
+        // (same contract the order detail page's inline EditableField uses)
+        // — driver here is always the free-text snapshot, never a driver_id
+        // reassignment (see applyOrderForEdit).
+        await api.patch(`/gogoo/tracker/orders/${editId}/details`, {
+          booked_for_company_name: bookedForCompany,
+          booked_for_phone: bookedForPhone,
+          dispatch_from: dispatchFrom,
+          dispatch_to: dispatchTo,
+          transporter_name: transporterName || undefined,
+          transporter_phone: transporterPhone || undefined,
+          transporter_email: transporterEmail || undefined,
+          driver_name: driverName || undefined,
+          driver_phone: driverPhone || undefined,
+          vehicle_number: vehicleNumber,
+          eway_bill_number: ewayBillNumber || undefined,
+          consignee_name: consigneeName || undefined,
+          material: material || undefined,
+          quantity: quantity || undefined,
+          documents_enclosed: documentsEnclosed || undefined,
+          booked_for_email: bookedForEmail || undefined,
+          consignee_email: consigneeEmail || undefined,
+          consignee_gstin: consigneeGstin || undefined,
+          booked_for_gstin: bookedForGstin || undefined,
+          consignee_state: consigneeState || undefined,
+          booked_for_state: bookedForState || undefined,
+          registered_address: registeredAddress || undefined,
+          factory_address: factoryAddress || undefined,
+          contact_person_name: contactPersonName || undefined,
+          contact_person_phone: contactPersonPhone || undefined,
+          contact_person_email: contactPersonEmail || undefined,
+          contact_person_designation: contactPersonDesignation || undefined,
+          priority,
+          expected_delivery_date: expectedDeliveryDate ? new Date(expectedDeliveryDate).toISOString() : undefined,
+          cc_emails: ccEmails.filter(e => e.trim() !== ''),
+          bcc_emails: bccEmails.filter(e => e.trim() !== ''),
+        });
+        toast.success('Shipment updated');
+        router.push(`/tracker/orders/${editId}`);
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response) {
+          const body = err.response.data as { error?: string };
+          if (err.response.status === 409) {
+            // Race condition: someone dispatched this order while it was
+            // being edited — the backend's status guard rejected the write.
+            // Surface that distinctly rather than a generic failure toast.
+            toast.error(body.error || 'This shipment was dispatched while you were editing it and can no longer be changed.', { duration: 6000 });
+          } else {
+            toast.error(body.error || 'Failed to update shipment');
+          }
+        } else {
+          toast.error('Connection failed. Try again.');
+        }
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     try {
       // "Type New Driver" registers the driver first (so they're on the
       // roster for future orders too — same as the Drivers page), then
@@ -438,6 +705,10 @@ export default function NewOrderPage() {
       // navigation and its result is never surfaced to the user.
       api.post(`/gogoo/tracker/orders/${order.id}/creation-email`).catch(() => {});
 
+      // Draft's job is done — clear it so a future New Shipment visit
+      // starts blank instead of restoring this now-submitted data.
+      if (companyId) localStorage.removeItem(draftKey(companyId));
+
       toast.success(tripLocked ? 'Stop added to trip' : 'Shipment created');
       router.push(`/tracker/orders/${order.id}`);
     } catch (err) {
@@ -503,20 +774,20 @@ export default function NewOrderPage() {
             <ArrowLeft size={18} className="text-gray-600" />
           </Link>
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-gray-900">{tripLocked ? 'Add Another Stop' : 'New Shipment'}</h1>
-            <p className="text-xs text-gray-400">{tripLocked ? 'Same truck, next drop on this trip' : 'Create a new shipment'}</p>
+            <h1 className="text-xl font-bold text-gray-900">{editMode ? 'Edit Shipment' : tripLocked ? 'Add Another Stop' : 'New Shipment'}</h1>
+            <p className="text-xs text-gray-400">{editMode ? 'Update the dispatch sheet for this shipment' : tripLocked ? 'Same truck, next drop on this trip' : 'Create a new shipment'}</p>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
+          <div className={`flex text-xs rounded-lg border border-gray-200 overflow-hidden ${editMode ? 'opacity-50 pointer-events-none' : ''}`} title={editMode ? 'Order type can’t be changed once a shipment exists' : undefined}>
             {(['outbound', 'inbound'] as OrderType[]).map(t => (
-              <button key={t} type="button" onClick={() => setOrderType(t)}
+              <button key={t} type="button" onClick={() => setOrderType(t)} disabled={editMode}
                 className={`px-3 py-1.5 font-semibold transition-colors ${orderType === t ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
                 {ORDER_TYPE_LABELS[t]}
               </button>
             ))}
           </div>
-          {lastOrderId && (
+          {!editMode && lastOrderId && (
             <button type="button" onClick={repeatLastOrder} disabled={repeating}
               className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 border border-orange-200 rounded-lg px-3 py-2 hover:bg-orange-50 disabled:opacity-50 transition-colors">
               <RotateCcw size={13} />{repeating ? 'Loading…' : 'Repeat last shipment'}
@@ -525,9 +796,16 @@ export default function NewOrderPage() {
         </div>
       </div>
 
+      {draftRestored && !editMode && (
+        <div className="flex flex-wrap items-center gap-3 border border-blue-200 bg-blue-50 rounded-xl px-4 py-3">
+          <p className="flex-1 min-w-[200px] text-xs font-semibold text-blue-700">Draft restored from your last session</p>
+          <button type="button" onClick={discardDraft} className="text-xs font-bold text-blue-700 hover:text-blue-900">Discard</button>
+        </div>
+      )}
+
       <form onSubmit={submit} className="bg-white rounded-2xl border border-gray-100 p-6 lg:p-10 space-y-6">
 
-        {orderType === 'outbound' && recipients.length > 0 && (
+        {!editMode && orderType === 'outbound' && recipients.length > 0 && (
           <section className={sectionClass}>
             <h2 className="text-sm font-bold text-gray-900">Saved Clients <span className="text-gray-400 font-normal">(optional)</span></h2>
             <div className="relative">
@@ -704,7 +982,7 @@ export default function NewOrderPage() {
             <div className="p-4 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold text-gray-900">Driver</h2>
-                {!tripLocked && (
+                {!tripLocked && !editMode && (
                   <div className="flex text-xs rounded-lg border border-gray-200 overflow-hidden">
                     <button type="button" onClick={() => setDriverMode('select')}
                       className={`px-3 py-1.5 font-semibold transition-colors ${driverMode === 'select' ? 'bg-orange-500 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}>
@@ -737,11 +1015,11 @@ export default function NewOrderPage() {
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className={labelClass}>Driver Name *</label>
+                    <label className={labelClass}>Driver Name{editMode ? '' : ' *'}</label>
                     <input value={driverName} onChange={e => setDriverName(e.target.value)} className={inputClass} />
                   </div>
                   <div>
-                    <label className={labelClass}>Driver Mobile No. *</label>
+                    <label className={labelClass}>Driver Mobile No.{editMode ? '' : ' *'}</label>
                     <input value={driverPhone} onChange={e => setDriverPhone(e.target.value)} className={inputClass} />
                   </div>
                 </div>
@@ -792,34 +1070,36 @@ export default function NewOrderPage() {
                   <label className={labelClass}>Documents Enclosed</label>
                   <input value={documentsEnclosed} onChange={e => setDocumentsEnclosed(e.target.value)} className={inputClass} placeholder="e.g. Invoice, E-Way Bill, LR & COA to Driver" />
                 </div>
-                <div className="sm:col-span-2 lg:col-span-3 space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    <label className="flex items-center gap-1.5 border border-dashed border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
-                      <Upload size={13} />Upload Documents
-                      <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple className="hidden"
-                        onChange={e => { Array.from(e.target.files ?? []).forEach(addPendingDoc); e.target.value = ''; }} />
-                    </label>
-                  </div>
-                  {pendingDocs.length > 0 && (
-                    <div className="space-y-2">
-                      {pendingDocs.map(doc => (
-                        <div key={doc.key} className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2.5">
-                          <FileText size={14} className="text-gray-400 flex-shrink-0" />
-                          <span className="text-xs text-gray-500 truncate flex-1">{doc.file.name}</span>
-                          <input value={doc.customLabel} onChange={e => updatePendingDoc(doc.key, { customLabel: e.target.value })}
-                            placeholder="Label" className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
-                          <button type="button" onClick={() => removePendingDoc(doc.key)} className="text-gray-400 hover:text-red-500 flex-shrink-0"><X size={14} /></button>
-                        </div>
-                      ))}
+                {!editMode && (
+                  <div className="sm:col-span-2 lg:col-span-3 space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <label className="flex items-center gap-1.5 border border-dashed border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
+                        <Upload size={13} />Upload Documents
+                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" multiple className="hidden"
+                          onChange={e => { Array.from(e.target.files ?? []).forEach(addPendingDoc); e.target.value = ''; }} />
+                      </label>
                     </div>
-                  )}
-                </div>
+                    {pendingDocs.length > 0 && (
+                      <div className="space-y-2">
+                        {pendingDocs.map(doc => (
+                          <div key={doc.key} className="flex items-center gap-2 border border-gray-200 rounded-xl px-4 py-2.5">
+                            <FileText size={14} className="text-gray-400 flex-shrink-0" />
+                            <span className="text-xs text-gray-500 truncate flex-1">{doc.file.name}</span>
+                            <input value={doc.customLabel} onChange={e => updatePendingDoc(doc.key, { customLabel: e.target.value })}
+                              placeholder="Label" className="w-28 border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-green-400" />
+                            <button type="button" onClick={() => removePendingDoc(doc.key)} className="text-gray-400 hover:text-red-500 flex-shrink-0"><X size={14} /></button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </section>
 
-        {showSavePrompt && (
+        {!editMode && showSavePrompt && (
           <div className="flex flex-wrap items-center gap-3 border border-orange-200 bg-orange-50 rounded-xl px-4 py-3">
             <BookmarkPlus size={16} className="text-orange-500 flex-shrink-0" />
             <div className="flex-1 min-w-[200px]">
@@ -837,9 +1117,15 @@ export default function NewOrderPage() {
         )}
 
         <div className="pt-2 flex gap-3">
-          <Link href="/tracker/orders" className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors text-center">Cancel</Link>
+          <Link href={editMode ? `/tracker/orders/${editId}` : '/tracker/orders'} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors text-center">Cancel</Link>
+          {!editMode && !tripLocked && (
+            <button type="button" onClick={saveDraftNow} disabled={!companyId}
+              className="flex items-center justify-center gap-1.5 px-5 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+              <Save size={15} />Save Draft
+            </button>
+          )}
           <button type="submit" disabled={saving} className="flex-1 py-3 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors">
-            {saving ? 'Creating…' : 'Create Shipment'}
+            {saving ? (editMode ? 'Saving…' : 'Creating…') : editMode ? 'Save Changes' : 'Create Shipment'}
           </button>
         </div>
       </form>
