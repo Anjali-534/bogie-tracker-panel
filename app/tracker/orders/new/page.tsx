@@ -406,6 +406,45 @@ export default function NewOrderPage() {
     prevOrderType.current = orderType;
   }, [orderType, companyDefaultAddress, companyDefaultAddressLat, companyDefaultAddressLng, dispatchTo, dispatchFrom]);
 
+  // Initial-load prefill of Dispatch From from the company's saved default
+  // address (Settings → Company Profile), for a genuinely fresh outbound
+  // New Shipment only. The effect above already intends to cover this
+  // ("including on initial mount") but doesn't reliably fire for it in
+  // practice: prevOrderType.current gets set to 'outbound' on the very
+  // first (synchronous) run, before the company profile fetch — which is
+  // what actually supplies companyDefaultAddress — has resolved, so by the
+  // time the address arrives the "flip into outbound" condition it's
+  // gated on is already false. This effect exists purely to cover that
+  // initial-load case, once, without touching the flip-mirroring behavior
+  // above (which still correctly handles a later manual toggle back to
+  // outbound). Guarded against editMode/tripLocked/draftRestored so it
+  // never overwrites an edit-flow prefill, a carried-over trip stop
+  // address, or a restored draft — those each already have their own
+  // dispatchFrom source of truth. Still a plain, fully editable starting
+  // value, same as every other field here.
+  const initialDispatchFromApplied = useRef(false);
+  useEffect(() => {
+    if (initialDispatchFromApplied.current) return;
+    if (companyDefaultAddress === '') return; // company profile fetch hasn't resolved yet
+    if (editMode || tripLocked || draftRestored) {
+      initialDispatchFromApplied.current = true;
+      return;
+    }
+    if (orderType === 'outbound' && dispatchFrom === '') {
+      /* eslint-disable react-hooks/set-state-in-effect --
+         Ordinary "sync a field from a fetched value" effect, same shape as
+         the flip-mirroring effect right above (which this rule doesn't
+         flag). No SSR/hydration concern here: companyDefaultAddress is
+         always '' on both the server render and the client's first render
+         alike — it only ever arrives via this effect's own fetch. */
+      setDispatchFrom(companyDefaultAddress);
+      setDispatchFromLat(companyDefaultAddressLat);
+      setDispatchFromLng(companyDefaultAddressLng);
+      /* eslint-enable react-hooks/set-state-in-effect */
+    }
+    initialDispatchFromApplied.current = true;
+  }, [companyDefaultAddress, companyDefaultAddressLat, companyDefaultAddressLng, editMode, tripLocked, draftRestored, orderType, dispatchFrom]);
+
   function applyRecipient(r: TrackerSavedRecipient) {
     setSelectedRecipientId(r.id);
     setRecipientQuery(r.label);
