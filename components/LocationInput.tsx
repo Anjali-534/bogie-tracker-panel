@@ -215,6 +215,15 @@ export default function LocationInput({ label, value, lat, lng, onChange, placeh
           <LocateFixed size={16} className={locating ? 'animate-pulse' : ''} />
         </button>
       </div>
+      {/* Ola's autocomplete ranking breaks down on combined plot-number +
+          locality queries (e.g. "D29 Yadav Nagar Ghaziabad") even though the
+          locality itself is indexed fine on its own — a vendor
+          query-parsing limitation, not something fixable from our request
+          params (confirmed against the raw API directly). This is a UX
+          mitigation, not a functional fix: nudge toward the search pattern
+          that actually works, then let the pin-drag (see the map preview
+          below once coordinates exist) handle the precise plot/building. */}
+      <p className="mt-1 text-[11px] text-gray-400">Search by area/locality name first, then drag the pin to your exact plot/building.</p>
       {showDropdown && dropdownPos && createPortal(
         <div
           ref={dropdownRef}
