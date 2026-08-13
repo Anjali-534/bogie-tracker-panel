@@ -14,6 +14,16 @@ function TrackerLoginPageInner() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading]   = useState(false);
+  // Server-rendered markup paints instantly, but this 'use client' page (it's
+  // wrapped in Suspense for useSearchParams) doesn't have its onSubmit
+  // handler attached until React finishes hydrating. On a slow connection or
+  // low-end device that gap is real — clicking Sign In in that window used to
+  // silently no-op (no request, no error, no loading state) since nothing was
+  // listening yet. useEffect only runs post-hydration, so it's the signal to
+  // stop disabling the button.
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => { setHydrated(true); }, []);
 
   useEffect(() => {
     if (searchParams.get('verified') === '1') {
@@ -95,11 +105,13 @@ function TrackerLoginPageInner() {
             </div>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !hydrated}
               className="w-full bg-[#FF6B2B] hover:bg-[#e85f22] disabled:opacity-50 text-white font-bold
                 py-3 rounded-xl transition-colors mt-2 flex items-center justify-center gap-2 text-sm"
             >
-              {loading ? (
+              {!hydrated ? (
+                <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Loading...</>
+              ) : loading ? (
                 <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Signing in...</>
               ) : 'Sign In to Tracker Panel'}
             </button>
