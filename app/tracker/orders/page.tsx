@@ -87,7 +87,9 @@ function OrdersPageInner() {
     o.dispatch_from.toLowerCase().includes(search.toLowerCase()) ||
     o.dispatch_to.toLowerCase().includes(search.toLowerCase()) ||
     o.driver_name.toLowerCase().includes(search.toLowerCase()) ||
-    o.vehicle_number.toLowerCase().includes(search.toLowerCase())
+    o.vehicle_number.toLowerCase().includes(search.toLowerCase()) ||
+    (o.consignee_name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (o.material || '').toLowerCase().includes(search.toLowerCase())
   );
   const filtered = filterByRange(searched, dateRange, o => o.created_at);
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
@@ -160,7 +162,7 @@ function OrdersPageInner() {
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Search company, route, driver, vehicle…"
+              placeholder="Search company, route, driver, vehicle, consignee, material…"
               className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 w-full sm:w-72" />
           </div>
           <button onClick={exportCsv} disabled={filtered.length === 0}
