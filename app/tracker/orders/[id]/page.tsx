@@ -44,6 +44,8 @@ export default function OrderDetailsPage() {
   const [pings,     setPings]     = useState<TrackerLocationPing[]>([]);
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [updating,  setUpdating]  = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [note,      setNote]      = useState('');
   const [location,  setLocation]  = useState('');
   const [addingNote, setAddingNote] = useState(false);
@@ -217,6 +219,28 @@ export default function OrderDetailsPage() {
       }
     } finally {
       setUpdating(false);
+    }
+  }
+
+  // Only reachable while status='created' (see the button's visibility
+  // check below) — matches the backend's DELETE guard exactly, so this
+  // never fires against an order the server is guaranteed to reject.
+  async function deleteOrder() {
+    if (!order) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/gogoo/tracker/orders/${order.id}`);
+      toast.success('Shipment deleted');
+      router.push('/tracker/orders');
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response) {
+        const body = err.response.data as { error?: string };
+        toast.error(body.error || 'Failed to delete shipment');
+      } else {
+        toast.error('Failed to delete shipment');
+      }
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   }
 
@@ -463,6 +487,12 @@ export default function OrderDetailsPage() {
           {!isTerminal && (
             <button onClick={() => setStatus('cancelled')} disabled={updating} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors">
               Cancel Shipment
+            </button>
+          )}
+          {order.status === 'created' && (
+            <button onClick={() => setShowDeleteConfirm(true)} disabled={updating}
+              className="flex items-center gap-1.5 px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors">
+              <Trash2 size={14} />Delete
             </button>
           )}
         </div>
@@ -960,6 +990,27 @@ export default function OrderDetailsPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete confirm */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-sm text-center">
+            <p className="text-4xl mb-3">🗑️</p>
+            <p className="font-bold text-gray-900 mb-2">Delete this shipment?</p>
+            <p className="text-sm text-gray-500 mb-6">This can&apos;t be undone — the shipment and its documents will be permanently removed.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowDeleteConfirm(false)} disabled={deleting}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+                Cancel
+              </button>
+              <button onClick={deleteOrder} disabled={deleting}
+                className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 disabled:opacity-50 transition-colors">
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
