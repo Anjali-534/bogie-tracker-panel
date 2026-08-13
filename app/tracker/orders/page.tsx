@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Search, Truck, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Pagination from '@/components/Pagination';
-import { ScrollBody } from '@/components/TableControls';
+import { ScrollBody, DateRangeFilter, filterByRange, type DateRangeValue } from '@/components/TableControls';
 import { api } from '@/lib/api';
 import { STATUS_LABELS, STATUS_STYLES, ORDER_TYPE_LABELS, ORDER_TYPE_STYLES, PRIORITY_LABELS, type TrackerOrder, type OrderStatus } from '@/lib/types';
 
@@ -58,6 +58,7 @@ function OrdersPageInner() {
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
   const [page,    setPage]    = useState(1);
+  const [dateRange, setDateRange] = useState<DateRangeValue>({ range: 'all_time' });
 
   function handleStatusChange(next: OrderStatus | '') {
     const params = new URLSearchParams(searchParams.toString());
@@ -81,13 +82,14 @@ function OrdersPageInner() {
 
   useEffect(() => { load(); }, [load]);
 
-  const filtered = orders.filter(o =>
+  const searched = orders.filter(o =>
     o.booked_for_company_name.toLowerCase().includes(search.toLowerCase()) ||
     o.dispatch_from.toLowerCase().includes(search.toLowerCase()) ||
     o.dispatch_to.toLowerCase().includes(search.toLowerCase()) ||
     o.driver_name.toLowerCase().includes(search.toLowerCase()) ||
     o.vehicle_number.toLowerCase().includes(search.toLowerCase())
   );
+  const filtered = filterByRange(searched, dateRange, o => o.created_at);
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
   // Plain comma-join with RFC 4180-style quoting — quote any field
@@ -170,6 +172,8 @@ function OrdersPageInner() {
           </Link>
         </div>
       </div>
+
+      <DateRangeFilter value={dateRange} onChange={v => { setDateRange(v); setPage(1); }} />
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
