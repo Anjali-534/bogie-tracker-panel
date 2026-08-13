@@ -15,6 +15,17 @@ const POST_INTERVAL_MS = 10000;
 const MESSAGE_POLL_MS = 20000;
 const REACHED_RADIUS_METERS = 100;
 
+// Initial-load retry policy for the driver order fetch — a driver opening
+// this link is very often on a weak mobile signal or hitting a cold-started
+// backend, and a single failed request there isn't proof the link itself is
+// bad. LOAD_TIMEOUT_MS bounds how long one attempt can hang before counting
+// as a failure; LOAD_MAX_RETRIES is retries after the first attempt (so 3
+// attempts total), each spaced by LOAD_RETRY_BASE_MS doubled per attempt
+// (1s, 2s).
+const LOAD_TIMEOUT_MS = 12000;
+const LOAD_MAX_RETRIES = 2;
+const LOAD_RETRY_BASE_MS = 1000;
+
 // Haversine great-circle distance, in meters — used to auto-detect when the
 // driver is close enough to the dropoff to reveal Sign + Delivered.
 function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -61,6 +72,13 @@ interface DriverOrder {
 export default function DriverSharePage() {
   const { token } = useParams<{ token: string }>();
   const [order, setOrder] = useState<DriverOrder | null | undefined>(undefined);
+  // Only meaningful while order === null — distinguishes a real 404 ("this
+  // link is genuinely invalid/expired") from every other failure mode
+  // (network error, timeout, 5xx) that retrying might resolve, so the two
+  // don't get collapsed into one misleading "invalid or expired" message.
+  const [loadError, setLoadError] = useState<'not_found' | 'network' | null>(null);
+  // Bumped by the manual Retry button to re-run the load effect below.
+  const [retryNonce, setRetryNonce] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
@@ -125,17 +143,50 @@ export default function DriverSharePage() {
 
   useEffect(() => {
     let cancelled = false;
-    async function load() {
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    setOrder(undefined);
+    setLoadError(null);
+
+    // A 404 means the token genuinely doesn't match any order/trip — that's
+    // the only case that gets the permanent "invalid or expired" message.
+    // Everything else (no response at all, or a 5xx) is treated as
+    // transient and retried with backoff before giving up.
+    function isTransient(err: unknown): boolean {
+      if (!axios.isAxiosError(err)) return true;
+      if (!err.response) return true; // network error, timeout, DNS, etc.
+      return err.response.status >= 500;
+    }
+
+    async function attemptLoad(attempt: number) {
       try {
-        const { data } = await axios.get<DriverOrder>(`${API}/gogoo/public/tracker/driver/${token}`);
-        if (!cancelled) setOrder(data);
-      } catch {
-        if (!cancelled) setOrder(null);
+        const { data } = await axios.get<DriverOrder>(`${API}/gogoo/public/tracker/driver/${token}`, {
+          timeout: LOAD_TIMEOUT_MS,
+        });
+        if (cancelled) return;
+        setOrder(data);
+        setLoadError(null);
+      } catch (err) {
+        if (cancelled) return;
+        if (axios.isAxiosError(err) && err.response?.status === 404) {
+          setOrder(null);
+          setLoadError('not_found');
+          return;
+        }
+        if (isTransient(err) && attempt < LOAD_MAX_RETRIES) {
+          const delay = LOAD_RETRY_BASE_MS * 2 ** attempt;
+          retryTimer = setTimeout(() => { if (!cancelled) attemptLoad(attempt + 1); }, delay);
+          return;
+        }
+        setOrder(null);
+        setLoadError('network');
       }
     }
-    load();
-    return () => { cancelled = true; };
-  }, [token]);
+    attemptLoad(0);
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [token, retryNonce]);
 
   // Live-update the "updated Xs ago" text while sharing.
   useEffect(() => {
@@ -268,6 +319,25 @@ export default function DriverSharePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <p className="text-gray-400 text-sm">Loading…</p>
+      </div>
+    );
+  }
+
+  if (order === null && loadError === 'network') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="text-center">
+          <p className="text-3xl mb-2">📡</p>
+          <p className="text-gray-500 font-semibold">Couldn&apos;t load — check your connection</p>
+          <p className="text-xs text-gray-400 mt-1">We tried a few times but couldn&apos;t reach the server.</p>
+          <button
+            type="button"
+            onClick={() => setRetryNonce(n => n + 1)}
+            className="mt-4 rounded-2xl bg-orange-500 px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-orange-600"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
