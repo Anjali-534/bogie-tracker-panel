@@ -7,6 +7,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import axios from 'axios';
 import { api } from '@/lib/api';
 import { type TrackerDriver, type TrackerOrder, type TrackerSavedRecipient, type OrderPriority, type TrackerDocType, type OrderType, PRIORITY_LABELS, ORDER_TYPE_LABELS } from '@/lib/types';
+import { type DraftFormData, addDraft, getDraft, updateDraft, deleteDraft } from '@/lib/drafts';
 import LocationInput from '@/components/LocationInput';
 import GSTInput from '@/components/GSTInput';
 import { lookupGSTIN } from '@/lib/gstin';
@@ -51,14 +52,16 @@ export default function NewOrderPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const editMode = editId !== null;
 
-  // Draft autosave (New Shipment only — not while editing an existing
-  // order, and not while adding a trip stop, both of which already have
-  // their own source of truth). Keyed per company since localStorage is
-  // shared across whichever company is currently logged into this browser.
+  // Drafts (New Shipment only — not while editing an existing order, and not
+  // while adding a trip stop, both of which already have their own source of
+  // truth). Multiple named drafts live in localStorage per company (see
+  // lib/drafts.ts) — this page no longer auto-restores anything on a blank
+  // load; it only loads a specific draft when opened as ?draft=<id> (from
+  // the Drafts list's "Continue" action, see app/tracker/orders/drafts).
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [continuingDraftLabel, setContinuingDraftLabel] = useState<string | null>(null);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const draftKey = (cid: string) => `bogie-tracker-draft-order-${cid}`;
 
   const [orderType, setOrderType] = useState<OrderType>('outbound');
   // The company's own address (Settings → Default Company Address), used to
@@ -208,7 +211,7 @@ export default function NewOrderPage() {
   // Draft snapshot — every field a plain "New Shipment" fills in, minus
   // pendingDocs (File objects can't survive JSON/localStorage) and anything
   // tied to a specific trip/edit context.
-  function buildDraft() {
+  function buildDraft(): DraftFormData {
     return {
       orderType, bookedForCompany, bookedForPhone, bookedForEmail, bookedForGstin, bookedForState,
       dispatchFrom, dispatchFromLat, dispatchFromLng, dispatchTo, dispatchToLat, dispatchToLng,
@@ -219,9 +222,8 @@ export default function NewOrderPage() {
       driverMode, driverId, driverName, driverPhone,
     };
   }
-  type DraftShape = ReturnType<typeof buildDraft>;
 
-  function applyDraft(d: Partial<DraftShape>) {
+  function applyDraft(d: Partial<DraftFormData>) {
     if (d.orderType !== undefined) setOrderType(d.orderType);
     if (d.bookedForCompany !== undefined) setBookedForCompany(d.bookedForCompany);
     if (d.bookedForPhone !== undefined) setBookedForPhone(d.bookedForPhone);
@@ -262,16 +264,22 @@ export default function NewOrderPage() {
     if (d.driverPhone !== undefined) setDriverPhone(d.driverPhone);
   }
 
-  function discardDraft() {
-    if (companyId) localStorage.removeItem(draftKey(companyId));
-    setDraftRestored(false);
+  // Abandons the draft being continued — deletes it outright (not just
+  // clears the banner) so it doesn't linger half-edited in the Drafts list,
+  // then returns to a genuinely blank New Shipment.
+  function discardCurrentDraft() {
+    if (companyId && draftId) deleteDraft(companyId, draftId);
     window.location.href = '/tracker/orders/new';
   }
 
+  // Always creates a new draft entry, even if the form was opened via
+  // ?draft=<id> — a deliberate "Save Draft" click is a new snapshot in time,
+  // separate from the silent in-place autosave that only runs while
+  // continuing a specific draft (see the debounced-autosave effect below).
   function saveDraftNow() {
     if (!companyId) return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    localStorage.setItem(draftKey(companyId), JSON.stringify(buildDraft()));
+    addDraft(companyId, buildDraft());
     toast.success('Draft saved');
   }
 
@@ -284,6 +292,7 @@ export default function NewOrderPage() {
     const params = new URLSearchParams(window.location.search);
     const tid = params.get('trip_id');
     const eid = params.get('edit');
+    const did = params.get('draft');
     /* eslint-disable react-hooks/set-state-in-effect --
        Deliberate: this is the fix for a real hydration-mismatch bug (see
        comment on the tripId/editId useState calls above), not the
@@ -292,6 +301,7 @@ export default function NewOrderPage() {
        keeping the server render and the first client render identical. */
     setTripId(tid);
     setEditId(eid);
+    setDraftId(did);
     /* eslint-enable react-hooks/set-state-in-effect */
 
     api.get<TrackerDriver[]>('/gogoo/tracker/drivers')
@@ -315,18 +325,19 @@ export default function NewOrderPage() {
         if (gstin) setCompanyState(lookupGSTIN(gstin).state ?? '');
         setCompanyId(data.id ?? null);
 
-        // Draft restore only applies to a genuinely blank New Shipment —
-        // never when opened via ?trip_id= or ?edit=, both of which have
-        // their own prefill source that would otherwise get clobbered.
-        if (!tid && !eid && data.id) {
-          const raw = localStorage.getItem(draftKey(data.id));
-          if (raw) {
-            try {
-              applyDraft(JSON.parse(raw));
-              setDraftRestored(true);
-            } catch {
-              localStorage.removeItem(draftKey(data.id));
-            }
+        // Loading a specific draft only applies to a genuinely blank New
+        // Shipment — never when opened via ?trip_id= or ?edit=, both of
+        // which have their own prefill source that would otherwise get
+        // clobbered. Unlike the old single-slot autosave, nothing restores
+        // automatically anymore — this only fires for an explicit ?draft=
+        // <id> link from the Drafts list's "Continue" action.
+        if (!tid && !eid && did && data.id) {
+          const draft = getDraft(data.id, did);
+          if (draft) {
+            applyDraft(draft.data);
+            setContinuingDraftLabel(draft.label);
+          } else {
+            toast.error('That draft could not be found — it may have been deleted');
           }
         }
       })
@@ -358,18 +369,24 @@ export default function NewOrderPage() {
     }
   }, []);
 
-  // Debounced autosave (~1.5s after the last keystroke) — New Shipment
-  // only, see editMode/tripLocked guard. Every dependency below is a field
-  // buildDraft() reads; keep the two lists in sync.
+  // Debounced autosave (~1.5s after the last keystroke) — drafts are now
+  // explicit/named entries (see lib/drafts.ts), so this no longer creates
+  // anything on its own. It only silently keeps the draft currently being
+  // continued (?draft=<id>, see the mount effect above) up to date in place,
+  // so edits made while working from a draft aren't lost if the tab closes
+  // without an explicit "Save Draft" click. A genuinely blank New Shipment
+  // (no draftId) gets no autosave at all — the user has to click "Save
+  // Draft" deliberately, same as the manual save button. Every dependency
+  // below is a field buildDraft() reads; keep the two lists in sync.
   useEffect(() => {
-    if (!companyId || editMode || tripLocked) return;
+    if (!companyId || !draftId || editMode || tripLocked) return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
-      localStorage.setItem(draftKey(companyId), JSON.stringify(buildDraft()));
+      updateDraft(companyId, draftId, buildDraft());
     }, 1500);
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
   }, [
-    companyId, editMode, tripLocked,
+    companyId, draftId, editMode, tripLocked,
     orderType, bookedForCompany, bookedForPhone, bookedForEmail, bookedForGstin, bookedForState,
     dispatchFrom, dispatchFromLat, dispatchFromLng, dispatchTo, dispatchToLat, dispatchToLng,
     transporterName, transporterPhone, transporterEmail, vehicleNumber, ewayBillNumber,
@@ -417,16 +434,16 @@ export default function NewOrderPage() {
   // gated on is already false. This effect exists purely to cover that
   // initial-load case, once, without touching the flip-mirroring behavior
   // above (which still correctly handles a later manual toggle back to
-  // outbound). Guarded against editMode/tripLocked/draftRestored so it
+  // outbound). Guarded against editMode/tripLocked/a continued draft so it
   // never overwrites an edit-flow prefill, a carried-over trip stop
-  // address, or a restored draft — those each already have their own
+  // address, or a loaded draft — those each already have their own
   // dispatchFrom source of truth. Still a plain, fully editable starting
   // value, same as every other field here.
   const initialDispatchFromApplied = useRef(false);
   useEffect(() => {
     if (initialDispatchFromApplied.current) return;
     if (companyDefaultAddress === '') return; // company profile fetch hasn't resolved yet
-    if (editMode || tripLocked || draftRestored) {
+    if (editMode || tripLocked || continuingDraftLabel !== null) {
       initialDispatchFromApplied.current = true;
       return;
     }
@@ -443,7 +460,7 @@ export default function NewOrderPage() {
       /* eslint-enable react-hooks/set-state-in-effect */
     }
     initialDispatchFromApplied.current = true;
-  }, [companyDefaultAddress, companyDefaultAddressLat, companyDefaultAddressLng, editMode, tripLocked, draftRestored, orderType, dispatchFrom]);
+  }, [companyDefaultAddress, companyDefaultAddressLat, companyDefaultAddressLng, editMode, tripLocked, continuingDraftLabel, orderType, dispatchFrom]);
 
   function applyRecipient(r: TrackerSavedRecipient) {
     setSelectedRecipientId(r.id);
@@ -744,9 +761,12 @@ export default function NewOrderPage() {
       // navigation and its result is never surfaced to the user.
       api.post(`/gogoo/tracker/orders/${order.id}/creation-email`).catch(() => {});
 
-      // Draft's job is done — clear it so a future New Shipment visit
-      // starts blank instead of restoring this now-submitted data.
-      if (companyId) localStorage.removeItem(draftKey(companyId));
+      // If this shipment was created from a continued draft, that draft's
+      // job is done — remove just that entry so it doesn't linger in the
+      // Drafts list as now-stale, already-submitted data. Drafts saved via
+      // the manual "Save Draft" button that weren't the one being continued
+      // are untouched.
+      if (companyId && draftId) deleteDraft(companyId, draftId);
 
       toast.success(tripLocked ? 'Stop added to trip' : 'Shipment created');
       router.push(`/tracker/orders/${order.id}`);
@@ -835,10 +855,10 @@ export default function NewOrderPage() {
         </div>
       </div>
 
-      {draftRestored && !editMode && (
+      {continuingDraftLabel !== null && !editMode && (
         <div className="flex flex-wrap items-center gap-3 border border-blue-200 bg-blue-50 rounded-xl px-4 py-3">
-          <p className="flex-1 min-w-[200px] text-xs font-semibold text-blue-700">Draft restored from your last session</p>
-          <button type="button" onClick={discardDraft} className="text-xs font-bold text-blue-700 hover:text-blue-900">Discard</button>
+          <p className="flex-1 min-w-[200px] text-xs font-semibold text-blue-700">Continuing draft: {continuingDraftLabel}</p>
+          <button type="button" onClick={discardCurrentDraft} className="text-xs font-bold text-blue-700 hover:text-blue-900">Discard draft</button>
         </div>
       )}
 

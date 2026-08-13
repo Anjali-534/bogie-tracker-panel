@@ -54,6 +54,7 @@ const NAV: NavEntry[] = [
     label: 'Shipment', icon: Package, basePaths: ['/tracker/orders'],
     children: [
       { href: '/tracker/orders/new', label: 'New Shipment' },
+      { href: '/tracker/orders/drafts', label: 'Drafts' },
       { href: '/tracker/orders?status=created', label: 'Created' },
       { href: '/tracker/orders?status=dispatched', label: 'Dispatched' },
       { href: '/tracker/orders?status=in_transit', label: 'In Transit' },
