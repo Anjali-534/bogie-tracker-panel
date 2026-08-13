@@ -7,7 +7,7 @@ import axios from 'axios';
 import { CheckCircle2, XCircle, Circle, ArrowRight } from 'lucide-react';
 import TrackingMap from '@/components/TrackingMap';
 import RouteRows from '@/components/RouteRows';
-import { STATUS_LABELS, STATUS_STYLES, type OrderStatus } from '@/lib/types';
+import { STATUS_LABELS, STATUS_STYLES, type OrderStatus, type TrackerLocationPing } from '@/lib/types';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://gogobackend-production.up.railway.app';
 const POLL_MS = 4000;
@@ -51,6 +51,7 @@ interface PublicTrip {
   company_name: string;
   company_logo_url: string | null;
   stops: TripStop[];
+  location_pings: TrackerLocationPing[];
 }
 
 // Same rule as tryAutoCompleteDelivery/advanceTrackerTripAfterDelivery on the
@@ -180,7 +181,7 @@ export default function PublicTripPage() {
             lastLat={trip.last_lat}
             lastLng={trip.last_lng}
             lastLocationAt={trip.last_location_at}
-            pings={[]}
+            pings={trip.location_pings}
             companyLogoUrl={trip.company_logo_url}
           />
         )}
