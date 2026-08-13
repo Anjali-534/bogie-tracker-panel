@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { LocateFixed, MapPin, Maximize2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { api } from '@/lib/api';
-import { olaAutocomplete, olaPlaceDetails, type OlaSuggestion } from '@/lib/olaPlaces';
+import { olaAutocomplete, olaPlaceDetails, type OlaSuggestion } from '@/lib/googlePlaces';
 import OlaMap from '@/components/OlaMap';
 
 const DEBOUNCE_MS = 300;
@@ -24,10 +24,12 @@ interface Props {
   labelClassName: string;
 }
 
-// Ported from user-app's location-picker pattern: Ola Places autocomplete
-// (client-direct, public key), debounced search-as-you-type, a suggestion
-// resolves to {address, lat, lng} via place-details when the autocomplete
-// result didn't already embed coordinates. Unlike the mobile app, manual
+// Ported from user-app's location-picker pattern: Google Places (New)
+// autocomplete via the backend proxy (see lib/googlePlaces.ts — Ola's
+// autocomplete ranking broke down on plot-number + locality queries),
+// debounced search-as-you-type, a suggestion resolves to {address, lat, lng}
+// via place-details when the autocomplete result didn't already embed
+// coordinates. Unlike the mobile app, manual
 // free-text typing without ever picking a suggestion is fully valid here —
 // it just means lat/lng stay null, which the backend accepts.
 //
@@ -215,15 +217,7 @@ export default function LocationInput({ label, value, lat, lng, onChange, placeh
           <LocateFixed size={16} className={locating ? 'animate-pulse' : ''} />
         </button>
       </div>
-      {/* Ola's autocomplete ranking breaks down on combined plot-number +
-          locality queries (e.g. "D29 Yadav Nagar Ghaziabad") even though the
-          locality itself is indexed fine on its own — a vendor
-          query-parsing limitation, not something fixable from our request
-          params (confirmed against the raw API directly). This is a UX
-          mitigation, not a functional fix: nudge toward the search pattern
-          that actually works, then let the pin-drag (see the map preview
-          below once coordinates exist) handle the precise plot/building. */}
-      <p className="mt-1 text-[11px] text-gray-400">Search by area/locality name first, then drag the pin to your exact plot/building.</p>
+      <p className="mt-1 text-[11px] text-gray-400">Drag the pin to your exact plot/building if the search result isn't precise.</p>
       {showDropdown && dropdownPos && createPortal(
         <div
           ref={dropdownRef}
