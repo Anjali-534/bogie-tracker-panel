@@ -2,12 +2,12 @@
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Plus, Search, Truck } from 'lucide-react';
+import { Plus, Search, Truck, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Pagination from '@/components/Pagination';
 import { ScrollBody } from '@/components/TableControls';
 import { api } from '@/lib/api';
-import { STATUS_LABELS, STATUS_STYLES, ORDER_TYPE_LABELS, ORDER_TYPE_STYLES, type TrackerOrder, type OrderStatus } from '@/lib/types';
+import { STATUS_LABELS, STATUS_STYLES, ORDER_TYPE_LABELS, ORDER_TYPE_STYLES, PRIORITY_LABELS, type TrackerOrder, type OrderStatus } from '@/lib/types';
 
 const PER_PAGE = 12;
 
@@ -90,6 +90,50 @@ function OrdersPageInner() {
   );
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
+  // Plain comma-join with RFC 4180-style quoting — quote any field
+  // containing a comma, quote, or newline (address fields routinely have
+  // commas), doubling embedded quotes. No csv library needed for this.
+  function csvEscape(value: string): string {
+    return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  }
+
+  // Exports `filtered` (status tab + search applied, across all pages) —
+  // not `paged` — since pagination is just a display window into the same
+  // filtered set, not a separate query.
+  function exportCsv() {
+    const headers = [
+      'Booked For', 'Order Type', 'Dispatch From', 'Ship To', 'Material', 'Quantity',
+      'Vehicle Number', 'Driver', 'Transporter', 'Status', 'Priority', 'Consignee', 'Created Date',
+    ];
+    const rows = filtered.map(o => [
+      o.booked_for_company_name,
+      ORDER_TYPE_LABELS[o.order_type],
+      o.dispatch_from,
+      o.dispatch_to,
+      o.material || '',
+      o.quantity || '',
+      o.vehicle_number,
+      o.driver_name || '',
+      o.transporter_name || '',
+      STATUS_LABELS[o.status],
+      PRIORITY_LABELS[o.priority] || o.priority,
+      o.consignee_name || '',
+      new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+    ]);
+    // Leading BOM + CRLF line endings — Excel misreads UTF-8 without the
+    // BOM (breaks on non-ASCII names/addresses) and expects CRLF.
+    const csv = [headers, ...rows].map(r => r.map(csvEscape).join(',')).join('\r\n');
+    const blob = new Blob([String.fromCharCode(0xFEFF) + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bogie-shipments-${statusFilter || 'all'}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function copyTrackingLink(o: TrackerOrder) {
     const url = `${window.location.origin}/track/${o.public_tracking_token}`;
     navigator.clipboard.writeText(url);
@@ -117,6 +161,10 @@ function OrdersPageInner() {
               placeholder="Search company, route, driver, vehicle…"
               className="pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-orange-400 w-full sm:w-72" />
           </div>
+          <button onClick={exportCsv} disabled={filtered.length === 0}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+            <Download size={14} />Export
+          </button>
           <Link href="/tracker/orders/new" className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors">
             <Plus size={14} />New Shipment
           </Link>
