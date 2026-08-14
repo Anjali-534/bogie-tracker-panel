@@ -419,7 +419,7 @@ export default function OrderDetailsPage() {
   const editLockedTooltip = 'Editing is locked once a shipment is dispatched.';
 
   return (
-    <div className="max-w-4xl space-y-5">
+    <div className="w-full space-y-5">
       <Toaster position="top-right" />
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
