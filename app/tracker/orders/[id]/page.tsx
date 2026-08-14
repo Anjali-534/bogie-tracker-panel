@@ -419,7 +419,7 @@ export default function OrderDetailsPage() {
   const editLockedTooltip = 'Editing is locked once a shipment is dispatched.';
 
   return (
-    <div className="w-full space-y-5">
+    <div className="max-w-4xl space-y-5">
       <Toaster position="top-right" />
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -509,8 +509,8 @@ export default function OrderDetailsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        <div className="md:col-span-2 lg:col-span-2 space-y-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 space-y-5">
           {showMap && (
             <TrackingMap
               lastLat={order.last_lat}
@@ -608,6 +608,158 @@ export default function OrderDetailsPage() {
         </div>
 
         <div className="space-y-5">
+          {order.order_type === 'inbound' && !order.received_confirmed_at && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <CardHeader icon={<PackageCheck size={16} className="text-green-500" />}>Mark Received</CardHeader>
+              {!showMarkReceivedForm ? (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => markReceived('good')}
+                    disabled={markingReceived !== null}
+                    className="w-full py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
+                  >
+                    {markingReceived === 'good' ? 'Marking…' : 'Goods received in perfect condition'}
+                  </button>
+                  <button
+                    onClick={() => setShowMarkReceivedForm(true)}
+                    disabled={markingReceived !== null}
+                    className="w-full py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors"
+                  >
+                    Not in good condition
+                  </button>
+                </div>
+              ) : (
+                <div className="border border-red-200 rounded-xl p-4 space-y-3">
+                  <label className="block text-xs font-semibold text-gray-600">What&apos;s wrong with the shipment?</label>
+                  <textarea
+                    value={markReceivedReason}
+                    onChange={e => setMarkReceivedReason(e.target.value)}
+                    placeholder="e.g. Two boxes were crushed, material spilled out"
+                    rows={3}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-400 resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => markReceived('bad', markReceivedReason.trim())}
+                      disabled={markingReceived !== null || !markReceivedReason.trim()}
+                      className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      {markingReceived === 'bad' ? 'Submitting…' : 'Submit Report'}
+                    </button>
+                    <button
+                      onClick={() => { setShowMarkReceivedForm(false); setMarkReceivedReason(''); }}
+                      disabled={markingReceived !== null}
+                      className="px-4 py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm font-bold hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {order.signature_url && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <CardHeader>Proof of Delivery</CardHeader>
+              {/* eslint-disable-next-line @next/next/no-img-element -- signature comes from Cloudinary/local uploads, not a next/image-configured domain */}
+              <img src={order.signature_url} alt="Delivery signature" className="w-full rounded-xl border border-gray-100 bg-gray-50" />
+            </div>
+          )}
+
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <CardHeader>Send Dispatch Details</CardHeader>
+            <p className="text-xs text-gray-400 -mt-2 mb-3">Emails the dispatch summary (party, consignee, material, truck, driver, transporter, tracking link) to the selected recipients.</p>
+            <div className="space-y-2">
+              {NOTIFY_RECIPIENTS.map(r => {
+                const email = recipientEmail(order, r);
+                const result = notifyResults?.find(x => x.recipient === r);
+                return (
+                  <label key={r} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border text-sm ${email ? 'border-gray-200 cursor-pointer hover:bg-gray-50' : 'border-gray-100 bg-gray-50 cursor-not-allowed'}`}>
+                    <input
+                      type="checkbox"
+                      className="accent-orange-500"
+                      disabled={!email}
+                      checked={notifyRecipients.includes(r)}
+                      onChange={() => toggleNotifyRecipient(r)}
+                    />
+                    <span className="flex-1">
+                      <span className={`font-semibold ${email ? 'text-gray-800' : 'text-gray-400'}`}>{NOTIFY_RECIPIENT_LABELS[r]}</span>
+                      <span className="block text-[11px] text-gray-400">{email || 'no email on file'}</span>
+                    </span>
+                    {result && (
+                      <span className={`text-[10px] font-bold uppercase tracking-wide ${
+                        result.status === 'sent' ? 'text-green-600' : result.status === 'failed' ? 'text-red-500' : 'text-gray-400'
+                      }`}>
+                        {result.status}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={sendDispatchEmails}
+                disabled={sendingNotify || notifyRecipients.length === 0}
+                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 transition-colors"
+              >
+                <Mail size={14} />{sendingNotify ? 'Sending…' : 'Email'}
+              </button>
+              <button
+                type="button"
+                disabled
+                title="SMS coming soon — provider + DLT registration pending"
+                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-400 rounded-xl text-sm font-bold cursor-not-allowed"
+              >
+                SMS (coming soon)
+              </button>
+            </div>
+          </div>
+
+          {order.driver_tracking_token && !isTerminal && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <CardHeader>Message to Driver</CardHeader>
+              <form onSubmit={sendMessage} className="space-y-2.5">
+                <textarea
+                  value={messageBody}
+                  onChange={e => setMessageBody(e.target.value)}
+                  placeholder="e.g. Please take the bypass route, main road is jammed"
+                  rows={3}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400 resize-none"
+                />
+                <button
+                  type="submit"
+                  disabled={sendingMessage || !messageBody.trim()}
+                  className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                >
+                  <Send size={14} />{sendingMessage ? 'Sending…' : 'Send'}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {driverLinkToken() && (
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <CardHeader>Driver Tracking Link</CardHeader>
+              <p className="text-xs text-gray-400 -mt-2 mb-3">
+                {order.trip_stop_count > 1
+                  ? 'One shared link for this whole trip — the driver only needs to open it once.'
+                  : 'Share this link with the driver so they can send their live location.'}
+              </p>
+              <div className="flex flex-col gap-2">
+                <button onClick={copyDriverLink} className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                  <Link2 size={14} />Copy Driver Link
+                </button>
+                {order.driver_phone && (
+                  <button onClick={whatsAppDriverLink} className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors">
+                    <MessageCircle size={14} />Send via WhatsApp
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-2xl border border-gray-100 p-5">
             <CardHeader>Booked For</CardHeader>
             <div className="space-y-4">
@@ -808,160 +960,6 @@ export default function OrderDetailsPage() {
               <Field label="Documents Enclosed" value={order.documents_enclosed || '—'} />
             </div>
           </div>
-        </div>
-
-        <div className="space-y-5">
-          {order.order_type === 'inbound' && !order.received_confirmed_at && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <CardHeader icon={<PackageCheck size={16} className="text-green-500" />}>Mark Received</CardHeader>
-              {!showMarkReceivedForm ? (
-                <div className="space-y-2">
-                  <button
-                    onClick={() => markReceived('good')}
-                    disabled={markingReceived !== null}
-                    className="w-full py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 disabled:opacity-50 transition-colors"
-                  >
-                    {markingReceived === 'good' ? 'Marking…' : 'Goods received in perfect condition'}
-                  </button>
-                  <button
-                    onClick={() => setShowMarkReceivedForm(true)}
-                    disabled={markingReceived !== null}
-                    className="w-full py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors"
-                  >
-                    Not in good condition
-                  </button>
-                </div>
-              ) : (
-                <div className="border border-red-200 rounded-xl p-4 space-y-3">
-                  <label className="block text-xs font-semibold text-gray-600">What&apos;s wrong with the shipment?</label>
-                  <textarea
-                    value={markReceivedReason}
-                    onChange={e => setMarkReceivedReason(e.target.value)}
-                    placeholder="e.g. Two boxes were crushed, material spilled out"
-                    rows={3}
-                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-red-400 resize-none"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => markReceived('bad', markReceivedReason.trim())}
-                      disabled={markingReceived !== null || !markReceivedReason.trim()}
-                      className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700 disabled:opacity-50 transition-colors"
-                    >
-                      {markingReceived === 'bad' ? 'Submitting…' : 'Submit Report'}
-                    </button>
-                    <button
-                      onClick={() => { setShowMarkReceivedForm(false); setMarkReceivedReason(''); }}
-                      disabled={markingReceived !== null}
-                      className="px-4 py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm font-bold hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {order.signature_url && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <CardHeader>Proof of Delivery</CardHeader>
-              {/* eslint-disable-next-line @next/next/no-img-element -- signature comes from Cloudinary/local uploads, not a next/image-configured domain */}
-              <img src={order.signature_url} alt="Delivery signature" className="w-full rounded-xl border border-gray-100 bg-gray-50" />
-            </div>
-          )}
-
-          <div className="bg-white rounded-2xl border border-gray-100 p-5">
-            <CardHeader>Send Dispatch Details</CardHeader>
-            <p className="text-xs text-gray-400 -mt-2 mb-3">Emails the dispatch summary (party, consignee, material, truck, driver, transporter, tracking link) to the selected recipients.</p>
-            <div className="space-y-2">
-              {NOTIFY_RECIPIENTS.map(r => {
-                const email = recipientEmail(order, r);
-                const result = notifyResults?.find(x => x.recipient === r);
-                return (
-                  <label key={r} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border text-sm ${email ? 'border-gray-200 cursor-pointer hover:bg-gray-50' : 'border-gray-100 bg-gray-50 cursor-not-allowed'}`}>
-                    <input
-                      type="checkbox"
-                      className="accent-orange-500"
-                      disabled={!email}
-                      checked={notifyRecipients.includes(r)}
-                      onChange={() => toggleNotifyRecipient(r)}
-                    />
-                    <span className="flex-1">
-                      <span className={`font-semibold ${email ? 'text-gray-800' : 'text-gray-400'}`}>{NOTIFY_RECIPIENT_LABELS[r]}</span>
-                      <span className="block text-[11px] text-gray-400">{email || 'no email on file'}</span>
-                    </span>
-                    {result && (
-                      <span className={`text-[10px] font-bold uppercase tracking-wide ${
-                        result.status === 'sent' ? 'text-green-600' : result.status === 'failed' ? 'text-red-500' : 'text-gray-400'
-                      }`}>
-                        {result.status}
-                      </span>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={sendDispatchEmails}
-                disabled={sendingNotify || notifyRecipients.length === 0}
-                className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 transition-colors"
-              >
-                <Mail size={14} />{sendingNotify ? 'Sending…' : 'Email'}
-              </button>
-              <button
-                type="button"
-                disabled
-                title="SMS coming soon — provider + DLT registration pending"
-                className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-400 rounded-xl text-sm font-bold cursor-not-allowed"
-              >
-                SMS (coming soon)
-              </button>
-            </div>
-          </div>
-
-          {order.driver_tracking_token && !isTerminal && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <CardHeader>Message to Driver</CardHeader>
-              <form onSubmit={sendMessage} className="space-y-2.5">
-                <textarea
-                  value={messageBody}
-                  onChange={e => setMessageBody(e.target.value)}
-                  placeholder="e.g. Please take the bypass route, main road is jammed"
-                  rows={3}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400 resize-none"
-                />
-                <button
-                  type="submit"
-                  disabled={sendingMessage || !messageBody.trim()}
-                  className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 disabled:opacity-50 transition-colors"
-                >
-                  <Send size={14} />{sendingMessage ? 'Sending…' : 'Send'}
-                </button>
-              </form>
-            </div>
-          )}
-
-          {driverLinkToken() && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-5">
-              <CardHeader>Driver Tracking Link</CardHeader>
-              <p className="text-xs text-gray-400 -mt-2 mb-3">
-                {order.trip_stop_count > 1
-                  ? 'One shared link for this whole trip — the driver only needs to open it once.'
-                  : 'Share this link with the driver so they can send their live location.'}
-              </p>
-              <div className="flex flex-col gap-2">
-                <button onClick={copyDriverLink} className="flex items-center justify-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-                  <Link2 size={14} />Copy Driver Link
-                </button>
-                {order.driver_phone && (
-                  <button onClick={whatsAppDriverLink} className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-green-500 text-white rounded-xl text-sm font-bold hover:bg-green-600 transition-colors">
-                    <MessageCircle size={14} />Send via WhatsApp
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
 
           <div className="bg-white rounded-2xl border border-gray-100 p-5">
             <CardHeader>E-way Bill Number</CardHeader>
