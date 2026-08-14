@@ -421,79 +421,90 @@ export default function OrderDetailsPage() {
   return (
     <div className="max-w-4xl space-y-5">
       <Toaster position="top-right" />
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/tracker/orders" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-            <ArrowLeft size={18} className="text-gray-600" />
-          </Link>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">{order.booked_for_company_name}</h1>
-            <div className="mt-1">
-              <RouteRows from={order.dispatch_from} to={order.dispatch_to} compact />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-center gap-3">
+            <Link href="/tracker/orders" className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <ArrowLeft size={18} className="text-gray-600" />
+            </Link>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">{order.booked_for_company_name}</h1>
+              <div className="mt-1">
+                <RouteRows from={order.dispatch_from} to={order.dispatch_to} compact />
+              </div>
+              {order.trip_id && order.trip_stop_count > 1 && order.trip_public_tracking_token && (
+                <Link href={`/track-trip/${order.trip_public_tracking_token}`} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold text-orange-600 hover:text-orange-700">
+                  <Truck size={12} />Part of a {order.trip_stop_count}-stop trip · Stop {order.stop_sequence} · View trip
+                </Link>
+              )}
             </div>
-            {order.trip_id && order.trip_stop_count > 1 && order.trip_public_tracking_token && (
-              <Link href={`/track-trip/${order.trip_public_tracking_token}`} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold text-orange-600 hover:text-orange-700">
-                <Truck size={12} />Part of a {order.trip_stop_count}-stop trip · Stop {order.stop_sequence} · View trip
-              </Link>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+            <span className={`text-xs px-3 py-1.5 rounded-full font-semibold ${ORDER_TYPE_STYLES[order.order_type]}`}>
+              {ORDER_TYPE_LABELS[order.order_type]}
+            </span>
+            <span className={`text-xs px-3 py-1.5 rounded-full font-semibold ${STATUS_STYLES[order.status]}`}>
+              {STATUS_LABELS[order.status]}
+            </span>
+            {order.received_confirmed_at && (
+              order.delivery_condition === 'bad' ? (
+                <span
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-semibold bg-red-100 text-red-700"
+                  title={`${new Date(order.received_confirmed_at).toLocaleString()}${order.delivery_condition_reason ? ` — ${order.delivery_condition_reason}` : ''}`}
+                >
+                  <XCircle size={12} />Reported bad condition
+                </span>
+              ) : (
+                <span
+                  className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-semibold bg-green-100 text-green-700"
+                  title={new Date(order.received_confirmed_at).toLocaleString()}
+                >
+                  <CheckCircle2 size={12} />
+                  {order.delivery_condition === 'good' ? 'Received in good condition' : 'Consignee confirmed receipt'}
+                </span>
+              )
             )}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className={`text-xs px-3 py-1.5 rounded-full font-semibold ${ORDER_TYPE_STYLES[order.order_type]}`}>
-            {ORDER_TYPE_LABELS[order.order_type]}
-          </span>
-          <span className={`text-xs px-3 py-1.5 rounded-full font-semibold ${STATUS_STYLES[order.status]}`}>
-            {STATUS_LABELS[order.status]}
-          </span>
-          {order.received_confirmed_at && (
-            order.delivery_condition === 'bad' ? (
-              <span
-                className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-semibold bg-red-100 text-red-700"
-                title={`${new Date(order.received_confirmed_at).toLocaleString()}${order.delivery_condition_reason ? ` — ${order.delivery_condition_reason}` : ''}`}
-              >
-                <XCircle size={12} />Reported bad condition
-              </span>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-100">
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={copyTrackingLink} className="flex items-center gap-1.5 px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 transition-colors">
+              <Link2 size={14} />Copy Tracking Link
+            </button>
+            {detailsEditable ? (
+              <Link href={`/tracker/orders/new?edit=${order.id}`}
+                className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                <Pencil size={14} />Edit
+              </Link>
             ) : (
-              <span
-                className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full font-semibold bg-green-100 text-green-700"
-                title={new Date(order.received_confirmed_at).toLocaleString()}
-              >
-                <CheckCircle2 size={12} />
-                {order.delivery_condition === 'good' ? 'Received in good condition' : 'Consignee confirmed receipt'}
-              </span>
-            )
-          )}
-          <button onClick={copyTrackingLink} className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-            <Link2 size={14} />Copy Tracking Link
-          </button>
-          {detailsEditable ? (
-            <Link href={`/tracker/orders/new?edit=${order.id}`}
-              className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
-              <Pencil size={14} />Edit
-            </Link>
-          ) : (
-            <button type="button" disabled title={editLockedTooltip}
-              className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-300 cursor-not-allowed">
-              <Pencil size={14} />Edit
-            </button>
-          )}
-          {order.trip_id && (
-            <Link href={`/tracker/orders/new?trip_id=${order.trip_id}`}
-              className="flex items-center gap-1.5 px-4 py-2.5 border border-orange-200 text-orange-600 rounded-xl text-sm font-semibold hover:bg-orange-50 transition-colors">
-              <Plus size={14} />Add Another Stop
-            </Link>
-          )}
-          {!isTerminal && (
-            <button onClick={() => setStatus('cancelled')} disabled={updating} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors">
-              Cancel Shipment
-            </button>
-          )}
-          {order.status === 'created' && (
-            <button onClick={() => setShowDeleteConfirm(true)} disabled={updating}
-              className="flex items-center gap-1.5 px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors">
-              <Trash2 size={14} />Delete
-            </button>
+              <button type="button" disabled title={editLockedTooltip}
+                className="flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-300 cursor-not-allowed">
+                <Pencil size={14} />Edit
+              </button>
+            )}
+            {order.trip_id && (
+              <Link href={`/tracker/orders/new?trip_id=${order.trip_id}`}
+                className="flex items-center gap-1.5 px-4 py-2.5 border border-orange-200 text-orange-600 rounded-xl text-sm font-semibold hover:bg-orange-50 transition-colors">
+                <Plus size={14} />Add Another Stop
+              </Link>
+            )}
+          </div>
+          {(!isTerminal || order.status === 'created') && (
+            <div className="flex flex-wrap items-center gap-2">
+              {!isTerminal && (
+                <button onClick={() => setStatus('cancelled')} disabled={updating} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors">
+                  Cancel Shipment
+                </button>
+              )}
+              {order.status === 'created' && (
+                <button onClick={() => setShowDeleteConfirm(true)} disabled={updating}
+                  className="flex items-center gap-1.5 px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-bold hover:bg-red-50 disabled:opacity-50 transition-colors">
+                  <Trash2 size={14} />Delete
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -543,7 +554,7 @@ export default function OrderDetailsPage() {
 
           {!isTerminal && (
             <div className="bg-white rounded-2xl border border-gray-100 p-6">
-              <h2 className="text-sm font-bold text-gray-900 mb-4">Update Status</h2>
+              <CardHeader>Update Status</CardHeader>
               <div className="flex flex-wrap gap-3 mb-5">
                 {STATUS_RADIO_OPTIONS.map(opt => (
                   <label key={opt} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border cursor-pointer text-sm font-semibold transition-colors ${
@@ -572,12 +583,12 @@ export default function OrderDetailsPage() {
           )}
 
           <div className="bg-white rounded-2xl border border-gray-100 p-6">
-            <h2 className="text-sm font-bold text-gray-900 mb-5">Status Timeline</h2>
+            <CardHeader>Status Timeline</CardHeader>
             <StatusStepper status={order.status} events={events} />
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-6">
-            <h2 className="text-sm font-bold text-gray-900 mb-4">Add Update</h2>
+            <CardHeader>Add Update</CardHeader>
             <form onSubmit={addEvent} className="flex flex-col sm:flex-row gap-3 sm:items-end">
               <div className="flex-1">
                 <label className="block text-xs font-semibold text-gray-500 mb-1.5">Location</label>
@@ -598,8 +609,8 @@ export default function OrderDetailsPage() {
 
         <div className="space-y-5">
           {order.order_type === 'inbound' && !order.received_confirmed_at && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2"><PackageCheck size={16} className="text-green-500" />Mark Received</h2>
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <CardHeader icon={<PackageCheck size={16} className="text-green-500" />}>Mark Received</CardHeader>
               {!showMarkReceivedForm ? (
                 <div className="space-y-2">
                   <button
@@ -649,16 +660,16 @@ export default function OrderDetailsPage() {
           )}
 
           {order.signature_url && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-              <h2 className="text-sm font-bold text-gray-900">Proof of Delivery</h2>
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <CardHeader>Proof of Delivery</CardHeader>
               {/* eslint-disable-next-line @next/next/no-img-element -- signature comes from Cloudinary/local uploads, not a next/image-configured domain */}
               <img src={order.signature_url} alt="Delivery signature" className="w-full rounded-xl border border-gray-100 bg-gray-50" />
             </div>
           )}
 
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-            <h2 className="text-sm font-bold text-gray-900">Send Dispatch Details</h2>
-            <p className="text-xs text-gray-400">Emails the dispatch summary (party, consignee, material, truck, driver, transporter, tracking link) to the selected recipients.</p>
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <CardHeader>Send Dispatch Details</CardHeader>
+            <p className="text-xs text-gray-400 -mt-2 mb-3">Emails the dispatch summary (party, consignee, material, truck, driver, transporter, tracking link) to the selected recipients.</p>
             <div className="space-y-2">
               {NOTIFY_RECIPIENTS.map(r => {
                 const email = recipientEmail(order, r);
@@ -707,8 +718,8 @@ export default function OrderDetailsPage() {
           </div>
 
           {order.driver_tracking_token && !isTerminal && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-              <h2 className="text-sm font-bold text-gray-900">Message to Driver</h2>
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <CardHeader>Message to Driver</CardHeader>
               <form onSubmit={sendMessage} className="space-y-2.5">
                 <textarea
                   value={messageBody}
@@ -729,9 +740,9 @@ export default function OrderDetailsPage() {
           )}
 
           {driverLinkToken() && (
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-              <h2 className="text-sm font-bold text-gray-900">Driver Tracking Link</h2>
-              <p className="text-xs text-gray-400">
+            <div className="bg-white rounded-2xl border border-gray-100 p-5">
+              <CardHeader>Driver Tracking Link</CardHeader>
+              <p className="text-xs text-gray-400 -mt-2 mb-3">
                 {order.trip_stop_count > 1
                   ? 'One shared link for this whole trip — the driver only needs to open it once.'
                   : 'Share this link with the driver so they can send their live location.'}
@@ -749,124 +760,140 @@ export default function OrderDetailsPage() {
             </div>
           )}
 
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-            <h2 className="text-sm font-bold text-gray-900">Shipment Details</h2>
-            <Field label="Booked For" value={order.booked_for_company_name} />
-            <EditableField
-              label="Contact Phone"
-              value={order.booked_for_phone}
-              fieldKey="booked_for_phone"
-              locked={!detailsEditable}
-              lockedTooltip={editLockedTooltip}
-              isEditing={editingField === 'booked_for_phone'}
-              isUpdating={updatingField === 'booked_for_phone'}
-              editValue={editValues['booked_for_phone'] ?? order.booked_for_phone}
-              onStartEdit={() => startEdit('booked_for_phone', order.booked_for_phone)}
-              onCancelEdit={cancelEdit}
-              onValueChange={val => setEditValues(prev => ({ ...prev, booked_for_phone: val }))}
-              onSave={() => saveFieldEdit('booked_for_phone')}
-              inputType="tel"
-            />
-            {order.booked_for_phone && order.public_tracking_token && (
-              <button onClick={whatsAppBookedForLink} className="flex items-center justify-center gap-1.5 px-4 py-2 bg-green-500 text-white rounded-xl text-xs font-bold hover:bg-green-600 transition-colors">
-                <MessageCircle size={13} />Send via WhatsApp
-              </button>
-            )}
-            <EditableField
-              label="Booked For Email"
-              value={order.booked_for_email || '—'}
-              fieldKey="booked_for_email"
-              locked={!detailsEditable}
-              lockedTooltip={editLockedTooltip}
-              isEditing={editingField === 'booked_for_email'}
-              isUpdating={updatingField === 'booked_for_email'}
-              editValue={editValues['booked_for_email'] ?? (order.booked_for_email || '')}
-              onStartEdit={() => startEdit('booked_for_email', order.booked_for_email || '')}
-              onCancelEdit={cancelEdit}
-              onValueChange={val => setEditValues(prev => ({ ...prev, booked_for_email: val }))}
-              onSave={() => saveFieldEdit('booked_for_email')}
-              inputType="email"
-            />
-            <EditableField
-              label="Driver"
-              value={order.driver_name || '—'}
-              fieldKey="driver_name"
-              locked={!detailsEditable}
-              lockedTooltip={editLockedTooltip}
-              isEditing={editingField === 'driver_name'}
-              isUpdating={updatingField === 'driver_name'}
-              editValue={editValues['driver_name'] ?? (order.driver_name || '')}
-              onStartEdit={() => startEdit('driver_name', order.driver_name || '')}
-              onCancelEdit={cancelEdit}
-              onValueChange={val => setEditValues(prev => ({ ...prev, driver_name: val }))}
-              onSave={() => saveFieldEdit('driver_name')}
-            />
-            <EditableField
-              label="Driver Phone"
-              value={order.driver_phone || '—'}
-              fieldKey="driver_phone"
-              locked={!detailsEditable}
-              lockedTooltip={editLockedTooltip}
-              isEditing={editingField === 'driver_phone'}
-              isUpdating={updatingField === 'driver_phone'}
-              editValue={editValues['driver_phone'] ?? (order.driver_phone || '')}
-              onStartEdit={() => startEdit('driver_phone', order.driver_phone || '')}
-              onCancelEdit={cancelEdit}
-              onValueChange={val => setEditValues(prev => ({ ...prev, driver_phone: val }))}
-              onSave={() => saveFieldEdit('driver_phone')}
-              inputType="tel"
-            />
-            <Field label="Vehicle Number" value={order.vehicle_number} />
-            <EditableField
-              label="Transporter"
-              value={order.transporter_name || '—'}
-              fieldKey="transporter_name"
-              locked={!detailsEditable}
-              lockedTooltip={editLockedTooltip}
-              isEditing={editingField === 'transporter_name'}
-              isUpdating={updatingField === 'transporter_name'}
-              editValue={editValues['transporter_name'] ?? (order.transporter_name || '')}
-              onStartEdit={() => startEdit('transporter_name', order.transporter_name || '')}
-              onCancelEdit={cancelEdit}
-              onValueChange={val => setEditValues(prev => ({ ...prev, transporter_name: val }))}
-              onSave={() => saveFieldEdit('transporter_name')}
-            />
-            <EditableField
-              label="Transporter Phone"
-              value={order.transporter_phone || '—'}
-              fieldKey="transporter_phone"
-              locked={!detailsEditable}
-              lockedTooltip={editLockedTooltip}
-              isEditing={editingField === 'transporter_phone'}
-              isUpdating={updatingField === 'transporter_phone'}
-              editValue={editValues['transporter_phone'] ?? (order.transporter_phone || '')}
-              onStartEdit={() => startEdit('transporter_phone', order.transporter_phone || '')}
-              onCancelEdit={cancelEdit}
-              onValueChange={val => setEditValues(prev => ({ ...prev, transporter_phone: val }))}
-              onSave={() => saveFieldEdit('transporter_phone')}
-              inputType="tel"
-            />
-            <EditableField
-              label="Transporter Email"
-              value={order.transporter_email || '—'}
-              fieldKey="transporter_email"
-              locked={!detailsEditable}
-              lockedTooltip={editLockedTooltip}
-              isEditing={editingField === 'transporter_email'}
-              isUpdating={updatingField === 'transporter_email'}
-              editValue={editValues['transporter_email'] ?? (order.transporter_email || '')}
-              onStartEdit={() => startEdit('transporter_email', order.transporter_email || '')}
-              onCancelEdit={cancelEdit}
-              onValueChange={val => setEditValues(prev => ({ ...prev, transporter_email: val }))}
-              onSave={() => saveFieldEdit('transporter_email')}
-              inputType="email"
-            />
-            <Field label="Booked For GSTIN" value={order.booked_for_gstin || '—'} />
-            <Field label="Booked For State" value={order.booked_for_state || '—'} />
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <CardHeader>Booked For</CardHeader>
+            <div className="space-y-4">
+              <Field label="Company" value={order.booked_for_company_name} />
+              <div className="grid grid-cols-2 gap-4">
+                <EditableField
+                  label="Contact Phone"
+                  value={order.booked_for_phone}
+                  fieldKey="booked_for_phone"
+                  locked={!detailsEditable}
+                  lockedTooltip={editLockedTooltip}
+                  isEditing={editingField === 'booked_for_phone'}
+                  isUpdating={updatingField === 'booked_for_phone'}
+                  editValue={editValues['booked_for_phone'] ?? order.booked_for_phone}
+                  onStartEdit={() => startEdit('booked_for_phone', order.booked_for_phone)}
+                  onCancelEdit={cancelEdit}
+                  onValueChange={val => setEditValues(prev => ({ ...prev, booked_for_phone: val }))}
+                  onSave={() => saveFieldEdit('booked_for_phone')}
+                  inputType="tel"
+                />
+                <EditableField
+                  label="Email"
+                  value={order.booked_for_email || '—'}
+                  fieldKey="booked_for_email"
+                  locked={!detailsEditable}
+                  lockedTooltip={editLockedTooltip}
+                  isEditing={editingField === 'booked_for_email'}
+                  isUpdating={updatingField === 'booked_for_email'}
+                  editValue={editValues['booked_for_email'] ?? (order.booked_for_email || '')}
+                  onStartEdit={() => startEdit('booked_for_email', order.booked_for_email || '')}
+                  onCancelEdit={cancelEdit}
+                  onValueChange={val => setEditValues(prev => ({ ...prev, booked_for_email: val }))}
+                  onSave={() => saveFieldEdit('booked_for_email')}
+                  inputType="email"
+                />
+              </div>
+              {order.booked_for_phone && order.public_tracking_token && (
+                <button onClick={whatsAppBookedForLink} className="flex items-center justify-center gap-1.5 px-4 py-2 bg-green-500 text-white rounded-xl text-xs font-bold hover:bg-green-600 transition-colors">
+                  <MessageCircle size={13} />Send via WhatsApp
+                </button>
+              )}
+              <div className="grid grid-cols-2 gap-4 pt-3 border-t border-gray-50">
+                <Field label="GSTIN" value={order.booked_for_gstin || '—'} />
+                <Field label="State" value={order.booked_for_state || '—'} />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <CardHeader>Driver & Vehicle</CardHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <EditableField
+                  label="Driver"
+                  value={order.driver_name || '—'}
+                  fieldKey="driver_name"
+                  locked={!detailsEditable}
+                  lockedTooltip={editLockedTooltip}
+                  isEditing={editingField === 'driver_name'}
+                  isUpdating={updatingField === 'driver_name'}
+                  editValue={editValues['driver_name'] ?? (order.driver_name || '')}
+                  onStartEdit={() => startEdit('driver_name', order.driver_name || '')}
+                  onCancelEdit={cancelEdit}
+                  onValueChange={val => setEditValues(prev => ({ ...prev, driver_name: val }))}
+                  onSave={() => saveFieldEdit('driver_name')}
+                />
+                <EditableField
+                  label="Driver Phone"
+                  value={order.driver_phone || '—'}
+                  fieldKey="driver_phone"
+                  locked={!detailsEditable}
+                  lockedTooltip={editLockedTooltip}
+                  isEditing={editingField === 'driver_phone'}
+                  isUpdating={updatingField === 'driver_phone'}
+                  editValue={editValues['driver_phone'] ?? (order.driver_phone || '')}
+                  onStartEdit={() => startEdit('driver_phone', order.driver_phone || '')}
+                  onCancelEdit={cancelEdit}
+                  onValueChange={val => setEditValues(prev => ({ ...prev, driver_phone: val }))}
+                  onSave={() => saveFieldEdit('driver_phone')}
+                  inputType="tel"
+                />
+              </div>
+              <Field label="Vehicle Number" value={order.vehicle_number} />
+              <div className="grid grid-cols-2 gap-4 pt-3 border-t border-gray-50">
+                <EditableField
+                  label="Transporter"
+                  value={order.transporter_name || '—'}
+                  fieldKey="transporter_name"
+                  locked={!detailsEditable}
+                  lockedTooltip={editLockedTooltip}
+                  isEditing={editingField === 'transporter_name'}
+                  isUpdating={updatingField === 'transporter_name'}
+                  editValue={editValues['transporter_name'] ?? (order.transporter_name || '')}
+                  onStartEdit={() => startEdit('transporter_name', order.transporter_name || '')}
+                  onCancelEdit={cancelEdit}
+                  onValueChange={val => setEditValues(prev => ({ ...prev, transporter_name: val }))}
+                  onSave={() => saveFieldEdit('transporter_name')}
+                />
+                <EditableField
+                  label="Transporter Phone"
+                  value={order.transporter_phone || '—'}
+                  fieldKey="transporter_phone"
+                  locked={!detailsEditable}
+                  lockedTooltip={editLockedTooltip}
+                  isEditing={editingField === 'transporter_phone'}
+                  isUpdating={updatingField === 'transporter_phone'}
+                  editValue={editValues['transporter_phone'] ?? (order.transporter_phone || '')}
+                  onStartEdit={() => startEdit('transporter_phone', order.transporter_phone || '')}
+                  onCancelEdit={cancelEdit}
+                  onValueChange={val => setEditValues(prev => ({ ...prev, transporter_phone: val }))}
+                  onSave={() => saveFieldEdit('transporter_phone')}
+                  inputType="tel"
+                />
+              </div>
+              <EditableField
+                label="Transporter Email"
+                value={order.transporter_email || '—'}
+                fieldKey="transporter_email"
+                locked={!detailsEditable}
+                lockedTooltip={editLockedTooltip}
+                isEditing={editingField === 'transporter_email'}
+                isUpdating={updatingField === 'transporter_email'}
+                editValue={editValues['transporter_email'] ?? (order.transporter_email || '')}
+                onStartEdit={() => startEdit('transporter_email', order.transporter_email || '')}
+                onCancelEdit={cancelEdit}
+                onValueChange={val => setEditValues(prev => ({ ...prev, transporter_email: val }))}
+                onSave={() => saveFieldEdit('transporter_email')}
+                inputType="email"
+              />
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-            <h2 className="text-sm font-bold text-gray-900">Dispatch Details</h2>
+            <CardHeader>Dispatch Details</CardHeader>
             <EditableField
               label="Consignee"
               value={order.consignee_name || '—'}
@@ -896,8 +923,10 @@ export default function OrderDetailsPage() {
               onSave={() => saveFieldEdit('consignee_email')}
               inputType="email"
             />
-            <Field label="Consignee GSTIN" value={order.consignee_gstin || '—'} />
-            <Field label="Consignee State" value={order.consignee_state || '—'} />
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Consignee GSTIN" value={order.consignee_gstin || '—'} />
+              <Field label="Consignee State" value={order.consignee_state || '—'} />
+            </div>
             <EditableField
               label="Material"
               value={order.material || '—'}
@@ -926,17 +955,19 @@ export default function OrderDetailsPage() {
               onValueChange={val => setEditValues(prev => ({ ...prev, quantity: val }))}
               onSave={() => saveFieldEdit('quantity')}
             />
-            <Field label="Dispatch Date & Time" value={order.dispatch_datetime ? new Date(order.dispatch_datetime).toLocaleString() : '—'} />
-            <Field label="Documents Enclosed" value={order.documents_enclosed || '—'} />
+            <div className="grid grid-cols-2 gap-4 pt-3 border-t border-gray-50">
+              <Field label="Dispatch Date & Time" value={order.dispatch_datetime ? new Date(order.dispatch_datetime).toLocaleString() : '—'} />
+              <Field label="Documents Enclosed" value={order.documents_enclosed || '—'} />
+            </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-            <h2 className="text-sm font-bold text-gray-900">E-way Bill Number</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <CardHeader>E-way Bill Number</CardHeader>
             <Field label="Number" value={order.eway_bill_number || '—'} />
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-            <h2 className="text-sm font-bold text-gray-900">Documents <span className="text-gray-400 font-normal">(optional — all documents, always)</span></h2>
+            <CardHeader>Documents <span className="text-gray-400 font-normal">(optional — all documents, always)</span></CardHeader>
             <div className="flex flex-wrap gap-2">
               {(['coa', 'invoice', 'lr', 'eway_bill', 'other'] as TrackerDocType[]).map(dt => (
                 <label key={dt} className="flex items-center gap-1.5 border border-dashed border-gray-300 rounded-xl px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 cursor-pointer transition-colors">
@@ -1015,11 +1046,21 @@ export default function OrderDetailsPage() {
   );
 }
 
+function CardHeader({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
+      <span className="w-1 h-4 rounded-full bg-orange-500 flex-shrink-0" />
+      {icon}
+      <h2 className="flex-1 flex flex-wrap items-center gap-2 text-sm font-bold text-gray-900">{children}</h2>
+    </div>
+  );
+}
+
 function Field({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
-      <p className="text-sm text-gray-800">{value}</p>
+      <p className="text-sm text-gray-800 truncate" title={value}>{value}</p>
     </div>
   );
 }
@@ -1056,18 +1097,18 @@ function EditableField({
   lockedTooltip,
 }: EditableFieldProps) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
       {!isEditing ? (
-        <div className="flex items-center gap-2 group">
-          <p className="text-sm text-gray-800 flex-1">{value || '—'}</p>
+        <div className="flex items-center gap-2 group min-w-0">
+          <p className="text-sm text-gray-800 flex-1 min-w-0 truncate" title={value || undefined}>{value || '—'}</p>
           <button
             onClick={onStartEdit}
             disabled={locked}
             title={locked ? lockedTooltip : 'Edit'}
             className={locked
-              ? 'p-1.5 rounded-lg text-gray-300 cursor-not-allowed'
-              : 'p-1.5 rounded-lg text-gray-400 hover:text-orange-600 hover:bg-orange-50 opacity-0 group-hover:opacity-100 transition-all'}
+              ? 'p-1.5 rounded-lg text-gray-300 cursor-not-allowed flex-shrink-0'
+              : 'p-1.5 rounded-lg text-gray-300 hover:text-orange-600 hover:bg-orange-50 group-hover:text-gray-400 transition-colors flex-shrink-0'}
           >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="stroke-current stroke-2">
               <path d="M11.333 2L14 4.667M2 14H5.333L13.778 5.556C14.148 5.185 14.148 4.592 13.778 4.222L11.778 2.222C11.407 1.852 10.815 1.852 10.444 2.222L2 10.667V14Z" />

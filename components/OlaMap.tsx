@@ -355,7 +355,11 @@ export default function OlaMap({
         console.error("[OlaMap] map error", e.error);
         setMapError(e.error?.message || "Map tiles failed to load");
       });
-      map.addControl(new maplibregl.NavigationControl(), "top-right");
+      // Bottom-right, not top-right — the top-right corner is already claimed
+      // by the custom recenter/dark-mode-toggle buttons below, and MapLibre
+      // stacks same-corner controls in a column on its own, so this corner
+      // keeps zoom +/- and compass fully clear of them instead of overlapping.
+      map.addControl(new maplibregl.NavigationControl(), "bottom-right");
       // Ola's own tile responses ship an empty attribution string, so without this
       // MapLibre GL JS falls back to its library-default placeholder ("MapLibre"
       // linking to maplibre.org) instead of real, ToS-required credit. Ola Maps'
