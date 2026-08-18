@@ -13,7 +13,7 @@ import {
   STATUS_LABELS, STATUS_STYLES, STATUS_STEPS, TERMINAL_STATUSES, STATUS_RADIO_OPTIONS,
   NOTIFY_RECIPIENT_LABELS, DOC_TYPE_LABELS, ORDER_TYPE_LABELS, ORDER_TYPE_STYLES,
   type TrackerOrder, type TrackerOrderEvent, type OrderStatus, type TrackerLocationPing,
-  type NotifyRecipient, type TrackerDocType, type DeliveryCondition,
+  type NotifyRecipient, type TrackerDocType, type DeliveryCondition, type TrackerLiveRoute,
 } from '@/lib/types';
 
 const NOTIFY_RECIPIENTS: NotifyRecipient[] = ['booked_for', 'consignee', 'transporter', 'driver'];
@@ -35,6 +35,16 @@ function recipientEmail(order: TrackerOrder, r: NotifyRecipient): string | null 
 }
 
 const MAP_POLL_MS = 15000;
+// Live-route poll cadence — normal orders vs. outstation (long-haul) ones,
+// per the cost investigation this feature was scoped against: recomputing a
+// traffic-aware route every 60s for an order that stays in_transit for many
+// hours would burn through Ola's free-tier call budget for little benefit.
+// Mirrors the backend's identical threshold (outstationRouteKmThreshold in
+// tracker.go) — kept in sync manually since there's no shared-constants
+// module between this panel and the Go backend.
+const LIVE_ROUTE_POLL_MS = 60 * 1000;
+const LIVE_ROUTE_POLL_MS_OUTSTATION = 5 * 60 * 1000;
+const OUTSTATION_ROUTE_KM_THRESHOLD = 200;
 
 export default function OrderDetailsPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +52,7 @@ export default function OrderDetailsPage() {
   const [order,     setOrder]     = useState<TrackerOrder | null | undefined>(undefined);
   const [events,    setEvents]    = useState<TrackerOrderEvent[]>([]);
   const [pings,     setPings]     = useState<TrackerLocationPing[]>([]);
+  const [liveRoutes, setLiveRoutes] = useState<TrackerLiveRoute[]>([]);
   const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(null);
   const [updating,  setUpdating]  = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -150,6 +161,38 @@ export default function OrderDetailsPage() {
     const t = setInterval(load, MAP_POLL_MS);
     return () => clearInterval(t);
   }, [order?.status, load]);
+
+  const loadLiveRoute = useCallback(async () => {
+    try {
+      const { data } = await api.get(`/gogoo/tracker/orders/${id}/live-route`);
+      setLiveRoutes(data.routes || []);
+    } catch {
+      // Best-effort, same as the map's own straight-line fallback used to
+      // be — a transient failure just leaves the last-known live route in
+      // place until the next tick, never errors the page.
+    }
+  }, [id]);
+
+  // Separate poll from the GPS one above (different cadence, different
+  // endpoint, deliberately NOT folded into `load`) — same client-triggered,
+  // mount/unmount-bound lifecycle: fires only while a human has this order's
+  // page open and it's actively in transit, never a server-side background
+  // job, so Ola API usage is bounded by concurrent viewers, not total order
+  // volume or how long an order stays in transit unwatched. Cadence backs
+  // off to 5 minutes for outstation (long-haul) orders — see
+  // OUTSTATION_ROUTE_KM_THRESHOLD.
+  useEffect(() => {
+    if (!order) { setLiveRoutes([]); return; }
+    const idx = STATUS_STEPS.indexOf(order.status);
+    const dispatchedIdx = STATUS_STEPS.indexOf('dispatched');
+    const deliveredIdx = STATUS_STEPS.indexOf('delivered');
+    const activelyTracking = idx >= dispatchedIdx && idx < deliveredIdx;
+    if (!activelyTracking) { setLiveRoutes([]); return; }
+    loadLiveRoute();
+    const outstation = (order.route_distance_km ?? 0) > OUTSTATION_ROUTE_KM_THRESHOLD;
+    const t = setInterval(loadLiveRoute, outstation ? LIVE_ROUTE_POLL_MS_OUTSTATION : LIVE_ROUTE_POLL_MS);
+    return () => clearInterval(t);
+  }, [order?.status, order?.route_distance_km, loadLiveRoute]);
 
   function copyTrackingLink() {
     if (!order) return;
@@ -525,6 +568,8 @@ export default function OrderDetailsPage() {
               routeDistanceKm={order.route_distance_km}
               routeDurationMins={order.route_duration_mins}
               companyLogoUrl={companyLogoUrl}
+              liveRoutes={liveRoutes}
+              selectedRouteIndex={order.selected_route_index}
             />
           )}
 

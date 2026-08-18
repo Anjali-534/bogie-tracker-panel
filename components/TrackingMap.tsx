@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize2, X } from 'lucide-react';
 import OlaMap, { decodePolyline, distanceMeters, type OlaMarker } from './OlaMap';
 import { formatAgo, formatRouteSummary } from '@/lib/format';
-import type { TrackerLocationPing } from '@/lib/types';
+import type { TrackerLocationPing, TrackerLiveRoute } from '@/lib/types';
 
 interface Props {
   lastLat: number | null;
@@ -18,6 +18,16 @@ interface Props {
   routeDistanceKm?: number | null;
   routeDurationMins?: number | null;
   companyLogoUrl?: string | null;
+  // Fresh traffic-aware route(s) from GET .../live-route — polled by the
+  // parent page while the order is actively in transit. Empty/absent before
+  // the first poll response or once tracking stops; this component never
+  // fetches on its own.
+  liveRoutes?: TrackerLiveRoute[];
+  // Which route the driver has actually tapped/selected on their own map
+  // (order.selected_route_index) — read-only here, drives which option this
+  // map previews and the "Driver is on Route X" label. Null/undefined means
+  // no explicit selection yet, so index 0 (the recommended route) is shown.
+  selectedRouteIndex?: number | null;
 }
 
 // Matches the staleness threshold used for live driver GPS elsewhere
@@ -26,13 +36,27 @@ const STALE_MS = 2 * 60 * 1000;
 
 export default function TrackingMap({
   lastLat, lastLng, lastLocationAt, pings, fromLat, fromLng, toLat, toLng,
-  routePolyline, routeDistanceKm, routeDurationMins, companyLogoUrl,
+  routePolyline, routeDistanceKm, routeDurationMins, companyLogoUrl, liveRoutes = [],
+  selectedRouteIndex,
 }: Props) {
-  // No prop here changes on its own between polls — this just keeps the
-  // "updated Xm ago" text counting up between the parent's poll ticks.
-  const [, setTick] = useState(0);
+  // Which live-route option this map previews — the driver's own choice
+  // (order.selected_route_index), not a dispatcher UI toggle: the company
+  // panel is read-only here, it displays the driver's selection rather than
+  // setting it. Null/undefined (no explicit selection yet) and any stale
+  // out-of-range index both fall back to 0, the recommended option.
+  const selectedRouteIdx = selectedRouteIndex != null && selectedRouteIndex < liveRoutes.length
+    ? selectedRouteIndex
+    : 0;
+
+  // Snapshot of "now" for the staleness calc below, refreshed every 15s by
+  // the interval — NOT read via a bare Date.now() call in the render body,
+  // which the React Compiler flags as an impure call (its result can differ
+  // between renders of what's supposed to be a pure function). The lazy
+  // useState initializer form runs exactly once, so it doesn't have that
+  // problem the way a bare call in the body would.
+  const [nowMs, setNowMs] = useState(() => Date.now());
   useEffect(() => {
-    const t = setInterval(() => setTick(x => x + 1), 15000);
+    const t = setInterval(() => setNowMs(Date.now()), 15000);
     return () => clearInterval(t);
   }, []);
 
@@ -56,8 +80,55 @@ export default function TrackingMap({
     [routePolyline],
   );
 
+  // selectedRoute and everything derived from it (below) must be computed
+  // — and, for the useMemo calls, unconditionally called — before the
+  // markers.length===0 early return further down: React requires the same
+  // hooks in the same order on every render, and this component used to
+  // call these three useMemo hooks only on renders that got past that
+  // return, which is a rules-of-hooks violation.
+  const selectedRoute = liveRoutes[Math.min(selectedRouteIdx, liveRoutes.length - 1)];
+
+  // Decoded once per polyline value, same reasoning as plannedRoute above —
+  // avoids re-decoding on every unrelated re-render (e.g. the 15s tick).
+  const liveRouteCoords = useMemo(
+    () => (selectedRoute?.polyline ? decodePolyline(selectedRoute.polyline) : undefined),
+    [selectedRoute?.polyline],
+  );
+
+  // Ola's travel_advisory is "startPointIdx,endPointIdx,congestionLevel"
+  // triplets, verified live to index directly into the decoded polyline's
+  // point array (a real test response's point count matched the advisory's
+  // max index exactly) — so slicing liveRouteCoords by each triplet's
+  // [start,end] gives the exact coordinate run for that congestion level,
+  // no separate geometry needed.
+  const trafficSegments = useMemo(() => {
+    if (!liveRouteCoords || !selectedRoute?.travel_advisory) return undefined;
+    return selectedRoute.travel_advisory
+      .split('|')
+      .map(triplet => {
+        const [startIdx, endIdx, congestion] = triplet.split(',').map(Number);
+        return { coords: liveRouteCoords.slice(startIdx, endIdx + 1), congestion };
+      })
+      .filter(seg => seg.coords.length >= 2 && Number.isFinite(seg.congestion));
+  }, [liveRouteCoords, selectedRoute?.travel_advisory]);
+
+  // Current speed: haversine distance ÷ elapsed time between the two most
+  // recent pings (pings[] is ordered oldest-first, per the fetch query).
+  // Purely client-side from data already fetched for the map — no new
+  // backend field. Noisy at the ~15s client ping interval — a real-world
+  // limitation of any two-fix speed estimate, not something worth hiding.
+  const currentSpeedKmh = useMemo(() => {
+    if (pings.length < 2) return null;
+    const a = pings[pings.length - 2];
+    const b = pings[pings.length - 1];
+    const dtSec = (new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) / 1000;
+    if (!Number.isFinite(dtSec) || dtSec <= 0) return null;
+    const speedKmh = (distanceMeters(a.lat, a.lng, b.lat, b.lng) / dtSec) * 3.6;
+    return Number.isFinite(speedKmh) && speedKmh >= 0 ? speedKmh : null;
+  }, [pings]);
+
   const hasDriver = lastLat != null && lastLng != null;
-  const stale = !lastLocationAt || (Date.now() - new Date(lastLocationAt).getTime()) > STALE_MS;
+  const stale = !lastLocationAt || (nowMs - new Date(lastLocationAt).getTime()) > STALE_MS;
 
   const markers: OlaMarker[] = [];
   if (fromLat != null && fromLng != null) {
@@ -85,45 +156,15 @@ export default function TrackingMap({
   const route = pings.map(p => [p.lng, p.lat] as [number, number]);
   const routeSummary = formatRouteSummary(routeDistanceKm ?? null, routeDurationMins ?? null);
 
-  // Straight-line distance from the driver's *current* position to the
-  // dropoff, every poll — same approximation already used for the driver
-  // page's "reached" auto-detection. Kept as its own value (rather than
-  // only feeding etaMins below) so it can be displayed directly.
-  const remainingKm = useMemo(() => {
-    if (!hasDriver || toLat == null || toLng == null) return null;
-    return distanceMeters(lastLat as number, lastLng as number, toLat, toLng) / 1000;
-  }, [hasDriver, lastLat, lastLng, toLat, toLng]);
-
-  // Live ETA: re-derives remaining time from remainingKm every poll, using
-  // the planned route's average speed (distance/duration) — not just a
-  // client-side countdown timer, so it actually reflects whether the driver
-  // has fallen behind or caught up.
-  const etaMins = useMemo(() => {
-    if (remainingKm == null) return null;
-    if (!routeDistanceKm || !routeDurationMins || routeDistanceKm <= 0 || routeDurationMins <= 0) return null;
-    const avgSpeedKmh = routeDistanceKm / (routeDurationMins / 60);
-    if (!Number.isFinite(avgSpeedKmh) || avgSpeedKmh <= 0) return null;
-    return Math.max(0, Math.round((remainingKm / avgSpeedKmh) * 60));
-  }, [remainingKm, routeDistanceKm, routeDurationMins]);
-
-  // Current speed: haversine distance ÷ elapsed time between the two most
-  // recent pings (pings[] is ordered oldest-first, per the fetch query).
-  // Purely client-side from data already fetched for the map — no new
-  // backend field. Noisy at the ~15s client ping interval, same caveat as
-  // remainingKm's straight-line approximation.
-  const currentSpeedKmh = useMemo(() => {
-    if (pings.length < 2) return null;
-    const a = pings[pings.length - 2];
-    const b = pings[pings.length - 1];
-    const dtSec = (new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) / 1000;
-    if (!Number.isFinite(dtSec) || dtSec <= 0) return null;
-    const speedKmh = (distanceMeters(a.lat, a.lng, b.lat, b.lng) / dtSec) * 3.6;
-    return Number.isFinite(speedKmh) && speedKmh >= 0 ? speedKmh : null;
-  }, [pings]);
-
+  // "Live route" stats now come straight from the fresh traffic-aware call's
+  // own distance/duration for whichever route the dispatcher has selected —
+  // no more separate straight-line "Remaining" estimate now that a real
+  // road-route number is available (superseded, per product decision).
   const liveStats: { label: string; value: string }[] = [];
-  if (etaMins != null) liveStats.push({ label: 'ETA', value: etaMins <= 0 ? 'Arriving' : `${etaMins} min` });
-  if (remainingKm != null) liveStats.push({ label: 'Remaining', value: `~${remainingKm < 10 ? remainingKm.toFixed(1) : Math.round(remainingKm)} km (straight-line)` });
+  if (selectedRoute) {
+    liveStats.push({ label: 'Route', value: `~${selectedRoute.distance_km < 10 ? selectedRoute.distance_km.toFixed(1) : Math.round(selectedRoute.distance_km)} km` });
+    liveStats.push({ label: 'ETA', value: selectedRoute.duration_mins <= 0 ? 'Arriving' : `${selectedRoute.duration_mins} min` });
+  }
   if (currentSpeedKmh != null) liveStats.push({ label: 'Speed', value: `~${Math.round(currentSpeedKmh)} km/h` });
 
   return (
@@ -163,6 +204,8 @@ export default function TrackingMap({
           markers={markers}
           route={route}
           plannedRoute={plannedRoute}
+          liveRoute={liveRouteCoords}
+          trafficSegments={trafficSegments}
           fitToMarkers
           fitTrigger={mapExpanded ? 1 : 0}
           className={mapExpanded ? 'w-full h-full' : 'w-full h-72 rounded-xl overflow-hidden'}
@@ -177,11 +220,20 @@ export default function TrackingMap({
           </button>
         )}
         {liveStats.length > 0 && (
-          <div className="absolute bottom-2 left-2 z-10 bg-white/95 backdrop-blur rounded-xl px-3 py-2 shadow-md border border-gray-200">
+          <div className="absolute bottom-2 left-2 z-10 bg-white/95 backdrop-blur rounded-xl px-3 py-2 shadow-md border border-gray-200 max-w-[calc(100%-1rem)]">
             <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wide flex items-center gap-1 mb-1">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
               Live
             </p>
+            {liveRoutes.length > 1 && (
+              // Read-only — reflects the driver's own tap on their map
+              // (selectedRouteIndex), never a dispatcher-side toggle.
+              <div className="mb-1.5">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap bg-blue-100 text-blue-700">
+                  Driver is on Route {selectedRouteIdx + 1}
+                </span>
+              </div>
+            )}
             <div className="flex items-center">
               {liveStats.map((stat, i) => (
                 <div key={stat.label} className={i > 0 ? 'pl-3 ml-3 border-l border-gray-200' : ''}>

@@ -131,6 +131,12 @@ export interface TrackerOrder {
   route_distance_km: number | null;
   route_duration_mins: number | null;
 
+  // Which live-route option (see the live-route endpoint's `routes` array)
+  // the driver has tapped to select on their own map. Read-only here — the
+  // company panel displays it, it doesn't set it. Null means no explicit
+  // selection yet; both sides then default to index 0.
+  selected_route_index: number | null;
+
   // Proof-of-delivery signature — set once by the driver-token-gated upload
   // after a 'delivery_claimed' event; null until then.
   signature_url: string | null;
@@ -367,6 +373,43 @@ export interface TrackerLocationPing {
   lat: number;
   lng: number;
   created_at: string;
+}
+
+// One route option from GET /gogoo/tracker/orders/:id/live-route — a FRESH
+// traffic-aware route from the driver's current position to the destination,
+// never cached (unlike TrackerOrder's route_polyline/route_distance_km/
+// route_duration_mins, which stay the one-time planned route from creation).
+// travel_advisory is Ola's raw "startPointIdx,endPointIdx,congestionLevel"
+// pipe-separated string, indices into the decoded polyline's point array.
+export interface TrackerLiveRoute {
+  distance_km: number;
+  duration_mins: number;
+  polyline: string;
+  travel_advisory: string;
+  // Turn-by-turn maneuvers (driver page's voice-guidance/driving-companion
+  // view only — the company panel's TrackingMap ignores this field). Absent/
+  // empty is possible if Ola's response ever omits legs (shouldn't happen
+  // for a resolved route, but not asserted server-side), so always guard
+  // with steps?.length before indexing.
+  steps?: TrackerRouteStep[];
+}
+
+// One maneuver from TrackerLiveRoute.steps — mirrors OlaRouteStep in
+// live_map.go exactly (verified against a real Ola Directions response: 45
+// steps for a 30km Delhi NCR route). maneuver is a stable enum ("depart",
+// "turn-left", "turn-right", "turn-slight-left", "turn-slight-right",
+// "continue", "enter-roundabout", "arrive", and possibly others Ola adds
+// later — the icon map in the driving-companion view falls back to a plain
+// arrow for anything unrecognized).
+export interface TrackerRouteStep {
+  instructions: string;
+  distance_meters: number;
+  duration_secs: number;
+  maneuver: string;
+  start_location: { lat: number; lng: number };
+  end_location: { lat: number; lng: number };
+  bearing_before: number;
+  bearing_after: number;
 }
 
 // Trimmed shape returned by GET /gogoo/tracker/live-map — one entry per

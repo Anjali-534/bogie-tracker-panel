@@ -1,19 +1,41 @@
 'use client';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import axios from 'axios';
 import Image from 'next/image';
-import { Navigation, MapPin, AlertTriangle, Maximize2, X, MessageCircle } from 'lucide-react';
-import OlaMap, { decodePolyline, type OlaMarker } from '@/components/OlaMap';
+import { Navigation, MapPin, AlertTriangle, Maximize2, X, MessageCircle, Volume2 } from 'lucide-react';
+import type { Map as MapLibreMap } from 'maplibre-gl';
+import OlaMap, { decodePolyline, distanceMeters, bearingDeg, type OlaMarker } from '@/components/OlaMap';
+import DrivingCompanion from '@/components/DrivingCompanion';
 import SignaturePad from '@/components/SignaturePad';
 import RouteRows from '@/components/RouteRows';
 import { formatRouteSummary } from '@/lib/format';
-import { DRIVER_EVENT_KIND_LABELS, STATUS_LABELS, STATUS_STYLES, type OrderStatus } from '@/lib/types';
+import { DRIVER_EVENT_KIND_LABELS, STATUS_LABELS, STATUS_STYLES, type OrderStatus, type TrackerLiveRoute, type TrackerRouteStep } from '@/lib/types';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'https://gogobackend-production.up.railway.app';
 const POST_INTERVAL_MS = 10000;
 const MESSAGE_POLL_MS = 20000;
 const REACHED_RADIUS_METERS = 100;
+// Same live-route poll cadence as the company panel's order-detail page
+// (see LIVE_ROUTE_POLL_MS there) — this is the driver-token counterpart of
+// that same feature, just fetched by the driver's own device instead of
+// polled by a dispatcher watching the order.
+const LIVE_ROUTE_POLL_MS = 60 * 1000;
+
+// Driving-companion (voice guidance) tuning — see the feasibility
+// investigation this was scoped against: foreground-only, additive to the
+// existing "Navigate with Google Maps" link, never a replacement.
+const VOICE_ANNOUNCE_FAR_M = 200; // first heads-up for the upcoming turn
+const VOICE_ANNOUNCE_NEAR_M = 50; // final "turn now" repeat
+const STEP_ADVANCE_RADIUS_M = 40; // close enough to a step's end to consider it passed
+// Above this displacement between fixes, GPS course-over-ground is trusted
+// over the device compass for the camera bearing — a car's body/mount is
+// magnetically noisy, so the compass alone jitters at driving speed (the
+// investigation's core finding on item 3); GPS course has no such problem
+// once actually moving.
+const CAMERA_GPS_BEARING_DISPLACEMENT_M = 5;
+const COMPANION_ZOOM = 17;
+const COMPANION_PITCH = 55;
 
 // Initial-load retry policy for the driver order fetch — a driver opening
 // this link is very often on a weak mobile signal or hitting a cold-started
@@ -91,6 +113,70 @@ export default function DriverSharePage() {
   const [myPos, setMyPos] = useState<{ lat: number; lng: number; heading?: number } | null>(null);
   const [, setTick] = useState(0); // forces re-render so "updated Xs ago" stays live
 
+  // Live-route redesign — traffic-aware route options from the driver's own
+  // current position, with tap-to-select (map hit-layer or the chip row
+  // below). selectedRouteIdx starts null (server hasn't been asked yet);
+  // once set — from either the server's persisted choice or a local tap —
+  // it stops re-syncing from the poll response, so a driver's own tap always
+  // wins over a stale server value until their next tap persists.
+  const [liveRoutes, setLiveRoutes] = useState<TrackerLiveRoute[]>([]);
+  const [selectedRouteIdx, setSelectedRouteIdx] = useState<number | null>(null);
+  // Current speed, derived from two consecutive watchPosition fixes (see
+  // lastSpeedFixRef below) — the company panel's TrackingMap computes this
+  // from a history of DB-stored pings instead, which doesn't apply here:
+  // this page is what PRODUCES those pings, it never fetches a ping-history
+  // endpoint of its own, so there's no array to diff the same way.
+  const [currentSpeedKmh, setCurrentSpeedKmh] = useState<number | null>(null);
+
+  // Driving companion (voice guidance) — foreground-only, additive view;
+  // "Navigate with Google Maps" elsewhere on this page stays the primary/
+  // reliable action regardless of whether this is on. companionActiveRef
+  // mirrors companionActive for the watchPosition closure below (created
+  // once per startSharing() call, so it needs a ref — same reasoning as
+  // latestPosRef/lastSpeedFixRef already use).
+  const [companionActive, setCompanionActive] = useState(false);
+  const companionActiveRef = useRef(false);
+  useEffect(() => { companionActiveRef.current = companionActive; }, [companionActive]);
+  const [currentStepIdx, setCurrentStepIdx] = useState(0);
+  const currentStepIdxRef = useRef(0);
+  useEffect(() => { currentStepIdxRef.current = currentStepIdx; }, [currentStepIdx]);
+  // Mirrors the selected live route's steps — recomputed fresh every
+  // /live-route poll (each poll's route is calculated from wherever the
+  // driver is AT POLL TIME, so its step 0 is always "the next maneuver from
+  // here"), which is why a fresh poll resets currentStepIdx back to 0
+  // rather than trying to reconcile against the previous poll's array.
+  const stepsRef = useRef<TrackerRouteStep[]>([]);
+  // Identity of the route this component last reset stepsRef/currentStepIdx
+  // for — liveRoutes[idx] is referentially stable across re-renders that
+  // don't touch liveRoutes/selectedRouteIdx (array indexing, not a new
+  // object), so comparing against this ref is exactly "did a new poll (or a
+  // route switch) just land," without needing an Effect: this is React's
+  // documented "adjust state while rendering" escape hatch (react.dev,
+  // "You Might Not Need an Effect" — resetting state when a value changes),
+  // which avoids the extra render pass a useEffect-based reset would cost.
+  const prevActiveRouteRef = useRef<TrackerLiveRoute | undefined>(undefined);
+  const activeRoute = liveRoutes[Math.min(selectedRouteIdx ?? 0, liveRoutes.length - 1)];
+  if (activeRoute !== prevActiveRouteRef.current) {
+    prevActiveRouteRef.current = activeRoute;
+    stepsRef.current = activeRoute?.steps ?? [];
+    currentStepIdxRef.current = 0;
+    if (currentStepIdx !== 0) setCurrentStepIdx(0);
+  }
+  // Latest device compass heading (deviceorientation/deviceorientationabsolute
+  // listener, registered only while companion is active — see
+  // startVoiceGuidance). Camera bearing prefers GPS course-over-ground while
+  // moving (see CAMERA_GPS_BEARING_DISPLACEMENT_M) and falls back to this
+  // only when stationary/slow, where GPS course is meaningless.
+  const deviceHeadingRef = useRef<number | null>(null);
+  const orientationEventNameRef = useRef<'deviceorientationabsolute' | 'deviceorientation' | null>(null);
+  const lastCameraBearingRef = useRef(0);
+  const mapInstanceRef = useRef<MapLibreMap | null>(null);
+  // Per-maneuver (not per-array-index — the array is rebuilt every poll)
+  // announcement state, keyed by maneuver+end-location so the same
+  // real-world turn isn't re-announced after a poll refreshes the steps
+  // array out from under a stable array index.
+  const announcedRef = useRef<Map<string, { at200: boolean; at50: boolean }>>(new Map());
+
   // GPS auto-detect "Reached" (Phase 2) — gates Sign + Delivered below.
   const [reachedConfirmed, setReachedConfirmed] = useState(false);
   const reachedFiredRef = useRef(false);
@@ -140,6 +226,10 @@ export default function DriverSharePage() {
   const watchIdRef = useRef<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const latestPosRef = useRef<{ lat: number; lng: number } | null>(null);
+  // Previous fix + its timestamp, purely for the speed diff below — kept
+  // separate from latestPosRef (which live-route/location-send read) since
+  // this one specifically needs the *prior* fix, not the current one.
+  const lastSpeedFixRef = useRef<{ lat: number; lng: number; at: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -204,6 +294,13 @@ export default function DriverSharePage() {
     [order?.route_polyline],
   );
 
+  // Re-decoded only when the live-route poll actually returns a new set of
+  // polylines, not on every unrelated re-render (GPS ticks, message polls).
+  const liveRouteOptions = useMemo(
+    () => liveRoutes.map(r => decodePolyline(r.polyline)),
+    [liveRoutes],
+  );
+
   // Piggybacks on the same 20s poll as the fetch — the GET marks unread
   // messages read as a side effect, so the fetch IS the read receipt.
   useEffect(() => {
@@ -223,6 +320,135 @@ export default function DriverSharePage() {
     const t = setInterval(poll, MESSAGE_POLL_MS);
     return () => { cancelled = true; clearInterval(t); };
   }, [token]);
+
+  // Reads latestPosRef (not the myPos state) so this never re-fires off the
+  // multiple-times-a-second GPS updates that drive myPos — it's paced
+  // entirely by the interval below, same separation the company panel's
+  // order-detail page keeps between its GPS poll and its live-route poll.
+  const loadLiveRoute = useCallback(async () => {
+    const pos = latestPosRef.current;
+    if (!pos) return;
+    try {
+      const { data } = await axios.get(`${API}/gogoo/public/tracker/driver/${token}/live-route`, {
+        params: { lat: pos.lat, lng: pos.lng },
+      });
+      setLiveRoutes(data.routes || []);
+      setSelectedRouteIdx(prev => prev ?? (typeof data.selected_route_index === 'number' ? data.selected_route_index : 0));
+    } catch {
+      // Best-effort — a transient failure just leaves the last-known route
+      // options in place until the next tick.
+    }
+  }, [token]);
+
+  // Only runs while actively sharing (a position to route from) and the
+  // order isn't terminal — same activity gate as the GPS watch itself.
+  useEffect(() => {
+    if (!sharing || order?.is_terminal) return;
+    loadLiveRoute();
+    const t = setInterval(loadLiveRoute, LIVE_ROUTE_POLL_MS);
+    return () => clearInterval(t);
+  }, [sharing, order?.is_terminal, loadLiveRoute]);
+
+  // Driver taps a route (on the map's hit-layer or the chip row) — updates
+  // locally first so the map/chips respond instantly, then persists so the
+  // company panel's read-only "Driver is on Route X" picks it up.
+  async function selectRouteOption(index: number) {
+    setSelectedRouteIdx(index);
+    try {
+      await axios.post(`${API}/gogoo/public/tracker/driver/${token}/selected-route`, { index });
+    } catch {
+      // Best-effort — the driver's own map already reflects the pick; a
+      // failed persist just means the company panel won't see it until the
+      // driver's next successful tap.
+    }
+  }
+
+  // Cancels any utterance still playing before starting the next one, so
+  // approaching two maneuvers in quick succession doesn't queue/stack
+  // announcements — the driver always hears the CURRENT instruction, not a
+  // backlog. Missing/unsupported SpeechSynthesis degrades to silent
+  // text-only guidance rather than throwing.
+  function speak(text: string) {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    try {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+    } catch {
+      // Best-effort — see comment above.
+    }
+  }
+
+  // Stable across renders (empty deps — only ever touches the ref) so
+  // addEventListener/removeEventListener in start/stopVoiceGuidance below
+  // are removing the exact same function reference they added.
+  const handleOrientation = useCallback((e: DeviceOrientationEvent) => {
+    const webkitHeading = (e as DeviceOrientationEvent & { webkitCompassHeading?: number }).webkitCompassHeading;
+    if (typeof webkitHeading === 'number' && Number.isFinite(webkitHeading)) {
+      deviceHeadingRef.current = webkitHeading; // iOS: already an absolute compass bearing
+      return;
+    }
+    if (e.absolute && typeof e.alpha === 'number') {
+      // Android absolute orientation: alpha increases counter-clockwise
+      // from north: the standard conversion to a clockwise compass bearing
+      // is (360 - alpha) % 360.
+      deviceHeadingRef.current = (360 - e.alpha) % 360;
+    }
+  }, []);
+
+  // Explicit-tap entry point for voice guidance — both the DeviceOrientation
+  // permission prompt (iOS 13+) and the SpeechSynthesis unlock (iOS Safari
+  // refuses speak() outside a direct user gesture) must happen synchronously
+  // inside this click handler, not after an awaited network call, or iOS
+  // silently ignores them. Falls back gracefully on browsers/OSes without
+  // either API — the driving-companion card still shows text-only turn-by-
+  // turn, and the camera still gets GPS-course-over-ground bearing.
+  async function startVoiceGuidance() {
+    const DOE = window.DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<'granted' | 'denied'> };
+    if (typeof DOE?.requestPermission === 'function') {
+      try {
+        await DOE.requestPermission();
+        // Proceed regardless of the result — if denied, the camera still
+        // gets GPS course-over-ground while moving (see the bearing-blend
+        // logic in startSharing's watchPosition callback); the driver only
+        // loses compass-based orientation while stationary.
+      } catch {
+        // Older iOS / non-Safari — nothing to request.
+      }
+    }
+    const eventName = 'ondeviceorientationabsolute' in window ? 'deviceorientationabsolute' : 'deviceorientation';
+    orientationEventNameRef.current = eventName;
+    window.addEventListener(eventName, handleOrientation as EventListener);
+
+    speak('Voice guidance started.');
+
+    if (mapInstanceRef.current) {
+      const pos = latestPosRef.current;
+      mapInstanceRef.current.easeTo({
+        center: pos ? [pos.lng, pos.lat] : undefined,
+        zoom: COMPANION_ZOOM,
+        pitch: COMPANION_PITCH,
+        bearing: lastCameraBearingRef.current,
+        duration: 800,
+      });
+    }
+    setCompanionActive(true);
+  }
+
+  function stopVoiceGuidance() {
+    setCompanionActive(false);
+    if (orientationEventNameRef.current) {
+      window.removeEventListener(orientationEventNameRef.current, handleOrientation as EventListener);
+      orientationEventNameRef.current = null;
+    }
+    window.speechSynthesis?.cancel();
+    announcedRef.current.clear();
+    if (mapInstanceRef.current) {
+      // Back to the normal top-down view, then re-fit to the full route —
+      // reuses the same fitTrigger the manual expand/collapse button drives.
+      mapInstanceRef.current.easeTo({ pitch: 0, bearing: 0, duration: 500 });
+      setFitTrigger(t => t + 1);
+    }
+  }
 
   // Fires at most once per session (reachedFiredRef guards re-entry while a
   // request is in flight); on failure the guard resets so the next GPS fix
@@ -286,7 +512,76 @@ export default function DriverSharePage() {
         // GPS-history bearing calculation when it's absent.
         setMyPos({ lat: pos.coords.latitude, lng: pos.coords.longitude, heading: pos.coords.heading ?? undefined });
         setGpsIssue(false);
-        if (isFirstFix) sendLocation();
+
+        // Speed from this fix vs. the last one — same haversine-distance /
+        // elapsed-time approach as TrackingMap's currentSpeedKmh, just fed
+        // by consecutive watchPosition callbacks instead of a pings array.
+        const now = Date.now();
+        const prevFix = lastSpeedFixRef.current;
+        if (prevFix) {
+          const dtSec = (now - prevFix.at) / 1000;
+          if (dtSec > 0) {
+            const speedKmh = (distanceMeters(prevFix.lat, prevFix.lng, pos.coords.latitude, pos.coords.longitude) / dtSec) * 3.6;
+            if (Number.isFinite(speedKmh) && speedKmh >= 0) setCurrentSpeedKmh(speedKmh);
+          }
+        }
+        lastSpeedFixRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude, at: now };
+
+        // Driving companion: step advance, voice triggers, camera. Reads
+        // companionActiveRef (not the companionActive state) because this
+        // whole watchPosition callback is created once per startSharing()
+        // call and closures over state would go stale.
+        if (companionActiveRef.current) {
+          const steps = stepsRef.current;
+          const step = steps[currentStepIdxRef.current];
+          if (step) {
+            const distToEnd = distanceMeters(pos.coords.latitude, pos.coords.longitude, step.end_location.lat, step.end_location.lng);
+            // Keyed by maneuver+end-location, not array index — the steps
+            // array is fully rebuilt on every /live-route poll (each poll
+            // recomputes the route from the driver's position AT THAT POLL),
+            // so an index-based key would forget it already announced this
+            // exact real-world turn the moment a new poll lands.
+            const key = `${step.maneuver}|${step.end_location.lat.toFixed(5)}|${step.end_location.lng.toFixed(5)}`;
+            let ann = announcedRef.current.get(key);
+            if (!ann) {
+              ann = { at200: false, at50: false };
+              announcedRef.current.set(key, ann);
+            }
+            if (!ann.at200 && distToEnd <= VOICE_ANNOUNCE_FAR_M) {
+              speak(step.instructions);
+              ann.at200 = true;
+            } else if (!ann.at50 && distToEnd <= VOICE_ANNOUNCE_NEAR_M) {
+              speak(step.instructions);
+              ann.at50 = true;
+            }
+            if (distToEnd <= STEP_ADVANCE_RADIUS_M && currentStepIdxRef.current < steps.length - 1) {
+              // Update the ref immediately (not just via the setState effect
+              // below) so the very next GPS tick already reads the new step,
+              // rather than lagging a render cycle behind.
+              currentStepIdxRef.current += 1;
+              setCurrentStepIdx(currentStepIdxRef.current);
+            }
+          }
+
+          if (mapInstanceRef.current) {
+            let bearing = lastCameraBearingRef.current;
+            if (prevFix && distanceMeters(prevFix.lat, prevFix.lng, pos.coords.latitude, pos.coords.longitude) > CAMERA_GPS_BEARING_DISPLACEMENT_M) {
+              bearing = bearingDeg(prevFix.lat, prevFix.lng, pos.coords.latitude, pos.coords.longitude);
+            } else if (deviceHeadingRef.current != null) {
+              bearing = deviceHeadingRef.current;
+            }
+            lastCameraBearingRef.current = bearing;
+            mapInstanceRef.current.easeTo({
+              center: [pos.coords.longitude, pos.coords.latitude],
+              zoom: COMPANION_ZOOM,
+              pitch: COMPANION_PITCH,
+              bearing,
+              duration: 800,
+            });
+          }
+        }
+
+        if (isFirstFix) { sendLocation(); loadLiveRoute(); }
         maybeAutoConfirmReached(pos.coords.latitude, pos.coords.longitude);
       },
       (err) => {
@@ -311,8 +606,12 @@ export default function DriverSharePage() {
     watchIdRef.current = null;
     intervalRef.current = null;
     latestPosRef.current = null;
+    lastSpeedFixRef.current = null;
     setGpsIssue(false);
     setSharing(false);
+    setCurrentSpeedKmh(null);
+    // No GPS watch left to drive it — voice guidance would just go stale.
+    if (companionActiveRef.current) stopVoiceGuidance();
   }
 
   if (order === undefined) {
@@ -384,6 +683,28 @@ export default function DriverSharePage() {
   // rather than stranding the driver with no way to reach the signature pad.
   const canShowDelivered = reachedConfirmed || order.dispatch_to_lat == null || order.dispatch_to_lng == null;
 
+  // Same Route/ETA/Speed stats card as the company panel's TrackingMap,
+  // computed from this page's own liveRoutes/selectedRouteIdx/
+  // currentSpeedKmh state (see their declarations above for why the speed
+  // source differs from TrackingMap's pings-array approach). Reuses
+  // activeRoute (declared above, before the early returns) rather than
+  // re-deriving the same liveRoutes[idx] lookup a second time.
+  const selectedRoute = activeRoute;
+  const liveStats: { label: string; value: string }[] = [];
+  if (selectedRoute) {
+    liveStats.push({ label: 'Route', value: `~${selectedRoute.distance_km < 10 ? selectedRoute.distance_km.toFixed(1) : Math.round(selectedRoute.distance_km)} km` });
+    liveStats.push({ label: 'ETA', value: selectedRoute.duration_mins <= 0 ? 'Arriving' : `${selectedRoute.duration_mins} min` });
+  }
+  if (currentSpeedKmh != null) liveStats.push({ label: 'Speed', value: `~${Math.round(currentSpeedKmh)} km/h` });
+
+  // Driving-companion display values — read from the same selectedRoute/
+  // currentStepIdx the watchPosition callback above advances.
+  const currentStep = selectedRoute?.steps?.[currentStepIdx] ?? null;
+  const nextStep = selectedRoute?.steps?.[currentStepIdx + 1] ?? null;
+  const distanceToTurnMeters = currentStep && myPos
+    ? distanceMeters(myPos.lat, myPos.lng, currentStep.end_location.lat, currentStep.end_location.lng)
+    : null;
+
   const mapMarkers: OlaMarker[] = [];
   if (order.dispatch_from_lat != null && order.dispatch_from_lng != null) {
     mapMarkers.push({ lng: order.dispatch_from_lng, lat: order.dispatch_from_lat, color: '#22C55E', icon: 'pin' });
@@ -434,14 +755,49 @@ export default function DriverSharePage() {
                   zoom={11}
                   markers={mapMarkers}
                   plannedRoute={plannedRoute}
+                  routeOptions={liveRouteOptions}
+                  selectedRouteOptionIndex={selectedRouteIdx ?? undefined}
+                  onRouteOptionSelect={selectRouteOption}
+                  onMapReady={(map) => { mapInstanceRef.current = map; }}
                   fitToMarkers
                   fitTrigger={fitTrigger}
                   className="h-full w-full"
                 />
 
+                {companionActive && (
+                  <DrivingCompanion
+                    currentStep={currentStep}
+                    nextStep={nextStep}
+                    distanceToTurnMeters={distanceToTurnMeters}
+                    onExit={stopVoiceGuidance}
+                  />
+                )}
+
                 <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between p-3 sm:p-4">
-                  <div className="rounded-full bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-orange-500">Live route</p>
+                  <div className="flex flex-col items-start gap-1.5">
+                    <div className="rounded-full bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-orange-500">Live route</p>
+                    </div>
+                    {liveRoutes.length > 1 && (
+                      // Chip fallback for tapping a route — same action as
+                      // tapping the line on the map itself (both call
+                      // selectRouteOption), for drivers who'd rather not
+                      // pinch/pan to hit a thin line precisely.
+                      <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-white/90 p-1 shadow-sm backdrop-blur overflow-x-auto max-w-[70vw]">
+                        {liveRoutes.map((r, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => selectRouteOption(i)}
+                            className={`text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap transition-colors ${
+                              i === (selectedRouteIdx ?? 0) ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'
+                            }`}
+                          >
+                            Route {i + 1}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   {navigateHref && (
                     <a
@@ -469,6 +825,23 @@ export default function DriverSharePage() {
                 >
                   {mapExpanded ? <X size={16} className="text-gray-700" /> : <Maximize2 size={16} className="text-gray-700" />}
                 </button>
+
+                {liveStats.length > 0 && (
+                  <div className="pointer-events-none absolute bottom-2 left-2 z-10 bg-white/95 backdrop-blur rounded-xl px-3 py-2 shadow-md border border-gray-200 max-w-[calc(100%-1rem)]">
+                    <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wide flex items-center gap-1 mb-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                      Live
+                    </p>
+                    <div className="flex items-center">
+                      {liveStats.map((stat, i) => (
+                        <div key={stat.label} className={i > 0 ? 'pl-3 ml-3 border-l border-gray-200' : ''}>
+                          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{stat.label}</p>
+                          <p className="text-sm font-bold text-gray-900">{stat.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-4">
@@ -544,6 +917,18 @@ export default function DriverSharePage() {
                                 {sharingHeadline}
                               </div>
                               <p className="mt-1 text-xs text-gray-500">{sharingSubtext}</p>
+                              {!companionActive && (
+                                // Additive to "Navigate with Google Maps" above, not a
+                                // replacement — that link stays the reliable fallback
+                                // regardless of whether this is on.
+                                <button
+                                  onClick={startVoiceGuidance}
+                                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-3 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+                                >
+                                  <Volume2 size={16} />
+                                  Start Voice Guidance
+                                </button>
+                              )}
                               <button
                                 onClick={stopSharing}
                                 className="mt-3 w-full rounded-2xl border-2 border-red-200 bg-white px-3 py-3 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"

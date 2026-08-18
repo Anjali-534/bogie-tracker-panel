@@ -101,8 +101,10 @@ export function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: n
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Standard compass bearing (0=N, 90=E) from point 1 to point 2.
-function bearingDeg(lat1: number, lng1: number, lat2: number, lng2: number) {
+// Standard compass bearing (0=N, 90=E) from point 1 to point 2. Exported for
+// the driver page's driving-companion camera (GPS course-over-ground, used
+// in preference to the noisier device compass while actually moving).
+export function bearingDeg(lat1: number, lng1: number, lat2: number, lng2: number) {
   const y = Math.sin(toRad(lng2 - lng1)) * Math.cos(toRad(lat2));
   const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lng2 - lng1));
   return (toDeg(Math.atan2(y, x)) + 360) % 360;
@@ -194,6 +196,33 @@ type OlaMapProps = {
   plannedRoute?: [number, number][]; // [lng, lat][] — solid orange by default, matches cab-panel's route line
   plannedRouteColor?: string; // defaults to orange (#FF6B2B)
   plannedRouteDashed?: boolean; // dashed pre-pickup leg, matching user-app's tracking screen convention
+  // Fresh traffic-aware route from the driver's current position to the
+  // destination (tracker order-detail live-route poll) — a different line
+  // than plannedRoute (which is the one-time full-trip route from the
+  // original dispatch point, never recomputed). Drawn as its own blue line;
+  // trafficSegments (below) draws the congestion-colored overlay on top of
+  // it, matching the existing route/plannedRoute "base line + overlay"
+  // z-order convention.
+  liveRoute?: [number, number][];
+  // Congestion-colored sub-segments of liveRoute, from Ola's travel_advisory
+  // (already sliced into coordinate runs by the caller — see
+  // TrackingMap.tsx). congestion is Ola's raw level (0/5/10/15 observed,
+  // higher = more congested); styled via a step expression below.
+  trafficSegments?: { coords: [number, number][]; congestion: number }[];
+  // Multiple live-route alternatives for tap-to-select (driver share page's
+  // live-route feature only — every other OlaMap consumer shows a single
+  // route via liveRoute above). Each entry is a full decoded polyline;
+  // rendered as thin colored lines with an invisible wide hit-layer stacked
+  // underneath, since the visible 3-5px line is too thin to reliably tap on
+  // a phone screen. Absent/empty everywhere else.
+  routeOptions?: [number, number][][];
+  // Which routeOptions entry is highlighted (brighter/thicker blue) — the
+  // driver's own current selection, so the map reflects what they tapped.
+  selectedRouteOptionIndex?: number;
+  // Fires with the tapped route's index. Omit to render routeOptions as a
+  // plain non-interactive overlay (no click listener side effects beyond
+  // the no-op cursor).
+  onRouteOptionSelect?: (index: number) => void;
   fitToMarkers?: boolean;
   fitTrigger?: number;
   className?: string;
@@ -258,6 +287,11 @@ export default function OlaMap({
   plannedRoute,
   plannedRouteColor = "#FF6B2B",
   plannedRouteDashed = false,
+  liveRoute,
+  trafficSegments,
+  routeOptions,
+  selectedRouteOptionIndex,
+  onRouteOptionSelect,
   fitToMarkers = false,
   fitTrigger = 0,
   className = "w-full h-80 rounded-2xl overflow-hidden",
@@ -268,6 +302,10 @@ export default function OlaMap({
   // Ref so the marker-creation effect (keyed on JSON.stringify(markers)) can
   // always call the latest callback without needing it in its own deps.
   const onMarkerDragEndRef = useRef(onMarkerDragEnd);
+  // Ref so the map's "click" listener (registered once, at map construction)
+  // always calls the latest callback without needing to be torn down and
+  // re-added every time the parent passes a new function identity.
+  const onRouteOptionSelectRef = useRef(onRouteOptionSelect);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
@@ -283,7 +321,7 @@ export default function OlaMap({
   // our load handler has added the sources, or transiently false after it),
   // so track readiness ourselves and queue updates that arrive too early.
   const loadedRef = useRef(false);
-  const pendingRef = useRef<{ markers?: () => void; route?: () => void; planned?: () => void; paint?: () => void; fit?: () => void; dark?: () => void }>({});
+  const pendingRef = useRef<{ markers?: () => void; route?: () => void; planned?: () => void; paint?: () => void; fit?: () => void; dark?: () => void; liveRoute?: () => void; trafficSegments?: () => void; routeOptions?: () => void; routeOptionStyle?: () => void }>({});
   // Drives the branded skeleton overlay until the first 'load' fires.
   const [loaded, setLoaded] = useState(false);
   // Set when map init throws (e.g. no WebGL context) or MapLibre emits a
@@ -394,11 +432,72 @@ export default function OlaMap({
           layout: { "line-join": "round", "line-cap": "round" },
           paint: { "line-color": "#FF6B2B", "line-width": 2.5, "line-opacity": 0.6 },
         });
+        // Live traffic-aware route (tracker order-detail page) — base blue
+        // line first, congestion-colored segments drawn on top of it next,
+        // same "base + overlay" ordering as planned-route/route above.
+        map.addSource("live-route", {
+          type: "geojson",
+          data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } },
+        });
+        map.addLayer({
+          id: "live-route-line", type: "line", source: "live-route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#3B82F6", "line-width": 4, "line-opacity": 0.5 },
+        });
+        map.addSource("traffic-segments", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+        map.addLayer({
+          id: "traffic-segments-line", type: "line", source: "traffic-segments",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: {
+            // Ola's observed congestion levels are 0/5/10/15 (higher = more
+            // congested) — step covers any value at or above each stop, so
+            // an unseen higher level still falls through to red rather than
+            // erroring or rendering uncolored.
+            "line-color": ["step", ["get", "congestion"], "#22C55E", 5, "#FBBF24", 10, "#FB923C", 15, "#EF4444"],
+            "line-width": 4,
+            "line-opacity": 0.9,
+          },
+        });
+        // Tap-to-select route alternatives (driver share page) — an
+        // invisible, much wider line sits under the thin visible one purely
+        // as a hit target, since 3-5px is unreliable to tap accurately on a
+        // phone screen; the visible line is what the driver actually sees.
+        map.addSource("route-options", {
+          type: "geojson",
+          data: { type: "FeatureCollection", features: [] },
+        });
+        map.addLayer({
+          id: "route-options-hit", type: "line", source: "route-options",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-width": 28, "line-opacity": 0 },
+        });
+        map.addLayer({
+          id: "route-options-line", type: "line", source: "route-options",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#9CA3AF", "line-width": 3, "line-opacity": 0.55 },
+        });
+        map.on("click", "route-options-hit", (e) => {
+          const idx = e.features?.[0]?.properties?.index;
+          if (typeof idx === "number") onRouteOptionSelectRef.current?.(idx);
+        });
+        map.on("mouseenter", "route-options-hit", () => {
+          if (onRouteOptionSelectRef.current) map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", "route-options-hit", () => {
+          map.getCanvas().style.cursor = "";
+        });
         loadedRef.current = true;
         setLoaded(true);
         pendingRef.current.markers?.();
         pendingRef.current.route?.();
         pendingRef.current.planned?.();
+        pendingRef.current.liveRoute?.();
+        pendingRef.current.trafficSegments?.();
+        pendingRef.current.routeOptions?.();
+        pendingRef.current.routeOptionStyle?.();
         pendingRef.current.paint?.();
         pendingRef.current.fit?.();
         pendingRef.current.dark?.();
@@ -456,6 +555,10 @@ export default function OlaMap({
   useEffect(() => {
     onMarkerDragEndRef.current = onMarkerDragEnd;
   }, [onMarkerDragEnd]);
+
+  useEffect(() => {
+    onRouteOptionSelectRef.current = onRouteOptionSelect;
+  }, [onRouteOptionSelect]);
 
   useEffect(() => {
     // mapRef.current is looked up fresh inside update(), not captured here —
@@ -634,6 +737,72 @@ export default function OlaMap({
     };
     if (loadedRef.current) update(); else pendingRef.current.planned = update;
   }, [JSON.stringify(plannedRoute)]);
+
+  useEffect(() => {
+    const update = () => {
+      const map = mapRef.current;
+      if (!map) return;
+      const source = map.getSource("live-route") as maplibregl.GeoJSONSource | undefined;
+      if (!source) return;
+      source.setData({
+        type: "Feature", properties: {},
+        geometry: { type: "LineString", coordinates: liveRoute && liveRoute.length >= 2 ? liveRoute : [] },
+      });
+    };
+    if (loadedRef.current) update(); else pendingRef.current.liveRoute = update;
+  }, [JSON.stringify(liveRoute)]);
+
+  useEffect(() => {
+    const update = () => {
+      const map = mapRef.current;
+      if (!map) return;
+      const source = map.getSource("traffic-segments") as maplibregl.GeoJSONSource | undefined;
+      if (!source) return;
+      source.setData({
+        type: "FeatureCollection",
+        features: (trafficSegments || []).map(seg => ({
+          type: "Feature" as const,
+          properties: { congestion: seg.congestion },
+          geometry: { type: "LineString" as const, coordinates: seg.coords },
+        })),
+      });
+    };
+    if (loadedRef.current) update(); else pendingRef.current.trafficSegments = update;
+  }, [JSON.stringify(trafficSegments)]);
+
+  useEffect(() => {
+    const update = () => {
+      const map = mapRef.current;
+      if (!map) return;
+      const source = map.getSource("route-options") as maplibregl.GeoJSONSource | undefined;
+      if (!source) return;
+      source.setData({
+        type: "FeatureCollection",
+        features: (routeOptions || [])
+          .map((coords, index) => ({
+            type: "Feature" as const,
+            properties: { index },
+            geometry: { type: "LineString" as const, coordinates: coords },
+          }))
+          .filter(f => f.geometry.coordinates.length >= 2),
+      });
+    };
+    if (loadedRef.current) update(); else pendingRef.current.routeOptions = update;
+  }, [JSON.stringify(routeOptions)]);
+
+  useEffect(() => {
+    const update = () => {
+      const map = mapRef.current;
+      if (!map || !map.getLayer("route-options-line")) return;
+      // -1 never matches a real index, so with nothing selected every
+      // option renders in the same unselected gray.
+      const sel = selectedRouteOptionIndex ?? -1;
+      map.setPaintProperty("route-options-line", "line-color", ["case", ["==", ["get", "index"], sel], "#3B82F6", "#9CA3AF"]);
+      map.setPaintProperty("route-options-line", "line-width", ["case", ["==", ["get", "index"], sel], 5, 3]);
+      map.setPaintProperty("route-options-line", "line-opacity", ["case", ["==", ["get", "index"], sel], 0.95, 0.5]);
+    };
+    if (loadedRef.current) update(); else pendingRef.current.routeOptionStyle = update;
+  }, [selectedRouteOptionIndex]);
 
   useEffect(() => {
     const update = () => {
