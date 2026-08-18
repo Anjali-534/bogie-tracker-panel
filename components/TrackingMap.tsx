@@ -85,20 +85,46 @@ export default function TrackingMap({
   const route = pings.map(p => [p.lng, p.lat] as [number, number]);
   const routeSummary = formatRouteSummary(routeDistanceKm ?? null, routeDurationMins ?? null);
 
-  // Live ETA: re-derives remaining time from the driver's *current* distance
-  // to the dropoff every poll, using the planned route's average speed
-  // (distance/duration) — not just a client-side countdown timer, so it
-  // actually reflects whether the driver has fallen behind or caught up.
-  // Straight-line distance, same approximation already used for the
-  // driver page's "reached" auto-detection.
-  const etaMins = useMemo(() => {
+  // Straight-line distance from the driver's *current* position to the
+  // dropoff, every poll — same approximation already used for the driver
+  // page's "reached" auto-detection. Kept as its own value (rather than
+  // only feeding etaMins below) so it can be displayed directly.
+  const remainingKm = useMemo(() => {
     if (!hasDriver || toLat == null || toLng == null) return null;
+    return distanceMeters(lastLat as number, lastLng as number, toLat, toLng) / 1000;
+  }, [hasDriver, lastLat, lastLng, toLat, toLng]);
+
+  // Live ETA: re-derives remaining time from remainingKm every poll, using
+  // the planned route's average speed (distance/duration) — not just a
+  // client-side countdown timer, so it actually reflects whether the driver
+  // has fallen behind or caught up.
+  const etaMins = useMemo(() => {
+    if (remainingKm == null) return null;
     if (!routeDistanceKm || !routeDurationMins || routeDistanceKm <= 0 || routeDurationMins <= 0) return null;
     const avgSpeedKmh = routeDistanceKm / (routeDurationMins / 60);
     if (!Number.isFinite(avgSpeedKmh) || avgSpeedKmh <= 0) return null;
-    const remainingKm = distanceMeters(lastLat as number, lastLng as number, toLat, toLng) / 1000;
     return Math.max(0, Math.round((remainingKm / avgSpeedKmh) * 60));
-  }, [hasDriver, lastLat, lastLng, toLat, toLng, routeDistanceKm, routeDurationMins]);
+  }, [remainingKm, routeDistanceKm, routeDurationMins]);
+
+  // Current speed: haversine distance ÷ elapsed time between the two most
+  // recent pings (pings[] is ordered oldest-first, per the fetch query).
+  // Purely client-side from data already fetched for the map — no new
+  // backend field. Noisy at the ~15s client ping interval, same caveat as
+  // remainingKm's straight-line approximation.
+  const currentSpeedKmh = useMemo(() => {
+    if (pings.length < 2) return null;
+    const a = pings[pings.length - 2];
+    const b = pings[pings.length - 1];
+    const dtSec = (new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) / 1000;
+    if (!Number.isFinite(dtSec) || dtSec <= 0) return null;
+    const speedKmh = (distanceMeters(a.lat, a.lng, b.lat, b.lng) / dtSec) * 3.6;
+    return Number.isFinite(speedKmh) && speedKmh >= 0 ? speedKmh : null;
+  }, [pings]);
+
+  const liveStats: { label: string; value: string }[] = [];
+  if (etaMins != null) liveStats.push({ label: 'ETA', value: etaMins <= 0 ? 'Arriving' : `${etaMins} min` });
+  if (remainingKm != null) liveStats.push({ label: 'Remaining', value: `~${remainingKm < 10 ? remainingKm.toFixed(1) : Math.round(remainingKm)} km (straight-line)` });
+  if (currentSpeedKmh != null) liveStats.push({ label: 'Speed', value: `~${Math.round(currentSpeedKmh)} km/h` });
 
   return (
     <div
@@ -150,10 +176,20 @@ export default function TrackingMap({
             <Maximize2 size={16} className="text-gray-700" />
           </button>
         )}
-        {etaMins != null && (
+        {liveStats.length > 0 && (
           <div className="absolute bottom-2 left-2 z-10 bg-white/95 backdrop-blur rounded-xl px-3 py-2 shadow-md border border-gray-200">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">ETA</p>
-            <p className="text-sm font-bold text-gray-900">{etaMins <= 0 ? 'Arriving' : `${etaMins} min`}</p>
+            <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wide flex items-center gap-1 mb-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              Live
+            </p>
+            <div className="flex items-center">
+              {liveStats.map((stat, i) => (
+                <div key={stat.label} className={i > 0 ? 'pl-3 ml-3 border-l border-gray-200' : ''}>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{stat.label}</p>
+                  <p className="text-sm font-bold text-gray-900">{stat.value}</p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
